@@ -137,11 +137,6 @@ async function renderSignupForm() {
     <input type="text" id="f-ownerName">
     <label>Email</label>
     <input type="email" id="f-email">
-    <label>Entry Slot <span style="color:var(--text-dim); font-weight:400; text-transform:none;">(if submitting more than one team)</span></label>
-    <select id="f-boxLabel">
-      <option>Entry 1</option><option>Entry 2</option><option>Entry 3</option>
-    </select>
-
     <div class="picks-count mono" id="picks-count">0 / ${TOTAL_BOXES} picked</div>
 
     ${Object.keys(groupTitles).map(type => `
@@ -212,7 +207,6 @@ async function handleSubmitEntry() {
   const teamName = document.getElementById('f-teamName').value.trim();
   const ownerName = document.getElementById('f-ownerName').value.trim();
   const email = document.getElementById('f-email').value.trim();
-  const boxLabel = document.getElementById('f-boxLabel').value;
   const statusEl = document.getElementById('signup-status');
 
   if (!teamName || !ownerName || !email) {
@@ -231,7 +225,7 @@ async function handleSubmitEntry() {
   statusEl.className = 'status-msg';
 
   const result = await submitEntry({
-    teamName, ownerName, email, boxLabel,
+    teamName, ownerName, email,
     picks: signupPicks
   });
 
