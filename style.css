@@ -208,7 +208,7 @@ button:hover { opacity: 0.85; }
 .box-option-stats {
   color: var(--ice);
   font-size: 12px;
-  min-width: 130px;
+  min-width: 170px;
   text-align: right;
 }
 .box-option-name { flex: 1; }
