@@ -89,7 +89,7 @@ function renderPlayersTable(filter) {
     const q = filter.toLowerCase();
     list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
   }
-  list.sort((a, b) => computePlayerPoints(b.stats) - computePlayerPoints(a.stats));
+  list.sort((a, b) => computePlayerPoints(b, currentConfig) - computePlayerPoints(a, currentConfig));
   list = list.slice(0, 100);
 
   el.innerHTML = `
@@ -103,7 +103,7 @@ function renderPlayersTable(filter) {
             <td>${escapeHtml(p.position || '')}</td>
             <td>${(p.stats && p.stats.goals) || 0}${p.stats && p.stats.hatTricks ? ` <span class="hat-trick">(${p.stats.hatTricks} HT)</span>` : ''}</td>
             <td>${(p.stats && p.stats.assists) || 0}</td>
-            <td class="pts">${computePlayerPoints(p.stats)}</td>
+            <td class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -154,9 +154,10 @@ async function renderSignupForm() {
               const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
               const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
               const s = (fullPlayer && fullPlayer.stats) || {};
+              const pts = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig).toFixed(1) : '0.0';
               const statLine = box.boxType === 'G'
-                ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${s.saves || 0}SV`
-                : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''}`;
+                ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts`
+                : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''} · ${pts}pts`;
               return `
               <label class="box-option">
                 <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
