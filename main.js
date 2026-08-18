@@ -147,6 +147,7 @@ async function renderSignupForm() {
           <div class="box-picker-options">
             ${box.players.map(p => {
               const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
+              const currentTeam = fullPlayer ? fullPlayer.team : p.team;
               const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
               const currentSeasonHasStats = fullPlayer && fullPlayer.stats && Object.values(fullPlayer.stats).some(v => v > 0);
               const s = fullPlayer ? (currentSeasonHasStats ? fullPlayer.stats : (fullPlayer.prevStats || {})) : {};
@@ -167,14 +168,14 @@ async function renderSignupForm() {
                   <div class="player-hover-card">
                     <img class="player-hover-photo" src="${headshot}" alt="">
                     <div class="player-hover-name">${escapeHtml(p.name)}</div>
-                    <div class="player-hover-team mono">${escapeHtml(p.team)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
+                    <div class="player-hover-team mono">${escapeHtml(currentTeam)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
                     <div class="player-hover-stats mono">${cardStats}</div>
                     <div class="player-hover-pts mono">${pts} pts</div>
                   </div>` : ''}
                 </span>
                 <span class="box-option-name">${escapeHtml(p.name)}</span>
                 <span class="mono box-option-stats">${statLine}</span>
-                <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
+                <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
               </label>
             `;}).join('')}
           </div>
