@@ -15,7 +15,7 @@ const SCORING = {
   hatTrick: 5
 };
 
-const BOX_LIMITS = { F: 6, D: 4, G: 2 };
+const TOTAL_BOXES = 24;
 
 async function apiGet(action) {
   const res = await fetch(`${WEBAPP_URL}?action=${action}`);
@@ -29,6 +29,11 @@ async function apiPost(action, payload) {
     body: JSON.stringify(Object.assign({ action }, payload))
   });
   return res.json();
+}
+
+async function fetchBoxes() {
+  const result = await apiGet('boxes');
+  return result.success ? result.data : [];
 }
 
 async function fetchPlayers() {
@@ -55,8 +60,8 @@ async function submitEntry(entry) {
   return apiPost('createEntry', { entry });
 }
 
-async function submitRosterMove(entryId, box, outPlayerId, inPlayerId) {
-  return apiPost('requestRosterMove', { entryId, box, outPlayerId, inPlayerId });
+async function submitRosterMove(entryId, boxId, newPlayerId) {
+  return apiPost('requestRosterMove', { entryId, boxId, newPlayerId });
 }
 
 async function submitApproveEntry(entryId) {
