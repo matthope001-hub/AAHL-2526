@@ -153,15 +153,30 @@ async function renderSignupForm() {
             ${box.players.map(p => {
               const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
               const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
-              const s = (fullPlayer && fullPlayer.stats) || {};
-              const pts = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig).toFixed(1) : '0.0';
+              const currentSeasonHasStats = fullPlayer && fullPlayer.stats && Object.values(fullPlayer.stats).some(v => v > 0);
+              const s = fullPlayer ? (currentSeasonHasStats ? fullPlayer.stats : (fullPlayer.prevStats || {})) : {};
+              const statSourceLabel = currentSeasonHasStats ? '' : ` <span class="stat-source">(25-26)</span>`;
+              const pts = fullPlayer ? computePlayerPoints({ position: fullPlayer.position, stats: s }, currentConfig).toFixed(1) : '0.0';
               const statLine = box.boxType === 'G'
-                ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts`
-                : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''} · ${pts}pts`;
+                ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts${statSourceLabel}`
+                : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''} · ${pts}pts${statSourceLabel}`;
+              const cardStats = box.boxType === 'G'
+                ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0} SO &middot; ${s.saves || 0} SV`
+                : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks} HT` : ''}`;
               return `
               <label class="box-option">
                 <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
-                ${headshot ? `<img class="box-option-photo" src="${headshot}" alt="" loading="lazy">` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                <span class="box-option-photo-wrap">
+                  ${headshot ? `<img class="box-option-photo" src="${headshot}" alt="" loading="lazy">` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                  ${headshot ? `
+                  <div class="player-hover-card">
+                    <img class="player-hover-photo" src="${headshot}" alt="">
+                    <div class="player-hover-name">${escapeHtml(p.name)}</div>
+                    <div class="player-hover-team mono">${escapeHtml(p.team)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
+                    <div class="player-hover-stats mono">${cardStats}</div>
+                    <div class="player-hover-pts mono">${pts} pts</div>
+                  </div>` : ''}
+                </span>
                 <span class="box-option-name">${escapeHtml(p.name)}</span>
                 <span class="mono box-option-stats">${statLine}</span>
                 <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
