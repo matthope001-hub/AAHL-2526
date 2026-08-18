@@ -114,14 +114,22 @@ document.getElementById('player-search').addEventListener('input', (e) => {
 });
 
 // ---------- Signup ----------
-const POSITION_MAP = { F: ['C', 'L', 'R'], D: ['D'], G: ['G'] };
-const BOX_TITLES = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+let allBoxes = [];
+let signupPicks = {}; // { boxId: playerId }
 
-let signupPicks = { F: [], D: [], G: [] };
-
-function renderSignupForm() {
-  signupPicks = { F: [], D: [], G: [] };
+async function renderSignupForm() {
+  signupPicks = {};
   const el = document.getElementById('signup-form');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading boxes...</p>`;
+
+  if (allBoxes.length === 0) {
+    allBoxes = await fetchBoxes();
+  }
+
+  const grouped = { F: [], D: [], G: [] };
+  allBoxes.forEach(b => grouped[b.boxType].push(b));
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+
   el.innerHTML = `
     <label>Team Name</label>
     <input type="text" id="f-teamName">
@@ -134,91 +142,45 @@ function renderSignupForm() {
       <option>Box A</option><option>Box B</option><option>Box C</option>
     </select>
 
-    ${Object.keys(BOX_LIMITS).map(box => `
-      <div class="picker-section">
-        <label style="margin-top:24px;">${BOX_TITLES[box]} <span class="mono picker-count" id="count-${box}">0 / ${BOX_LIMITS[box]}</span></label>
-        <input type="text" class="search-input mono picker-search" id="search-${box}" placeholder="Search ${BOX_TITLES[box].toLowerCase()}...">
-        <div class="picker-results" id="results-${box}"></div>
-        <div class="picker-chips" id="chips-${box}"></div>
-      </div>
+    <div class="picks-count mono" id="picks-count">0 / ${TOTAL_BOXES} picked</div>
+
+    ${Object.keys(groupTitles).map(type => `
+      <h3 class="group-title">${groupTitles[type]}</h3>
+      ${grouped[type].map(box => `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
+          <div class="box-picker-options">
+            ${box.players.map(p => `
+              <label class="box-option">
+                <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
+                <span class="box-option-name">${escapeHtml(p.name)}</span>
+                <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
     `).join('')}
 
     <button id="submit-entry-btn">Submit Entry</button>
     <div id="signup-status" class="status-msg"></div>
   `;
 
-  Object.keys(BOX_LIMITS).forEach(box => {
-    document.getElementById(`search-${box}`).addEventListener('input', (e) => {
-      renderPickerResults(box, e.target.value);
+  el.querySelectorAll('input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      signupPicks[radio.dataset.box] = radio.value;
+      updatePicksCount();
     });
-    renderPickerChips(box);
   });
 
   document.getElementById('submit-entry-btn').addEventListener('click', handleSubmitEntry);
 }
 
-function renderPickerResults(box, query) {
-  const resultsEl = document.getElementById(`results-${box}`);
-  if (!query || query.trim().length < 2) {
-    resultsEl.innerHTML = '';
-    return;
-  }
-  const q = query.toLowerCase();
-  const positions = POSITION_MAP[box];
-  const matches = allPlayers
-    .filter(p => positions.includes(p.position))
-    .filter(p => (p.fullName || '').toLowerCase().includes(q))
-    .filter(p => !signupPicks[box].includes(p.id))
-    .slice(0, 8);
-
-  if (matches.length === 0) {
-    resultsEl.innerHTML = `<div class="picker-empty mono">No matches.</div>`;
-    return;
-  }
-
-  resultsEl.innerHTML = matches.map(p => `
-    <div class="picker-row" data-player-id="${p.id}" data-box="${box}">
-      <span>${escapeHtml(p.fullName)}</span>
-      <span class="mono picker-meta">${escapeHtml(p.team || '')} · ${escapeHtml(p.position || '')}</span>
-    </div>
-  `).join('');
-
-  resultsEl.querySelectorAll('.picker-row').forEach(row => {
-    row.addEventListener('click', () => {
-      addPick(row.dataset.box, row.dataset.playerId);
-    });
-  });
-}
-
-function addPick(box, playerId) {
-  if (signupPicks[box].length >= BOX_LIMITS[box]) return;
-  if (signupPicks[box].includes(playerId)) return;
-  signupPicks[box].push(playerId);
-  document.getElementById(`search-${box}`).value = '';
-  document.getElementById(`results-${box}`).innerHTML = '';
-  renderPickerChips(box);
-}
-
-function removePick(box, playerId) {
-  signupPicks[box] = signupPicks[box].filter(id => id !== playerId);
-  renderPickerChips(box);
-}
-
-function renderPickerChips(box) {
-  const chipsEl = document.getElementById(`chips-${box}`);
-  const countEl = document.getElementById(`count-${box}`);
-  countEl.textContent = `${signupPicks[box].length} / ${BOX_LIMITS[box]}`;
-  countEl.style.color = signupPicks[box].length === BOX_LIMITS[box] ? 'var(--ice)' : 'var(--text-dim)';
-
-  chipsEl.innerHTML = signupPicks[box].map(id => {
-    const player = allPlayers.find(p => p.id === id);
-    const name = player ? player.fullName : id;
-    return `<span class="chip">${escapeHtml(name)} <span class="chip-remove" data-box="${box}" data-id="${id}">&times;</span></span>`;
-  }).join('');
-
-  chipsEl.querySelectorAll('.chip-remove').forEach(btn => {
-    btn.addEventListener('click', () => removePick(btn.dataset.box, btn.dataset.id));
-  });
+function updatePicksCount() {
+  const countEl = document.getElementById('picks-count');
+  const count = Object.keys(signupPicks).length;
+  countEl.textContent = `${count} / ${TOTAL_BOXES} picked`;
+  countEl.style.color = count === TOTAL_BOXES ? 'var(--ice)' : 'var(--text-dim)';
 }
 
 async function handleSubmitEntry() {
@@ -234,12 +196,10 @@ async function handleSubmitEntry() {
     return;
   }
 
-  for (const box of Object.keys(BOX_LIMITS)) {
-    if (signupPicks[box].length !== BOX_LIMITS[box]) {
-      statusEl.textContent = `${BOX_TITLES[box]}: need exactly ${BOX_LIMITS[box]}, have ${signupPicks[box].length}.`;
-      statusEl.className = 'status-msg error';
-      return;
-    }
+  if (Object.keys(signupPicks).length !== TOTAL_BOXES) {
+    statusEl.textContent = `Pick a player in every box (${Object.keys(signupPicks).length} / ${TOTAL_BOXES} done).`;
+    statusEl.className = 'status-msg error';
+    return;
   }
 
   statusEl.textContent = 'Submitting...';
