@@ -245,6 +245,21 @@ button:hover { opacity: 0.85; }
 .box-option-name { flex: 1; }
 .box-option-meta { color: var(--text-dim); }
 
+.admin-btn {
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  margin: 0 4px 0 0;
+  cursor: pointer;
+}
+.admin-btn:hover { border-color: var(--ice); }
+.admin-delete:hover { border-color: #ff5c5c; color: #ff5c5c; }
+
 .status-msg { margin-top: 12px; font-family: var(--font-mono); font-size: 14px; }
 .status-msg.error { color: #ff5c5c; }
 .status-msg.success { color: var(--ice); }
