@@ -21,6 +21,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'standings') renderStandingsTable();
     if (view === 'players') renderPlayersTable();
     if (view === 'scoring') renderScoringSummary();
+    if (view === 'ir') renderIRPanel();
     if (view === 'signup') renderSignupForm();
     if (view === 'admin') renderAdminPanel();
   });
@@ -297,20 +298,124 @@ async function handleSubmitEntry() {
   }
 }
 
-// ---------- Admin ----------
-async function renderAdminPanel() {
-  const el = document.getElementById('admin-panel');
+// ---------- IR List (public) ----------
+async function renderIRPanel() {
+  const el = document.getElementById('ir-panel');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
   const irList = await fetchIRList();
+
+  if (irList.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No players currently on IR.</p>`;
+    return;
+  }
+
   el.innerHTML = `
-    <h3 style="margin-bottom:12px; font-size:20px;">IR List (${irList.length})</h3>
     <table>
-      <thead><tr><th>Player ID</th><th>Note</th><th>Flagged</th></tr></thead>
+      <thead><tr><th>Player</th><th>Note</th><th>Flagged</th></tr></thead>
       <tbody>
-        ${irList.map(p => `<tr><td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.note || '')}</td><td class="mono">${escapeHtml(p.flaggedAt || '')}</td></tr>`).join('')}
+        ${irList.map(p => `<tr><td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.note || '')}</td><td class="mono">${escapeHtml((p.flaggedAt || '').slice(0,10))}</td></tr>`).join('')}
       </tbody>
     </table>
   `;
+}
+
+// ---------- Admin (password gated) ----------
+let adminPassword = null;
+
+function renderAdminPanel() {
+  const el = document.getElementById('admin-panel');
+
+  if (!adminPassword) {
+    el.innerHTML = `
+      <label>Admin Password</label>
+      <input type="text" id="admin-pw-input" style="max-width:300px;">
+      <button id="admin-login-btn">Log In</button>
+      <div id="admin-login-status" class="status-msg"></div>
+    `;
+    document.getElementById('admin-login-btn').addEventListener('click', async () => {
+      const pw = document.getElementById('admin-pw-input').value;
+      const statusEl = document.getElementById('admin-login-status');
+      statusEl.textContent = 'Checking...';
+      statusEl.className = 'status-msg';
+
+      const result = await adminGetEntries(pw);
+      if (result.success) {
+        adminPassword = pw;
+        renderAdminEntries(result.data);
+      } else {
+        statusEl.textContent = result.error || 'Invalid password';
+        statusEl.className = 'status-msg error';
+      }
+    });
+    return;
+  }
+
+  loadAdminEntries();
+}
+
+async function loadAdminEntries() {
+  const el = document.getElementById('admin-panel');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading entries...</p>`;
+  const result = await adminGetEntries(adminPassword);
+  if (!result.success) {
+    adminPassword = null;
+    renderAdminPanel();
+    return;
+  }
+  renderAdminEntries(result.data);
+}
+
+function renderAdminEntries(entries) {
+  const el = document.getElementById('admin-panel');
+
+  if (entries.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${entries.map(e => `
+          <tr data-entry-id="${e.id}">
+            <td>${escapeHtml(e.teamName)}</td>
+            <td>${escapeHtml(e.ownerName)}</td>
+            <td class="mono">${escapeHtml(e.email)}</td>
+            <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
+            <td>
+              ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
+              <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
+              <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+
+  el.querySelectorAll('.admin-approve').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await adminApproveEntry(adminPassword, btn.dataset.id);
+      loadAdminEntries();
+    });
+  });
+
+  el.querySelectorAll('.admin-delete').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this entry permanently?')) return;
+      await adminRejectEntry(adminPassword, btn.dataset.id);
+      loadAdminEntries();
+    });
+  });
+
+  el.querySelectorAll('.admin-rename').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const newName = prompt('New team name:');
+      if (!newName) return;
+      await adminUpdateEntry(adminPassword, btn.dataset.id, { teamName: newName });
+      loadAdminEntries();
+    });
+  });
 }
 
 // ---------- Utility ----------
