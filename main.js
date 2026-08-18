@@ -240,9 +240,18 @@ function renderScoringSummary() {
 // ---------- Signup ----------
 let allBoxes = [];
 let signupPicks = {}; // { boxId: playerId }
+let divisionPicks = {}; // { division: teamAbbrev }
+
+const DIVISION_TEAMS = {
+  Atlantic: [['BOS','Boston Bruins'],['BUF','Buffalo Sabres'],['DET','Detroit Red Wings'],['FLA','Florida Panthers'],['MTL','Montreal Canadiens'],['OTT','Ottawa Senators'],['TBL','Tampa Bay Lightning'],['TOR','Toronto Maple Leafs']],
+  Metropolitan: [['CAR','Carolina Hurricanes'],['CBJ','Columbus Blue Jackets'],['NJD','New Jersey Devils'],['NYI','New York Islanders'],['NYR','New York Rangers'],['PHI','Philadelphia Flyers'],['PIT','Pittsburgh Penguins'],['WSH','Washington Capitals']],
+  Central: [['CHI','Chicago Blackhawks'],['COL','Colorado Avalanche'],['DAL','Dallas Stars'],['MIN','Minnesota Wild'],['NSH','Nashville Predators'],['STL','St. Louis Blues'],['UTA','Utah Mammoth'],['WPG','Winnipeg Jets']],
+  Pacific: [['ANA','Anaheim Ducks'],['CGY','Calgary Flames'],['EDM','Edmonton Oilers'],['LAK','Los Angeles Kings'],['SJS','San Jose Sharks'],['SEA','Seattle Kraken'],['VAN','Vancouver Canucks'],['VGK','Vegas Golden Knights']]
+};
 
 async function renderSignupForm() {
   signupPicks = {};
+  divisionPicks = {};
   const el = document.getElementById('signup-form');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading boxes...</p>`;
 
@@ -309,14 +318,38 @@ async function renderSignupForm() {
       </div>
     `).join('')}
 
+    <h3 class="group-title">Division Winner Picks <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+10 pts bonus each, awarded at season end)</span></h3>
+    <div class="box-grid">
+      ${DIVISIONS.map(division => `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(division)}</div>
+          <div class="box-picker-options">
+            ${DIVISION_TEAMS[division].map(([abbrev, fullName]) => `
+              <label class="box-option">
+                <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}">
+                <span class="box-option-name">${escapeHtml(fullName)}</span>
+                <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
     <button id="submit-entry-btn">Submit Entry</button>
     <div id="signup-status" class="status-msg"></div>
   `;
 
-  el.querySelectorAll('input[type="radio"]').forEach(radio => {
+  el.querySelectorAll('input[type="radio"][name^="box-"]').forEach(radio => {
     radio.addEventListener('change', () => {
       signupPicks[radio.dataset.box] = radio.value;
       updatePicksCount();
+    });
+  });
+
+  el.querySelectorAll('input[type="radio"][name^="division-"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      divisionPicks[radio.dataset.division] = radio.value;
     });
   });
 
@@ -348,12 +381,21 @@ async function handleSubmitEntry() {
     return;
   }
 
+  for (const division of DIVISIONS) {
+    if (!divisionPicks[division]) {
+      statusEl.textContent = `Pick a division winner for ${division}.`;
+      statusEl.className = 'status-msg error';
+      return;
+    }
+  }
+
   statusEl.textContent = 'Submitting...';
   statusEl.className = 'status-msg';
 
   const result = await submitEntry({
     teamName, ownerName, email,
-    picks: signupPicks
+    picks: signupPicks,
+    divisionPicks: divisionPicks
   });
 
   if (result.success) {
