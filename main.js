@@ -199,53 +199,39 @@ function renderScoringSummary() {
   const el = document.getElementById('scoring-summary');
   const c = currentConfig;
 
+  const rows = [
+    { section: 'Forwards & Defense' },
+    { label: 'Goal', value: `${c.goalPtsF ?? 1}` },
+    { label: 'Assist', value: `${c.assistPtsF ?? 1}` },
+    { label: 'Shot on Goal', value: `${c.sogPtsF ?? 0.11}` },
+    { label: 'Hat Trick bonus', value: `+${c.hatTrickBonus ?? 3}`, hat: true },
+    { label: 'PIM / min (D only)', value: `${c.pimPtsD ?? 0.25}` },
+    { section: 'Goalies' },
+    { label: 'Win', value: `${c.winPtsG ?? 3}` },
+    { label: 'Loss', value: `${c.lossPtsG ?? 1}` },
+    { label: 'OT Loss', value: `${c.otlPtsG ?? 1.5}` },
+    { label: 'Shutout', value: `${c.shutoutPtsG ?? 2}` },
+    { label: 'Save', value: `${c.savePtsG ?? 0.02}` },
+    { section: 'Bonuses & Payout' },
+    { label: 'Division winner (season end)', value: `+${'10'}` },
+    { label: 'Payout — 1st place', value: `${((c.payout1st ?? 0.5) * 100).toFixed(0)}%` },
+    { label: 'Payout — 2nd place', value: `${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%` },
+    { label: 'Payout — 3rd place', value: `${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%` },
+    { section: 'Season' },
+    { label: 'Entry Fee', value: `$${c.entryFee ?? 10}` },
+    { label: 'Picks Lock', value: formatDeadline(c.deadline), wide: true }
+  ];
+
   el.innerHTML = `
     <p style="color:var(--text-dim); margin-bottom:20px;">
-      24-box pick'em — 16 Forward boxes, 5 Defense boxes, 3 Goalie boxes. Pick one player per box.
-      Points accrue from your picks' real NHL stats all season.
+      24-box pick'em — 16 Forward boxes, 5 Defense boxes, 3 Goalie boxes. One pick per box, scored on real NHL stats all season.
     </p>
-
-    <h3 class="group-title" style="margin-top:0;">Forwards</h3>
-    <table>
+    <table class="scoring-table">
       <tbody>
-        <tr><td>Goal</td><td class="pts">${c.goalPtsF ?? 1} pt</td></tr>
-        <tr><td>Assist</td><td class="pts">${c.assistPtsF ?? 1} pt</td></tr>
-        <tr><td>Shot on goal</td><td class="pts">${c.sogPtsF ?? 0.11} pt</td></tr>
-        <tr><td class="hat-trick">Hat trick bonus</td><td class="pts hat-trick">+${c.hatTrickBonus ?? 3} pts</td></tr>
-      </tbody>
-    </table>
-
-    <h3 class="group-title">Defense</h3>
-    <table>
-      <tbody>
-        <tr><td>Goal</td><td class="pts">${c.goalPtsD ?? 1} pt</td></tr>
-        <tr><td>Assist</td><td class="pts">${c.assistPtsD ?? 1} pt</td></tr>
-        <tr><td>Shot on goal</td><td class="pts">${c.sogPtsD ?? 0.11} pt</td></tr>
-        <tr><td>Penalty minute</td><td class="pts">${c.pimPtsD ?? 0.25} pt</td></tr>
-        <tr><td class="hat-trick">Hat trick bonus</td><td class="pts hat-trick">+${c.hatTrickBonus ?? 3} pts</td></tr>
-      </tbody>
-    </table>
-
-    <h3 class="group-title">Goalies</h3>
-    <table>
-      <tbody>
-        <tr><td>Win</td><td class="pts">${c.winPtsG ?? 3} pts</td></tr>
-        <tr><td>Loss</td><td class="pts">${c.lossPtsG ?? 1} pt</td></tr>
-        <tr><td>OT loss</td><td class="pts">${c.otlPtsG ?? 1.5} pts</td></tr>
-        <tr><td>Shutout</td><td class="pts">${c.shutoutPtsG ?? 2} pts</td></tr>
-        <tr><td>Save</td><td class="pts">${c.savePtsG ?? 0.02} pt</td></tr>
-      </tbody>
-    </table>
-
-    <h3 class="group-title">Season</h3>
-    <table>
-      <tbody>
-        <tr><td>Entry fee</td><td class="pts">$${c.entryFee ?? 10}</td></tr>
-        <tr><td>Season</td><td class="pts">${c.seasonYear || ''}</td></tr>
-        <tr><td>Picks lock</td><td class="pts">${formatDeadline(c.deadline)}</td></tr>
-        <tr><td>Payout — 1st</td><td class="pts">${((c.payout1st ?? 0.5) * 100).toFixed(0)}%</td></tr>
-        <tr><td>Payout — 2nd</td><td class="pts">${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%</td></tr>
-        <tr><td>Payout — 3rd</td><td class="pts">${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%</td></tr>
+        ${rows.map(r => r.section
+          ? `<tr class="scoring-section-row"><td colspan="2">${escapeHtml(r.section)}</td></tr>`
+          : `<tr><td>${escapeHtml(r.label)}</td><td class="pts scoring-value ${r.hat ? 'hat-trick' : ''}">${r.wide ? escapeHtml(r.value) : escapeHtml(r.value)}</td></tr>`
+        ).join('')}
       </tbody>
     </table>
   `;
