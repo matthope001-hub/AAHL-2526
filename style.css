@@ -378,6 +378,14 @@ button:hover { opacity: 0.85; }
   width: 90px;
 }
 
+.ir-badge {
+  color: #ff5c5c;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .hat-trick { color: var(--amber); font-weight: 700; }
 
 .site-footer {
