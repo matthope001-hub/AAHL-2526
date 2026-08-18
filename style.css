@@ -281,6 +281,13 @@ button:hover { opacity: 0.85; }
   vertical-align: middle;
   margin: 0 6px;
 }
+.brand-mascot {
+  animation: mascot-bounce 1.8s ease-in-out infinite;
+}
+@keyframes mascot-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(-4deg); }
+}
 .brand { display: inline-flex; align-items: center; }
 
 .hero-stats-row { display: flex; gap: 16px; margin-top: 20px; }
