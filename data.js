@@ -45,7 +45,7 @@ async function fetchPlayers() {
 
 async function fetchStandings() {
   const result = await apiGet('standings');
-  return result.success && result.data ? result.data.entries : [];
+  return (result.success && result.data && result.data.entries) || [];
 }
 
 async function fetchConfig() {
