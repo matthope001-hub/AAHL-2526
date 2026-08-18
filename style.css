@@ -328,32 +328,44 @@ button:hover { opacity: 0.85; }
   .hero-stats-row { flex-wrap: wrap; }
 }
 
+.scoring-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .scoring-grid { grid-template-columns: 1fr; }
+}
+
+.scoring-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+.scoring-card-title {
+  background: var(--bg-panel-alt);
+  padding: 8px 12px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ice);
+  border-bottom: 1px solid var(--border);
+}
 .scoring-table {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 13px;
 }
 .scoring-table td {
-  padding: 10px 12px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--bg-panel-alt);
 }
-.scoring-table td:first-child { color: var(--text); }
-.scoring-section-row td {
-  padding-top: 20px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--ice);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 15px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--ice);
-}
-.scoring-table tr:first-child.scoring-section-row td { padding-top: 0; }
+.scoring-table tr:last-child td { border-bottom: none; }
 .scoring-value {
   text-align: right;
-  width: 120px;
+  width: 90px;
 }
 
 .hat-trick { color: var(--amber); font-weight: 700; }
