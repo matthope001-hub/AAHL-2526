@@ -23,6 +23,16 @@ async function apiPost(action, payload) {
   return res.json();
 }
 
+async function fetchStarsOfNight() {
+  const result = await apiGet('starsOfNight');
+  return result.success ? result.data : null;
+}
+
+async function fetchRecentActivity() {
+  const result = await apiGet('recentActivity');
+  return result.success ? result.data : [];
+}
+
 async function fetchBoxes() {
   const result = await apiGet('boxes');
   return result.success ? result.data : [];
