@@ -153,11 +153,16 @@ async function renderSignupForm() {
             ${box.players.map(p => {
               const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
               const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+              const s = (fullPlayer && fullPlayer.stats) || {};
+              const statLine = box.boxType === 'G'
+                ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${s.saves || 0}SV`
+                : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''}`;
               return `
               <label class="box-option">
                 <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
                 ${headshot ? `<img class="box-option-photo" src="${headshot}" alt="" loading="lazy">` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                 <span class="box-option-name">${escapeHtml(p.name)}</span>
+                <span class="mono box-option-stats">${statLine}</span>
                 <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
               </label>
             `;}).join('')}
