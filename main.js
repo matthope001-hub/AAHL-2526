@@ -199,41 +199,51 @@ function renderScoringSummary() {
   const el = document.getElementById('scoring-summary');
   const c = currentConfig;
 
-  const rows = [
-    { section: 'Forwards & Defense' },
-    { label: 'Goal', value: `${c.goalPtsF ?? 1}` },
-    { label: 'Assist', value: `${c.assistPtsF ?? 1}` },
-    { label: 'Shot on Goal', value: `${c.sogPtsF ?? 0.11}` },
-    { label: 'Hat Trick bonus', value: `+${c.hatTrickBonus ?? 3}`, hat: true },
-    { label: 'PIM / min (D only)', value: `${c.pimPtsD ?? 0.25}` },
-    { section: 'Goalies' },
-    { label: 'Win', value: `${c.winPtsG ?? 3}` },
-    { label: 'Loss', value: `${c.lossPtsG ?? 1}` },
-    { label: 'OT Loss', value: `${c.otlPtsG ?? 1.5}` },
-    { label: 'Shutout', value: `${c.shutoutPtsG ?? 2}` },
-    { label: 'Save', value: `${c.savePtsG ?? 0.02}` },
-    { section: 'Bonuses & Payout' },
-    { label: 'Division winner (season end)', value: `+${'10'}` },
-    { label: 'Payout — 1st place', value: `${((c.payout1st ?? 0.5) * 100).toFixed(0)}%` },
-    { label: 'Payout — 2nd place', value: `${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%` },
-    { label: 'Payout — 3rd place', value: `${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%` },
-    { section: 'Season' },
-    { label: 'Entry Fee', value: `$${c.entryFee ?? 10}` },
-    { label: 'Picks Lock', value: formatDeadline(c.deadline), wide: true }
+  const cards = [
+    { title: 'Forwards & Defense', rows: [
+      ['Goal', c.goalPtsF ?? 1],
+      ['Assist', c.assistPtsF ?? 1],
+      ['Shot on Goal', c.sogPtsF ?? 0.11],
+      ['PIM / min (D only)', c.pimPtsD ?? 0.25],
+      ['Hat Trick bonus', `+${c.hatTrickBonus ?? 3}`, true]
+    ]},
+    { title: 'Goalies', rows: [
+      ['Win', c.winPtsG ?? 3],
+      ['Loss', c.lossPtsG ?? 1],
+      ['OT Loss', c.otlPtsG ?? 1.5],
+      ['Shutout', c.shutoutPtsG ?? 2],
+      ['Save', c.savePtsG ?? 0.02]
+    ]},
+    { title: 'Bonuses & Payout', rows: [
+      ['Division winner', '+10', true],
+      ['Payout — 1st', `${((c.payout1st ?? 0.5) * 100).toFixed(0)}%`],
+      ['Payout — 2nd', `${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%`],
+      ['Payout — 3rd', `${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%`]
+    ]},
+    { title: 'Season', rows: [
+      ['Entry Fee', `$${c.entryFee ?? 10}`],
+      ['Picks Lock', formatDeadline(c.deadline)]
+    ]}
   ];
 
   el.innerHTML = `
-    <p style="color:var(--text-dim); margin-bottom:20px;">
-      24-box pick'em — 16 Forward boxes, 5 Defense boxes, 3 Goalie boxes. One pick per box, scored on real NHL stats all season.
+    <p style="color:var(--text-dim); margin-bottom:16px; font-size:14px;">
+      24-box pick'em — 16 Forward, 5 Defense, 3 Goalie boxes. One pick per box, scored on real NHL stats.
     </p>
-    <table class="scoring-table">
-      <tbody>
-        ${rows.map(r => r.section
-          ? `<tr class="scoring-section-row"><td colspan="2">${escapeHtml(r.section)}</td></tr>`
-          : `<tr><td>${escapeHtml(r.label)}</td><td class="pts scoring-value ${r.hat ? 'hat-trick' : ''}">${r.wide ? escapeHtml(r.value) : escapeHtml(r.value)}</td></tr>`
-        ).join('')}
-      </tbody>
-    </table>
+    <div class="scoring-grid">
+      ${cards.map(card => `
+        <div class="scoring-card">
+          <div class="scoring-card-title">${escapeHtml(card.title)}</div>
+          <table class="scoring-table">
+            <tbody>
+              ${card.rows.map(([label, value, hat]) => `
+                <tr><td>${escapeHtml(label)}</td><td class="pts scoring-value ${hat ? 'hat-trick' : ''}">${escapeHtml(String(value))}</td></tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `).join('')}
+    </div>
   `;
 }
 
