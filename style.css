@@ -316,6 +316,34 @@ button:hover { opacity: 0.85; }
   .hero-stats-row { flex-wrap: wrap; }
 }
 
+.scoring-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+.scoring-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--bg-panel-alt);
+}
+.scoring-table td:first-child { color: var(--text); }
+.scoring-section-row td {
+  padding-top: 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ice);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ice);
+}
+.scoring-table tr:first-child.scoring-section-row td { padding-top: 0; }
+.scoring-value {
+  text-align: right;
+  width: 120px;
+}
+
 .hat-trick { color: var(--amber); font-weight: 700; }
 
 .site-footer {
