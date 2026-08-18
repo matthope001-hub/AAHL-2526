@@ -137,9 +137,9 @@ async function renderSignupForm() {
     <input type="text" id="f-ownerName">
     <label>Email</label>
     <input type="email" id="f-email">
-    <label>Box</label>
+    <label>Entry Slot <span style="color:var(--text-dim); font-weight:400; text-transform:none;">(if submitting more than one team)</span></label>
     <select id="f-boxLabel">
-      <option>Box A</option><option>Box B</option><option>Box C</option>
+      <option>Entry 1</option><option>Entry 2</option><option>Entry 3</option>
     </select>
 
     <div class="picks-count mono" id="picks-count">0 / ${TOTAL_BOXES} picked</div>
@@ -150,13 +150,17 @@ async function renderSignupForm() {
         <div class="box-picker">
           <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
           <div class="box-picker-options">
-            ${box.players.map(p => `
+            ${box.players.map(p => {
+              const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
+              const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+              return `
               <label class="box-option">
                 <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
+                ${headshot ? `<img class="box-option-photo" src="${headshot}" alt="" loading="lazy">` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                 <span class="box-option-name">${escapeHtml(p.name)}</span>
                 <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
               </label>
-            `).join('')}
+            `;}).join('')}
           </div>
         </div>
       `).join('')}
