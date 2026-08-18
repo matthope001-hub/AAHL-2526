@@ -20,6 +20,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
     if (view === 'standings') renderStandingsTable();
     if (view === 'players') renderPlayersTable();
+    if (view === 'scoring') renderScoringSummary();
     if (view === 'signup') renderSignupForm();
     if (view === 'admin') renderAdminPanel();
   });
@@ -112,6 +113,63 @@ function renderPlayersTable(filter) {
 document.getElementById('player-search').addEventListener('input', (e) => {
   renderPlayersTable(e.target.value);
 });
+
+// ---------- Scoring ----------
+function renderScoringSummary() {
+  const el = document.getElementById('scoring-summary');
+  const c = currentConfig;
+
+  el.innerHTML = `
+    <p style="color:var(--text-dim); margin-bottom:20px;">
+      24-box pick'em — 16 Forward boxes, 5 Defense boxes, 3 Goalie boxes. Pick one player per box.
+      Points accrue from your picks' real NHL stats all season.
+    </p>
+
+    <h3 class="group-title" style="margin-top:0;">Forwards</h3>
+    <table>
+      <tbody>
+        <tr><td>Goal</td><td class="pts">${c.goalPtsF ?? 1} pt</td></tr>
+        <tr><td>Assist</td><td class="pts">${c.assistPtsF ?? 1} pt</td></tr>
+        <tr><td>Shot on goal</td><td class="pts">${c.sogPtsF ?? 0.11} pt</td></tr>
+        <tr><td class="hat-trick">Hat trick bonus</td><td class="pts hat-trick">+${c.hatTrickBonus ?? 3} pts</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="group-title">Defense</h3>
+    <table>
+      <tbody>
+        <tr><td>Goal</td><td class="pts">${c.goalPtsD ?? 1} pt</td></tr>
+        <tr><td>Assist</td><td class="pts">${c.assistPtsD ?? 1} pt</td></tr>
+        <tr><td>Shot on goal</td><td class="pts">${c.sogPtsD ?? 0.11} pt</td></tr>
+        <tr><td>Penalty minute</td><td class="pts">${c.pimPtsD ?? 0.25} pt</td></tr>
+        <tr><td class="hat-trick">Hat trick bonus</td><td class="pts hat-trick">+${c.hatTrickBonus ?? 3} pts</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="group-title">Goalies</h3>
+    <table>
+      <tbody>
+        <tr><td>Win</td><td class="pts">${c.winPtsG ?? 3} pts</td></tr>
+        <tr><td>Loss</td><td class="pts">${c.lossPtsG ?? 1} pt</td></tr>
+        <tr><td>OT loss</td><td class="pts">${c.otlPtsG ?? 1.5} pts</td></tr>
+        <tr><td>Shutout</td><td class="pts">${c.shutoutPtsG ?? 2} pts</td></tr>
+        <tr><td>Save</td><td class="pts">${c.savePtsG ?? 0.02} pt</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="group-title">Season</h3>
+    <table>
+      <tbody>
+        <tr><td>Entry fee</td><td class="pts">$${c.entryFee ?? 10}</td></tr>
+        <tr><td>Season</td><td class="pts">${c.seasonYear || ''}</td></tr>
+        <tr><td>Picks lock</td><td class="pts">${formatDeadline(c.deadline)}</td></tr>
+        <tr><td>Payout — 1st</td><td class="pts">${((c.payout1st ?? 0.5) * 100).toFixed(0)}%</td></tr>
+        <tr><td>Payout — 2nd</td><td class="pts">${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%</td></tr>
+        <tr><td>Payout — 3rd</td><td class="pts">${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%</td></tr>
+      </tbody>
+    </table>
+  `;
+}
 
 // ---------- Signup ----------
 let allBoxes = [];
