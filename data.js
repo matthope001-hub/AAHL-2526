@@ -7,14 +7,6 @@
 
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzJA2dDY7N2IY9xrwMpr-XYybw2Z8ZWybXTH8Sm7eYn1tR1qBaEAzc8N9Vp2jmM_bYVdA/exec';
 
-const SCORING = {
-  goal: 3,
-  assist: 2,
-  win: 3,
-  shutout: 2,
-  hatTrick: 5
-};
-
 const TOTAL_BOXES = 24;
 
 async function apiGet(action) {
@@ -80,14 +72,32 @@ async function submitClearIR(playerId) {
   return apiPost('clearPlayerIR', { playerId });
 }
 
-function computePlayerPoints(stats) {
-  if (!stats) return 0;
-  let pts = 0;
-  pts += (stats.goals || 0) * SCORING.goal;
-  pts += (stats.assists || 0) * SCORING.assist;
-  pts += (stats.wins || 0) * SCORING.win;
-  pts += (stats.shutouts || 0) * SCORING.shutout;
-  pts += (stats.hatTricks || 0) * SCORING.hatTrick;
+function computePlayerPoints(player, config) {
+  if (!player || !player.stats) return 0;
+  const s = player.stats;
+  const cfg = config || {};
+  const posGroup = (player.position === 'D') ? 'D' : (player.position === 'G' ? 'G' : 'F');
+
+  if (posGroup === 'G') {
+    return (s.wins || 0) * (cfg.winPtsG ?? 3)
+      + (s.losses || 0) * (cfg.lossPtsG ?? 1)
+      + (s.otl || 0) * (cfg.otlPtsG ?? 1.5)
+      + (s.shutouts || 0) * (cfg.shutoutPtsG ?? 2)
+      + (s.saves || 0) * (cfg.savePtsG ?? 0.02);
+  }
+
+  let pts;
+  if (posGroup === 'D') {
+    pts = (s.goals || 0) * (cfg.goalPtsD ?? 1)
+      + (s.assists || 0) * (cfg.assistPtsD ?? 1)
+      + (s.sog || 0) * (cfg.sogPtsD ?? 0.11)
+      + (s.pim || 0) * (cfg.pimPtsD ?? 0.25);
+  } else {
+    pts = (s.goals || 0) * (cfg.goalPtsF ?? 1)
+      + (s.assists || 0) * (cfg.assistPtsF ?? 1)
+      + (s.sog || 0) * (cfg.sogPtsF ?? 0.11);
+  }
+  pts += (s.hatTricks || 0) * (cfg.hatTrickBonus ?? 3);
   return pts;
 }
 
