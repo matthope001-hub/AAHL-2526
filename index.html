@@ -12,7 +12,11 @@
 
 <header class="site-header">
   <div class="header-inner">
-    <span class="brand">AAHL <span class="brand-year">26<span class="accent">/</span>27</span></span>
+    <span class="brand">
+      <img src="aahl-logo.png" alt="" class="brand-logo" onerror="this.style.display='none'">
+      AAHL <span class="brand-year">26<span class="accent">/</span>27</span>
+      <img src="alpaca-pixel.png" alt="" class="brand-mascot" onerror="this.style.display='none'">
+    </span>
     <nav class="main-nav">
       <a href="#" data-view="home" class="nav-link active">Home</a>
       <a href="#" data-view="standings" class="nav-link">Standings</a>
@@ -34,9 +38,24 @@
         <span id="deadline-display" class="hero-value mono">—</span>
       </div>
       <h1 class="hero-title">Angry Alpaca<br>Hockey League</h1>
-      <p class="hero-sub">24-box pick'em. 6F / 4D / 2G. Winner take glory.</p>
+      <p class="hero-sub">24-box pick'em. Winner take glory.</p>
+      <div class="hero-stats-row">
+        <div class="hero-stat"><span class="hero-stat-label">Entries</span><span class="hero-stat-value mono" id="hero-entries">—</span></div>
+        <div class="hero-stat"><span class="hero-stat-label">Prize Pool</span><span class="hero-stat-value mono" id="hero-prizepool">—</span></div>
+      </div>
     </div>
-    <div id="home-standings-preview" class="panel"></div>
+    <div class="home-grid">
+      <div>
+        <h3 class="mini-title">Current Standings</h3>
+        <div id="home-standings-preview" class="panel"></div>
+      </div>
+      <div>
+        <h3 class="mini-title">⭐ Stars of the Night</h3>
+        <div id="stars-of-night" class="panel"></div>
+        <h3 class="mini-title" style="margin-top:20px;">Recent Activity</h3>
+        <div id="recent-activity" class="panel"></div>
+      </div>
+    </div>
   </section>
 
   <section id="view-standings" class="view">
@@ -46,6 +65,12 @@
 
   <section id="view-players" class="view">
     <h2 class="section-title">Players</h2>
+    <div class="filter-tabs" id="player-filter-tabs">
+      <button class="filter-tab active" data-filter="all">All</button>
+      <button class="filter-tab" data-filter="F">Forwards</button>
+      <button class="filter-tab" data-filter="D">Defense</button>
+      <button class="filter-tab" data-filter="G">Goalies</button>
+    </div>
     <input id="player-search" class="search-input mono" type="text" placeholder="Search players...">
     <div id="players-table" class="panel"></div>
   </section>
