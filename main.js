@@ -204,8 +204,7 @@ function renderScoringSummary() {
       ['Goal', c.goalPtsF ?? 1],
       ['Assist', c.assistPtsF ?? 1],
       ['Shot on Goal', c.sogPtsF ?? 0.11],
-      ['PIM / min (D only)', c.pimPtsD ?? 0.25],
-      ['Hat Trick bonus', `+${c.hatTrickBonus ?? 3}`, true]
+      ['PIM / min (D only)', c.pimPtsD ?? 0.25]
     ]},
     { title: 'Goalies', rows: [
       ['Win', c.winPtsG ?? 3],
@@ -214,11 +213,14 @@ function renderScoringSummary() {
       ['Shutout', c.shutoutPtsG ?? 2],
       ['Save', c.savePtsG ?? 0.02]
     ]},
-    { title: 'Bonuses & Payout', rows: [
-      ['Division winner', '+10', true],
-      ['Payout — 1st', `${((c.payout1st ?? 0.5) * 100).toFixed(0)}%`],
-      ['Payout — 2nd', `${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%`],
-      ['Payout — 3rd', `${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%`]
+    { title: 'Bonuses', rows: [
+      ['Hat Trick', `+${c.hatTrickBonus ?? 3}`, true],
+      ['Division winner (season end)', '+10', true]
+    ]},
+    { title: 'Payout', rows: [
+      ['1st place', `${((c.payout1st ?? 0.5) * 100).toFixed(0)}%`],
+      ['2nd place', `${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%`],
+      ['3rd place', `${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%`]
     ]},
     { title: 'Season', rows: [
       ['Entry Fee', `$${c.entryFee ?? 10}`],
