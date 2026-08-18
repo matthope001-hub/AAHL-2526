@@ -56,12 +56,20 @@ async function submitRosterMove(entryId, boxId, newPlayerId) {
   return apiPost('requestRosterMove', { entryId, boxId, newPlayerId });
 }
 
-async function submitApproveEntry(entryId) {
-  return apiPost('approveEntry', { entryId });
+async function adminGetEntries(password) {
+  return apiPost('adminGetEntries', { password });
 }
 
-async function submitRejectEntry(entryId) {
-  return apiPost('rejectEntry', { entryId });
+async function adminApproveEntry(password, entryId) {
+  return apiPost('adminApproveEntry', { password, entryId });
+}
+
+async function adminRejectEntry(password, entryId) {
+  return apiPost('adminRejectEntry', { password, entryId });
+}
+
+async function adminUpdateEntry(password, entryId, updates) {
+  return apiPost('adminUpdateEntry', { password, entryId, updates });
 }
 
 async function submitFlagIR(playerId, note) {
