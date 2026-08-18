@@ -1,218 +1,249 @@
-:root {
-  --bg: #0a0d10;
-  --bg-panel: #12171c;
-  --bg-panel-alt: #161c22;
-  --border: #232b32;
-  --ice: #00D4FF;
-  --amber: #FFB800;
-  --text: #e8edf1;
-  --text-dim: #7a8894;
-  --font-display: 'Barlow Condensed', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+/**
+ * main.js
+ * UI rendering, navigation, and interaction logic.
+ * Depends on data.js
+ */
+
+let allPlayers = [];
+let allStandings = [];
+let currentConfig = {};
+
+// ---------- Navigation ----------
+document.querySelectorAll('.nav-link').forEach(link => {
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    const view = link.dataset.view;
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    link.classList.add('active');
+    document.getElementById(`view-${view}`).classList.add('active');
+
+    if (view === 'standings') renderStandingsTable();
+    if (view === 'players') renderPlayersTable();
+    if (view === 'signup') renderSignupForm();
+    if (view === 'admin') renderAdminPanel();
+  });
+});
+
+// ---------- Init ----------
+async function init() {
+  [allPlayers, allStandings, currentConfig] = await Promise.all([
+    fetchPlayers(), fetchStandings(), fetchConfig()
+  ]);
+
+  document.getElementById('deadline-display').textContent = formatDeadline(currentConfig.deadline);
+  renderHomeStandingsPreview();
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-display);
-  min-height: 100vh;
+// ---------- Home ----------
+function renderHomeStandingsPreview() {
+  const top5 = [...allStandings].sort((a, b) => a.rank - b.rank).slice(0, 5);
+  const el = document.getElementById('home-standings-preview');
+  if (top5.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No approved entries yet.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Rank</th><th>Team</th><th>Box</th><th>Pts</th></tr></thead>
+      <tbody>
+        ${top5.map(e => `
+          <tr>
+            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank}</td>
+            <td>${escapeHtml(e.teamName)}</td>
+            <td>${escapeHtml(e.boxLabel || '')}</td>
+            <td class="pts">${e.pts}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
-.mono { font-family: var(--font-mono); }
-.accent { color: var(--ice); }
-
-/* Header */
-.site-header {
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-.header-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.brand {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 28px;
-  letter-spacing: 0.5px;
-}
-.brand-year { color: var(--text-dim); font-weight: 600; }
-
-.main-nav { display: flex; gap: 24px; }
-.nav-link {
-  color: var(--text-dim);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 16px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding-bottom: 4px;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-}
-.nav-link:hover, .nav-link.active {
-  color: var(--ice);
-  border-color: var(--ice);
+// ---------- Standings ----------
+function renderStandingsTable() {
+  const el = document.getElementById('standings-table');
+  const sorted = [...allStandings].sort((a, b) => a.rank - b.rank);
+  if (sorted.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No approved entries yet.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Rank</th><th>Team</th><th>Box</th><th>Points</th></tr></thead>
+      <tbody>
+        ${sorted.map(e => `
+          <tr>
+            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank}</td>
+            <td>${escapeHtml(e.teamName)}</td>
+            <td>${escapeHtml(e.boxLabel || '')}</td>
+            <td class="pts">${e.pts}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
-/* Main */
-#app { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
-.view { display: none; }
-.view.active { display: block; }
+// ---------- Players ----------
+function renderPlayersTable(filter) {
+  const el = document.getElementById('players-table');
+  let list = [...allPlayers];
+  if (filter) {
+    const q = filter.toLowerCase();
+    list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
+  }
+  list.sort((a, b) => computePlayerPoints(b.stats) - computePlayerPoints(a.stats));
+  list = list.slice(0, 100);
 
-.hero { padding: 48px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
-.hero-clock {
-  display: inline-flex;
-  flex-direction: column;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--amber);
-  padding: 10px 18px;
-  margin-bottom: 20px;
-}
-.hero-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
-.hero-value { font-size: 20px; color: var(--amber); font-weight: 500; }
-.hero-title { font-size: 56px; font-weight: 800; line-height: 1.0; letter-spacing: -0.5px; }
-.hero-sub { color: var(--text-dim); font-size: 20px; margin-top: 12px; }
-
-.section-title {
-  font-size: 32px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  padding: 20px;
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Player</th><th>Team</th><th>Pos</th><th>G</th><th>A</th><th>Pts</th></tr></thead>
+      <tbody>
+        ${list.map(p => `
+          <tr>
+            <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ' <span style="color:#ff5c5c">IR</span>' : ''}</td>
+            <td>${escapeHtml(p.team || '')}</td>
+            <td>${escapeHtml(p.position || '')}</td>
+            <td>${(p.stats && p.stats.goals) || 0}${p.stats && p.stats.hatTricks ? ` <span class="hat-trick">(${p.stats.hatTricks} HT)</span>` : ''}</td>
+            <td>${(p.stats && p.stats.assists) || 0}</td>
+            <td class="pts">${computePlayerPoints(p.stats)}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
-/* Tables */
-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 14px; }
-th {
-  text-align: left;
-  color: var(--text-dim);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-}
-td { padding: 10px 12px; border-bottom: 1px solid var(--bg-panel-alt); }
-tr:hover td { background: var(--bg-panel-alt); }
-.rank-1 { color: var(--amber); font-weight: 700; }
-.pts { color: var(--ice); font-weight: 700; }
+document.getElementById('player-search').addEventListener('input', (e) => {
+  renderPlayersTable(e.target.value);
+});
 
-.search-input {
-  width: 100%;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 12px 16px;
-  font-size: 15px;
-  margin-bottom: 16px;
-}
-.search-input:focus { outline: none; border-color: var(--ice); }
+// ---------- Signup ----------
+let allBoxes = [];
+let signupPicks = {}; // { boxId: playerId }
 
-/* Forms */
-label { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin: 16px 0 6px; }
-input[type="text"], input[type="email"], select {
-  width: 100%;
-  background: var(--bg-panel-alt);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 10px 12px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-}
-button {
-  background: var(--ice);
-  color: #051015;
-  border: none;
-  padding: 12px 24px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  margin-top: 20px;
-}
-button:hover { opacity: 0.85; }
+async function renderSignupForm() {
+  signupPicks = {};
+  const el = document.getElementById('signup-form');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading boxes...</p>`;
 
-.picks-count {
-  font-size: 14px;
-  color: var(--text-dim);
-  margin: 20px 0 8px;
-  padding: 8px 12px;
-  background: var(--bg-panel-alt);
-  display: inline-block;
-}
+  if (allBoxes.length === 0) {
+    allBoxes = await fetchBoxes();
+  }
 
-.group-title {
-  font-size: 24px;
-  font-weight: 700;
-  margin: 28px 0 12px;
-  color: var(--ice);
-}
+  const grouped = { F: [], D: [], G: [] };
+  allBoxes.forEach(b => grouped[b.boxType].push(b));
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
 
-.box-picker {
-  border: 1px solid var(--border);
-  margin-bottom: 12px;
-}
-.box-picker-label {
-  background: var(--bg-panel-alt);
-  padding: 8px 12px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-}
-.box-picker-options { display: flex; flex-direction: column; }
-.box-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--bg-panel-alt);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-.box-option:last-child { border-bottom: none; }
-.box-option:hover { background: var(--bg-panel-alt); }
-.box-option input[type="radio"] { accent-color: var(--ice); }
-.box-option-name { flex: 1; }
-.box-option-meta { color: var(--text-dim); }
+  el.innerHTML = `
+    <label>Team Name</label>
+    <input type="text" id="f-teamName">
+    <label>Owner Name</label>
+    <input type="text" id="f-ownerName">
+    <label>Email</label>
+    <input type="email" id="f-email">
+    <label>Entry Slot <span style="color:var(--text-dim); font-weight:400; text-transform:none;">(if submitting more than one team)</span></label>
+    <select id="f-boxLabel">
+      <option>Entry 1</option><option>Entry 2</option><option>Entry 3</option>
+    </select>
 
-.status-msg { margin-top: 12px; font-family: var(--font-mono); font-size: 14px; }
-.status-msg.error { color: #ff5c5c; }
-.status-msg.success { color: var(--ice); }
+    <div class="picks-count mono" id="picks-count">0 / ${TOTAL_BOXES} picked</div>
 
-.hat-trick { color: var(--amber); font-weight: 700; }
+    ${Object.keys(groupTitles).map(type => `
+      <h3 class="group-title">${groupTitles[type]}</h3>
+      ${grouped[type].map(box => `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
+          <div class="box-picker-options">
+            ${box.players.map(p => {
+              const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
+              const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+              return `
+              <label class="box-option">
+                <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
+                ${headshot ? `<img class="box-option-photo" src="${headshot}" alt="" loading="lazy">` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                <span class="box-option-name">${escapeHtml(p.name)}</span>
+                <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
+              </label>
+            `;}).join('')}
+          </div>
+        </div>
+      `).join('')}
+    `).join('')}
 
-.site-footer {
-  text-align: center;
-  padding: 24px;
-  color: var(--text-dim);
-  font-size: 12px;
-  border-top: 1px solid var(--border);
+    <button id="submit-entry-btn">Submit Entry</button>
+    <div id="signup-status" class="status-msg"></div>
+  `;
+
+  el.querySelectorAll('input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      signupPicks[radio.dataset.box] = radio.value;
+      updatePicksCount();
+    });
+  });
+
+  document.getElementById('submit-entry-btn').addEventListener('click', handleSubmitEntry);
 }
 
-@media (max-width: 640px) {
-  .hero-title { font-size: 36px; }
-  .main-nav { gap: 14px; }
-  .nav-link { font-size: 13px; }
+function updatePicksCount() {
+  const countEl = document.getElementById('picks-count');
+  const count = Object.keys(signupPicks).length;
+  countEl.textContent = `${count} / ${TOTAL_BOXES} picked`;
+  countEl.style.color = count === TOTAL_BOXES ? 'var(--ice)' : 'var(--text-dim)';
 }
+
+async function handleSubmitEntry() {
+  const teamName = document.getElementById('f-teamName').value.trim();
+  const ownerName = document.getElementById('f-ownerName').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const boxLabel = document.getElementById('f-boxLabel').value;
+  const statusEl = document.getElementById('signup-status');
+
+  if (!teamName || !ownerName || !email) {
+    statusEl.textContent = 'Fill in team name, owner name, and email.';
+    statusEl.className = 'status-msg error';
+    return;
+  }
+
+  if (Object.keys(signupPicks).length !== TOTAL_BOXES) {
+    statusEl.textContent = `Pick a player in every box (${Object.keys(signupPicks).length} / ${TOTAL_BOXES} done).`;
+    statusEl.className = 'status-msg error';
+    return;
+  }
+
+  statusEl.textContent = 'Submitting...';
+  statusEl.className = 'status-msg';
+
+  const result = await submitEntry({
+    teamName, ownerName, email, boxLabel,
+    picks: signupPicks
+  });
+
+  if (result.success) {
+    statusEl.textContent = `Entry submitted! ID: ${result.entryId}`;
+    statusEl.className = 'status-msg success';
+  } else {
+    statusEl.textContent = 'Error: ' + result.error;
+    statusEl.className = 'status-msg error';
+  }
+}
+
+// ---------- Admin ----------
+async function renderAdminPanel() {
+  const el = document.getElementById('admin-panel');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  const irList = await fetchIRList();
+  el.innerHTML = `
+    <h3 style="margin-bottom:12px; font-size:20px;">IR List (${irList.length})</h3>
+    <table>
+      <thead><tr><th>Player ID</th><th>Note</th><th>Flagged</th></tr></thead>
+      <tbody>
+        ${irList.map(p => `<tr><td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.note || '')}</td><td class="mono">${escapeHtml(p.flaggedAt || '')}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ---------- Utility ----------
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+init();
