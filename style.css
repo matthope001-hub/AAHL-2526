@@ -167,14 +167,24 @@ button:hover { opacity: 0.85; }
   color: var(--ice);
 }
 
-.box-picker {
-  border: 1px solid var(--border);
+.box-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
   margin-bottom: 12px;
 }
+@media (max-width: 900px) {
+  .box-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .box-grid { grid-template-columns: 1fr; }
+}
+
+.box-picker { border: 1px solid var(--border); margin-bottom: 0; }
 .box-picker-label {
   background: var(--bg-panel-alt);
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 6px 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
@@ -184,23 +194,24 @@ button:hover { opacity: 0.85; }
 .box-option {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 6px 10px;
   cursor: pointer;
   border-bottom: 1px solid var(--bg-panel-alt);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
+  flex-wrap: wrap;
 }
 .box-option:last-child { border-bottom: none; }
 .box-option:hover { background: var(--bg-panel-alt); }
-.box-option input[type="radio"] { accent-color: var(--ice); }
+.box-option input[type="radio"] { accent-color: var(--ice); flex-shrink: 0; }
 .box-option-photo-wrap {
   position: relative;
   flex-shrink: 0;
 }
 .box-option-photo {
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   object-fit: cover;
   background: var(--bg-panel-alt);
@@ -213,7 +224,7 @@ button:hover { opacity: 0.85; }
 .player-hover-card {
   display: none;
   position: absolute;
-  left: 40px;
+  left: 34px;
   top: -8px;
   z-index: 20;
   width: 200px;
@@ -236,14 +247,15 @@ button:hover { opacity: 0.85; }
 .player-hover-stats { font-size: 13px; margin-bottom: 6px; }
 .player-hover-pts { color: var(--ice); font-weight: 700; font-size: 14px; }
 .stat-source { color: var(--amber); font-size: 11px; }
+.box-option-name { flex: 1; min-width: 90px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.box-option-meta { color: var(--text-dim); flex-shrink: 0; }
 .box-option-stats {
   color: var(--ice);
-  font-size: 12px;
-  min-width: 170px;
-  text-align: right;
+  font-size: 11px;
+  width: 100%;
+  order: 5;
+  padding-left: 34px;
 }
-.box-option-name { flex: 1; }
-.box-option-meta { color: var(--text-dim); }
 
 .admin-btn {
   background: var(--bg-panel-alt);
