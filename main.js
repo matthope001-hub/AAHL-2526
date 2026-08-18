@@ -114,7 +114,13 @@ document.getElementById('player-search').addEventListener('input', (e) => {
 });
 
 // ---------- Signup ----------
+const POSITION_MAP = { F: ['C', 'L', 'R'], D: ['D'], G: ['G'] };
+const BOX_TITLES = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+
+let signupPicks = { F: [], D: [], G: [] };
+
 function renderSignupForm() {
+  signupPicks = { F: [], D: [], G: [] };
   const el = document.getElementById('signup-form');
   el.innerHTML = `
     <label>Team Name</label>
@@ -127,43 +133,130 @@ function renderSignupForm() {
     <select id="f-boxLabel">
       <option>Box A</option><option>Box B</option><option>Box C</option>
     </select>
-    <p style="color:var(--text-dim); margin-top:20px; font-size:14px;">
-      Player picker UI coming — for now, roster submission is handled by the commissioner during signup review.
-    </p>
+
+    ${Object.keys(BOX_LIMITS).map(box => `
+      <div class="picker-section">
+        <label style="margin-top:24px;">${BOX_TITLES[box]} <span class="mono picker-count" id="count-${box}">0 / ${BOX_LIMITS[box]}</span></label>
+        <input type="text" class="search-input mono picker-search" id="search-${box}" placeholder="Search ${BOX_TITLES[box].toLowerCase()}...">
+        <div class="picker-results" id="results-${box}"></div>
+        <div class="picker-chips" id="chips-${box}"></div>
+      </div>
+    `).join('')}
+
     <button id="submit-entry-btn">Submit Entry</button>
     <div id="signup-status" class="status-msg"></div>
   `;
 
-  document.getElementById('submit-entry-btn').addEventListener('click', async () => {
-    const teamName = document.getElementById('f-teamName').value.trim();
-    const ownerName = document.getElementById('f-ownerName').value.trim();
-    const email = document.getElementById('f-email').value.trim();
-    const boxLabel = document.getElementById('f-boxLabel').value;
-    const statusEl = document.getElementById('signup-status');
+  Object.keys(BOX_LIMITS).forEach(box => {
+    document.getElementById(`search-${box}`).addEventListener('input', (e) => {
+      renderPickerResults(box, e.target.value);
+    });
+    renderPickerChips(box);
+  });
 
-    if (!teamName || !ownerName || !email) {
-      statusEl.textContent = 'Fill in all fields.';
+  document.getElementById('submit-entry-btn').addEventListener('click', handleSubmitEntry);
+}
+
+function renderPickerResults(box, query) {
+  const resultsEl = document.getElementById(`results-${box}`);
+  if (!query || query.trim().length < 2) {
+    resultsEl.innerHTML = '';
+    return;
+  }
+  const q = query.toLowerCase();
+  const positions = POSITION_MAP[box];
+  const matches = allPlayers
+    .filter(p => positions.includes(p.position))
+    .filter(p => (p.fullName || '').toLowerCase().includes(q))
+    .filter(p => !signupPicks[box].includes(p.id))
+    .slice(0, 8);
+
+  if (matches.length === 0) {
+    resultsEl.innerHTML = `<div class="picker-empty mono">No matches.</div>`;
+    return;
+  }
+
+  resultsEl.innerHTML = matches.map(p => `
+    <div class="picker-row" data-player-id="${p.id}" data-box="${box}">
+      <span>${escapeHtml(p.fullName)}</span>
+      <span class="mono picker-meta">${escapeHtml(p.team || '')} · ${escapeHtml(p.position || '')}</span>
+    </div>
+  `).join('');
+
+  resultsEl.querySelectorAll('.picker-row').forEach(row => {
+    row.addEventListener('click', () => {
+      addPick(row.dataset.box, row.dataset.playerId);
+    });
+  });
+}
+
+function addPick(box, playerId) {
+  if (signupPicks[box].length >= BOX_LIMITS[box]) return;
+  if (signupPicks[box].includes(playerId)) return;
+  signupPicks[box].push(playerId);
+  document.getElementById(`search-${box}`).value = '';
+  document.getElementById(`results-${box}`).innerHTML = '';
+  renderPickerChips(box);
+}
+
+function removePick(box, playerId) {
+  signupPicks[box] = signupPicks[box].filter(id => id !== playerId);
+  renderPickerChips(box);
+}
+
+function renderPickerChips(box) {
+  const chipsEl = document.getElementById(`chips-${box}`);
+  const countEl = document.getElementById(`count-${box}`);
+  countEl.textContent = `${signupPicks[box].length} / ${BOX_LIMITS[box]}`;
+  countEl.style.color = signupPicks[box].length === BOX_LIMITS[box] ? 'var(--ice)' : 'var(--text-dim)';
+
+  chipsEl.innerHTML = signupPicks[box].map(id => {
+    const player = allPlayers.find(p => p.id === id);
+    const name = player ? player.fullName : id;
+    return `<span class="chip">${escapeHtml(name)} <span class="chip-remove" data-box="${box}" data-id="${id}">&times;</span></span>`;
+  }).join('');
+
+  chipsEl.querySelectorAll('.chip-remove').forEach(btn => {
+    btn.addEventListener('click', () => removePick(btn.dataset.box, btn.dataset.id));
+  });
+}
+
+async function handleSubmitEntry() {
+  const teamName = document.getElementById('f-teamName').value.trim();
+  const ownerName = document.getElementById('f-ownerName').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const boxLabel = document.getElementById('f-boxLabel').value;
+  const statusEl = document.getElementById('signup-status');
+
+  if (!teamName || !ownerName || !email) {
+    statusEl.textContent = 'Fill in team name, owner name, and email.';
+    statusEl.className = 'status-msg error';
+    return;
+  }
+
+  for (const box of Object.keys(BOX_LIMITS)) {
+    if (signupPicks[box].length !== BOX_LIMITS[box]) {
+      statusEl.textContent = `${BOX_TITLES[box]}: need exactly ${BOX_LIMITS[box]}, have ${signupPicks[box].length}.`;
       statusEl.className = 'status-msg error';
       return;
     }
+  }
 
-    statusEl.textContent = 'Submitting...';
-    statusEl.className = 'status-msg';
+  statusEl.textContent = 'Submitting...';
+  statusEl.className = 'status-msg';
 
-    // Placeholder picks until player-picker UI is built
-    const result = await submitEntry({
-      teamName, ownerName, email, boxLabel,
-      picks: { F: [], D: [], G: [] }
-    });
-
-    if (result.success) {
-      statusEl.textContent = `Entry submitted! ID: ${result.entryId}`;
-      statusEl.className = 'status-msg success';
-    } else {
-      statusEl.textContent = 'Error: ' + result.error;
-      statusEl.className = 'status-msg error';
-    }
+  const result = await submitEntry({
+    teamName, ownerName, email, boxLabel,
+    picks: signupPicks
   });
+
+  if (result.success) {
+    statusEl.textContent = `Entry submitted! ID: ${result.entryId}`;
+    statusEl.className = 'status-msg success';
+  } else {
+    statusEl.textContent = 'Error: ' + result.error;
+    statusEl.className = 'status-msg error';
+  }
 }
 
 // ---------- Admin ----------
