@@ -171,7 +171,7 @@ function renderPlayersTable(searchQuery) {
           const s = p.stats || {};
           return `
           <tr>
-            <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ' <span style="color:#ff5c5c">IR</span>' : ''}</td>
+            <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}</td>
             <td>${escapeHtml(p.team || '')}</td>
             <td>${escapeHtml(p.position || '')}</td>
             <td>${s.goals || 0}</td>
@@ -313,13 +313,14 @@ async function renderSignupForm() {
                     ${headshot ? `
                     <div class="player-hover-card">
                       <img class="player-hover-photo" src="${headshot}" alt="">
-                      <div class="player-hover-name">${escapeHtml(p.name)}</div>
+                      <div class="player-hover-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ' <span class="ir-badge">🩹</span>' : ''}</div>
                       <div class="player-hover-team mono">${escapeHtml(currentTeam)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
+                      ${fullPlayer && fullPlayer.injuryStatus ? `<div class="mono" style="color:#ff5c5c; font-size:12px; margin-bottom:6px;">Injured: ${escapeHtml(fullPlayer.injuryStatus)}</div>` : ''}
                       <div class="player-hover-stats mono">${cardStats}</div>
                       <div class="player-hover-pts mono">${pts} pts</div>
                     </div>` : ''}
                   </span>
-                  <span class="box-option-name">${escapeHtml(p.name)}</span>
+                  <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
                   <span class="mono box-option-stats">${statLine}</span>
                   <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
                 </label>
