@@ -34,7 +34,51 @@ async function init() {
   ]);
 
   document.getElementById('deadline-display').textContent = formatDeadline(currentConfig.deadline);
+  document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
+  document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
+  renderStarsOfNight();
+  renderRecentActivity();
+}
+
+async function renderStarsOfNight() {
+  const el = document.getElementById('stars-of-night');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
+  const stars = await fetchStarsOfNight();
+
+  if (!stars || !stars.topPerformers || stars.topPerformers.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No games played yet.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:8px;">${escapeHtml(stars.date)}</div>
+    ${stars.topPerformers.map(p => `
+      <div class="star-row">
+        <span>${escapeHtml(p.fullName)}</span>
+        <span class="mono" style="color:var(--text-dim)">${escapeHtml(p.team)}</span>
+        <span class="pts mono">${p.pts}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+async function renderRecentActivity() {
+  const el = document.getElementById('recent-activity');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
+  const activity = await fetchRecentActivity();
+
+  if (activity.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
+    return;
+  }
+
+  el.innerHTML = activity.map(a => `
+    <div class="activity-row">
+      <span>${escapeHtml(a.teamName)}</span>
+      <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.createdAt || '').slice(0,10))}</span>
+    </div>
+  `).join('');
 }
 
 // ---------- Home ----------
@@ -84,29 +128,64 @@ function renderStandingsTable() {
 }
 
 // ---------- Players ----------
-function renderPlayersTable(filter) {
+let playerFilter = 'all';
+
+document.querySelectorAll('.filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    playerFilter = btn.dataset.filter;
+    renderPlayersTable(document.getElementById('player-search').value);
+  });
+});
+
+function renderPlayersTable(searchQuery) {
   const el = document.getElementById('players-table');
   let list = [...allPlayers];
-  if (filter) {
-    const q = filter.toLowerCase();
+
+  if (playerFilter !== 'all') {
+    const posGroups = { F: ['C', 'L', 'R'], D: ['D'], G: ['G'] };
+    list = list.filter(p => posGroups[playerFilter].includes(p.position));
+  }
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
     list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
   }
+
   list.sort((a, b) => computePlayerPoints(b, currentConfig) - computePlayerPoints(a, currentConfig));
-  list = list.slice(0, 100);
+  list = list.slice(0, 150);
 
   el.innerHTML = `
     <table>
-      <thead><tr><th>Player</th><th>Team</th><th>Pos</th><th>G</th><th>A</th><th>Pts</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Player</th><th>NHL</th><th>Pos</th>
+          <th>G</th><th>A</th><th>SOG</th><th>PIM</th>
+          <th>W</th><th>L</th><th>OTL</th><th>SO</th><th>SV</th>
+          <th>🎩</th><th>Pts</th>
+        </tr>
+      </thead>
       <tbody>
-        ${list.map(p => `
+        ${list.map(p => {
+          const s = p.stats || {};
+          return `
           <tr>
             <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ' <span style="color:#ff5c5c">IR</span>' : ''}</td>
             <td>${escapeHtml(p.team || '')}</td>
             <td>${escapeHtml(p.position || '')}</td>
-            <td>${(p.stats && p.stats.goals) || 0}${p.stats && p.stats.hatTricks ? ` <span class="hat-trick">(${p.stats.hatTricks} HT)</span>` : ''}</td>
-            <td>${(p.stats && p.stats.assists) || 0}</td>
+            <td>${s.goals || 0}</td>
+            <td>${s.assists || 0}</td>
+            <td>${s.sog || 0}</td>
+            <td>${s.pim || 0}</td>
+            <td>${s.wins || 0}</td>
+            <td>${s.losses || 0}</td>
+            <td>${s.otl || 0}</td>
+            <td>${s.shutouts || 0}</td>
+            <td>${s.saves || 0}</td>
+            <td>${s.hatTricks ? `<span class="hat-trick">${s.hatTricks}</span>` : '—'}</td>
             <td class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</td>
-          </tr>`).join('')}
+          </tr>`;}).join('')}
       </tbody>
     </table>`;
 }
