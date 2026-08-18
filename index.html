@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AAHL 2526 — Angry Alpaca Hockey League</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <span class="brand">AAHL <span class="brand-year">25<span class="accent">/</span>26</span></span>
+    <nav class="main-nav">
+      <a href="#" data-view="home" class="nav-link active">Home</a>
+      <a href="#" data-view="standings" class="nav-link">Standings</a>
+      <a href="#" data-view="players" class="nav-link">Players</a>
+      <a href="#" data-view="signup" class="nav-link">Sign Up</a>
+      <a href="#" data-view="admin" class="nav-link">Admin</a>
+    </nav>
+  </div>
+</header>
+
+<main id="app">
+
+  <section id="view-home" class="view active">
+    <div class="hero">
+      <div class="hero-clock">
+        <span class="hero-label">Picks Lock</span>
+        <span id="deadline-display" class="hero-value mono">—</span>
+      </div>
+      <h1 class="hero-title">Angry Alpaca<br>Hockey League</h1>
+      <p class="hero-sub">24-box pick'em. 6F / 4D / 2G. Winner take glory.</p>
+    </div>
+    <div id="home-standings-preview" class="panel"></div>
+  </section>
+
+  <section id="view-standings" class="view">
+    <h2 class="section-title">Standings</h2>
+    <div id="standings-table" class="panel"></div>
+  </section>
+
+  <section id="view-players" class="view">
+    <h2 class="section-title">Players</h2>
+    <input id="player-search" class="search-input mono" type="text" placeholder="Search players...">
+    <div id="players-table" class="panel"></div>
+  </section>
+
+  <section id="view-signup" class="view">
+    <h2 class="section-title">Build Your Roster</h2>
+    <div id="signup-form" class="panel"></div>
+  </section>
+
+  <section id="view-admin" class="view">
+    <h2 class="section-title">Commissioner</h2>
+    <div id="admin-panel" class="panel"></div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <span class="mono">AAHL 2526 — powered by Firebase</span>
+</footer>
+
+<script src="data.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
