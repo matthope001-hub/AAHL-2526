@@ -389,6 +389,20 @@ button:hover { opacity: 0.85; }
   white-space: nowrap;
 }
 
+.players-table-scroll {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.players-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 2;
+}
+.sortable-col { cursor: pointer; user-select: none; }
+.sortable-col:hover { color: var(--ice); }
+.sorted-col { color: var(--ice); }
+
 .hat-trick { color: var(--amber); font-weight: 700; }
 
 .site-footer {
