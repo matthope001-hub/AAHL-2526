@@ -356,14 +356,17 @@ async function renderSignupForm() {
           <div class="box-picker">
             <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
             <div class="box-picker-options">
-              ${box.players.map(p => {
+              ${[...box.players].map(p => {
                 const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
-                const currentTeam = fullPlayer ? fullPlayer.team : p.team;
-                const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
                 const currentSeasonHasStats = fullPlayer && fullPlayer.stats && Object.values(fullPlayer.stats).some(v => v > 0);
                 const s = fullPlayer ? (currentSeasonHasStats ? fullPlayer.stats : (fullPlayer.prevStats || {})) : {};
+                const ptsNum = fullPlayer ? computePlayerPoints({ position: fullPlayer.position, stats: s }, currentConfig) : 0;
+                return { p, fullPlayer, currentSeasonHasStats, s, ptsNum };
+              }).sort((a, b) => b.ptsNum - a.ptsNum).map(({ p, fullPlayer, currentSeasonHasStats, s, ptsNum }) => {
+                const currentTeam = fullPlayer ? fullPlayer.team : p.team;
+                const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
                 const statSourceLabel = currentSeasonHasStats ? '' : ` <span class="stat-source">(25-26)</span>`;
-                const pts = fullPlayer ? computePlayerPoints({ position: fullPlayer.position, stats: s }, currentConfig).toFixed(1) : '0.0';
+                const pts = ptsNum.toFixed(1);
                 const statLine = box.boxType === 'G'
                   ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts${statSourceLabel}`
                   : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''} · ${pts}pts${statSourceLabel}`;
