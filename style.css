@@ -393,6 +393,34 @@ button:hover { opacity: 0.85; }
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-3px) rotate(-4deg); }
 }
+.stat-ticker {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 8px 0;
+}
+.stat-ticker-track {
+  display: inline-flex;
+  gap: 32px;
+  animation: ticker-scroll 40s linear infinite;
+  padding-left: 100%;
+}
+.stat-ticker:hover .stat-ticker-track { animation-play-state: paused; }
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+.ticker-chip {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--text);
+}
+.ticker-chip .ticker-name { font-weight: 700; color: var(--ice); }
+.ticker-chip .ticker-stats { color: var(--text-dim); }
+.ticker-chip .ticker-pts { color: var(--amber); font-weight: 700; }
+
 .brand { display: inline-flex; align-items: center; }
 
 .hero-stats-row { display: flex; gap: 10px; margin-top: 0; }
