@@ -95,6 +95,10 @@ async function adminRejectEntry(password, entryId) {
   return apiPost('adminRejectEntry', { password, entryId });
 }
 
+async function adminSetPayment(password, entryId, received) {
+  return apiPost('adminSetPayment', { password, entryId, received });
+}
+
 async function adminUpdateEntry(password, entryId, updates) {
   return apiPost('adminUpdateEntry', { password, entryId, updates });
 }
