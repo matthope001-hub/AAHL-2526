@@ -11,7 +11,7 @@ let poolPlayerIds = new Set();
 
 // ---------- Navigation ----------
 document.querySelectorAll('.nav-link').forEach(link => {
-  link.addEventListener('click', (e) => {
+  link.addEventListener('click', async (e) => {
     e.preventDefault();
     const view = link.dataset.view;
     document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -21,10 +21,10 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
     if (view === 'home') refreshAndRenderHome();
     if (view === 'standings') refreshAndRenderStandings();
-    if (view === 'players') renderPlayersTable();
+    if (view === 'players') { await ensurePlayersLoaded(); renderPlayersTable(); }
     if (view === 'scoring') renderScoringSummary();
     if (view === 'ir') renderIRPanel();
-    if (view === 'signup') renderSignupForm();
+    if (view === 'signup') { await ensurePlayersLoaded(); renderSignupForm(); }
     if (view === 'admin') renderAdminPanel();
   });
 });
@@ -34,8 +34,8 @@ async function init() {
   allBoxes = await fetchBoxes();
   allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
 
-  [allPlayers, allStandings, currentConfig] = await Promise.all([
-    fetchPlayers(), fetchStandings(), fetchConfig()
+  [allStandings, currentConfig] = await Promise.all([
+    fetchStandings(), fetchConfig()
   ]);
 
   document.getElementById('deadline-display').textContent = formatDeadline(currentConfig.deadline);
@@ -45,6 +45,12 @@ async function init() {
   renderStarsOfNight();
   renderRecentActivity();
   renderStatTicker();
+}
+
+async function ensurePlayersLoaded() {
+  if (allPlayers.length === 0) {
+    allPlayers = await fetchPlayers();
+  }
 }
 
 async function renderStatTicker() {
@@ -198,10 +204,12 @@ function renderStandingsTable() {
   attachTeamLinkListeners(el);
 }
 
-function openAdminPicksModal(entry) {
+async function openAdminPicksModal(entry) {
   const modal = document.getElementById('team-picks-modal');
   const body = document.getElementById('team-picks-body');
   modal.style.display = 'flex';
+  body.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  await ensurePlayersLoaded();
 
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
@@ -255,7 +263,7 @@ function openAdminPicksModal(entry) {
   `;
 }
 
-function startEditingEntry(entry) {
+async function startEditingEntry(entry) {
   editingEntryId = entry.id;
   signupPicks = Object.assign({}, entry.picks || {});
   divisionPicks = Object.assign({}, entry.divisionPicks || {});
@@ -265,6 +273,7 @@ function startEditingEntry(entry) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-signup').classList.add('active');
 
+  await ensurePlayersLoaded();
   renderSignupFormBody();
 }
 
@@ -286,6 +295,7 @@ async function openTeamPicksModal(entryId, teamName) {
     body.innerHTML = `<p class="mono" style="color:var(--text-dim)">${escapeHtml((data && data.error) || "Couldn't load picks.")}</p>`;
     return;
   }
+  await ensurePlayersLoaded();
 
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
