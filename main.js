@@ -19,7 +19,8 @@ document.querySelectorAll('.nav-link').forEach(link => {
     link.classList.add('active');
     document.getElementById(`view-${view}`).classList.add('active');
 
-    if (view === 'standings') renderStandingsTable();
+    if (view === 'home') refreshAndRenderHome();
+    if (view === 'standings') refreshAndRenderStandings();
     if (view === 'players') renderPlayersTable();
     if (view === 'scoring') renderScoringSummary();
     if (view === 'ir') renderIRPanel();
@@ -96,9 +97,18 @@ async function renderRecentActivity() {
   }
 }
 
+async function refreshAndRenderHome() {
+  [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
+  document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
+  document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
+  renderHomeStandingsPreview();
+  renderStarsOfNight();
+  renderRecentActivity();
+}
+
 // ---------- Home ----------
 function renderHomeStandingsPreview() {
-  const top5 = [...allStandings].sort((a, b) => a.rank - b.rank).slice(0, 5);
+  const top5 = allStandings.filter(e => e.approved).sort((a, b) => a.rank - b.rank).slice(0, 5);
   const el = document.getElementById('home-standings-preview');
   if (top5.length === 0) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No approved entries yet.</p>`;
@@ -106,13 +116,12 @@ function renderHomeStandingsPreview() {
   }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Box</th><th>Pts</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Pts</th></tr></thead>
       <tbody>
         ${top5.map(e => `
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank}</td>
             <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            <td>${escapeHtml(e.boxLabel || '')}</td>
             <td class="pts">${e.pts}</td>
           </tr>`).join('')}
       </tbody>
@@ -121,22 +130,32 @@ function renderHomeStandingsPreview() {
 }
 
 // ---------- Standings ----------
+async function refreshAndRenderStandings() {
+  allStandings = await fetchStandings();
+  renderStandingsTable();
+}
+
 function renderStandingsTable() {
   const el = document.getElementById('standings-table');
-  const sorted = [...allStandings].sort((a, b) => a.rank - b.rank);
+  const sorted = [...allStandings].sort((a, b) => {
+    if (a.rank == null && b.rank == null) return 0;
+    if (a.rank == null) return 1;
+    if (b.rank == null) return -1;
+    return a.rank - b.rank;
+  });
   if (sorted.length === 0) {
-    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No approved entries yet.</p>`;
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     return;
   }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Box</th><th>Points</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Status</th><th>Points</th></tr></thead>
       <tbody>
         ${sorted.map(e => `
           <tr>
-            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank}</td>
+            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
             <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            <td>${escapeHtml(e.boxLabel || '')}</td>
+            <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
             <td class="pts">${e.pts}</td>
           </tr>`).join('')}
       </tbody>
