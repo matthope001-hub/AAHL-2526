@@ -444,7 +444,7 @@ async function renderSignupFormBody() {
       <h3 class="group-title">${groupTitles[type]}</h3>
       <div class="box-grid">
         ${grouped[type].map(box => `
-          <div class="box-picker">
+          <div class="box-picker" id="box-picker-${box.id}">
             <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
             <div class="box-picker-options">
               ${[...box.players].map(p => {
@@ -526,6 +526,8 @@ async function renderSignupFormBody() {
     radio.addEventListener('change', () => {
       signupPicks[radio.dataset.box] = radio.value;
       updatePicksCount();
+      const boxEl = document.getElementById(`box-picker-${radio.dataset.box}`);
+      if (boxEl) boxEl.classList.remove('box-missing');
     });
   });
 
@@ -561,9 +563,23 @@ async function handleSubmitEntry() {
     return;
   }
 
+  document.querySelectorAll('.box-picker').forEach(el => el.classList.remove('box-missing'));
+
   if (Object.keys(signupPicks).length !== TOTAL_BOXES) {
-    statusEl.textContent = `Pick a player in every box (${Object.keys(signupPicks).length} / ${TOTAL_BOXES} done).`;
+    const missingBoxes = allBoxes.filter(b => !signupPicks[b.id]);
+    missingBoxes.forEach(b => {
+      const el = document.getElementById(`box-picker-${b.id}`);
+      if (el) el.classList.add('box-missing');
+    });
+
+    const labels = missingBoxes.map(b => b.boxLabel);
+    statusEl.textContent = labels.length <= 4
+      ? `Missing pick: ${labels.join(', ')}`
+      : `Missing ${labels.length} picks: ${labels.slice(0, 4).join(', ')}, +${labels.length - 4} more`;
     statusEl.className = 'status-msg error';
+
+    const firstMissing = document.getElementById(`box-picker-${missingBoxes[0].id}`);
+    if (firstMissing) firstMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
 
