@@ -205,12 +205,16 @@ async function openTeamPicksModal(entryId, teamName) {
   `;
 }
 
-document.getElementById('team-picks-close').addEventListener('click', () => {
-  document.getElementById('team-picks-modal').style.display = 'none';
-});
-document.getElementById('team-picks-modal').addEventListener('click', (e) => {
-  if (e.target.id === 'team-picks-modal') e.target.style.display = 'none';
-});
+const teamPicksCloseBtn = document.getElementById('team-picks-close');
+const teamPicksModalEl = document.getElementById('team-picks-modal');
+if (teamPicksCloseBtn && teamPicksModalEl) {
+  teamPicksCloseBtn.addEventListener('click', () => {
+    teamPicksModalEl.style.display = 'none';
+  });
+  teamPicksModalEl.addEventListener('click', (e) => {
+    if (e.target.id === 'team-picks-modal') e.target.style.display = 'none';
+  });
+}
 
 // ---------- Players ----------
 let playerFilter = 'all';
