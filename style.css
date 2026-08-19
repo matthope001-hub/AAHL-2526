@@ -260,6 +260,32 @@ button:hover { opacity: 0.85; }
   line-height: 1.2;
 }
 
+.pw-field-wrap {
+  display: flex;
+  align-items: stretch;
+  max-width: 300px;
+  gap: 0;
+}
+.pw-field-wrap input {
+  border-right: none;
+  max-width: none;
+  flex: 1;
+}
+.pw-toggle-btn {
+  background: var(--bg-panel-alt);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-left: none;
+  padding: 0 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-top: 0;
+  white-space: nowrap;
+}
+.pw-toggle-btn:hover { color: var(--ice); }
+
 .admin-btn {
   background: var(--bg-panel-alt);
   color: var(--text);
