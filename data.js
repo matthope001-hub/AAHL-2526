@@ -34,6 +34,11 @@ async function fetchRecentActivity() {
   return result.success ? result.data : [];
 }
 
+async function fetchLastSeasonStandings() {
+  const result = await apiGet('lastSeasonStandings');
+  return (result.success && result.data && result.data.teams) || {};
+}
+
 async function fetchBoxes() {
   const result = await apiGet('boxes');
   return result.success ? result.data : [];
