@@ -249,6 +249,15 @@ function renderScoringSummary() {
   `;
 }
 
+function nhlProfileUrl(fullName, playerId) {
+  const slug = (fullName || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return `https://www.nhl.com/player/${slug}-${playerId}`;
+}
+
 // ---------- Signup ----------
 let allBoxes = [];
 let signupPicks = {}; // { boxId: playerId }
@@ -309,7 +318,7 @@ async function renderSignupForm() {
                 <label class="box-option">
                   <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
                   <span class="box-option-photo-wrap">
-                    ${headshot ? `<img class="box-option-photo" src="${headshot}" alt="" loading="lazy">` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                    ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                     ${headshot ? `
                     <div class="player-hover-card">
                       <img class="player-hover-photo" src="${headshot}" alt="">
@@ -364,6 +373,10 @@ async function renderSignupForm() {
     radio.addEventListener('change', () => {
       divisionPicks[radio.dataset.division] = radio.value;
     });
+  });
+
+  el.querySelectorAll('.player-nhl-link').forEach(link => {
+    link.addEventListener('click', (e) => e.stopPropagation());
   });
 
   document.getElementById('submit-entry-btn').addEventListener('click', handleSubmitEntry);
