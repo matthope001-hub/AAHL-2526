@@ -87,7 +87,7 @@ async function renderRecentActivity() {
 
     el.innerHTML = activity.map(a => `
       <div class="activity-row">
-        <span>${escapeHtml(a.teamName)}</span>
+        <span>🆕 <strong>${escapeHtml(a.teamName)}</strong> joined the pool</span>
         <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.createdAt || '').slice(0,10))}</span>
       </div>
     `).join('');
