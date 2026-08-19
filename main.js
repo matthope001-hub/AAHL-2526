@@ -121,14 +121,14 @@ function renderHomeStandingsPreview() {
   }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Status</th><th>Pts</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>Approved</th></tr></thead>
       <tbody>
         ${top5.map(e => `
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
             <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
             <td class="pts">${e.pts}</td>
+            <td>${e.approved ? '<span style="color:var(--ice)">✓</span>' : '<span style="color:#ff5c5c">✗</span>'}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -155,14 +155,14 @@ function renderStandingsTable() {
   }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Status</th><th>Points</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>Approved</th></tr></thead>
       <tbody>
         ${sorted.map(e => `
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
             <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
             <td class="pts">${e.pts}</td>
+            <td>${e.approved ? '<span style="color:var(--ice)">✓</span>' : '<span style="color:#ff5c5c">✗</span>'}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
