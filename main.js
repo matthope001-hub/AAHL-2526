@@ -48,41 +48,52 @@ async function init() {
 async function renderStarsOfNight() {
   const el = document.getElementById('stars-of-night');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
-  const stars = await fetchStarsOfNight();
 
-  if (!stars || !stars.topPerformers || stars.topPerformers.length === 0) {
+  try {
+    const stars = await fetchStarsOfNight();
+    const performers = (stars && stars.topPerformers || []).filter(p => poolPlayerIds.has(p.playerId));
+
+    if (!stars || performers.length === 0) {
+      el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No games played yet.</p>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:8px;">${escapeHtml(stars.date)}</div>
+      ${performers.map(p => `
+        <div class="star-row">
+          <span>${escapeHtml(p.fullName)}</span>
+          <span class="mono" style="color:var(--text-dim)">${escapeHtml(p.team)}</span>
+          <span class="pts mono">${p.pts}</span>
+        </div>
+      `).join('')}
+    `;
+  } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No games played yet.</p>`;
-    return;
   }
-
-  el.innerHTML = `
-    <div class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:8px;">${escapeHtml(stars.date)}</div>
-    ${stars.topPerformers.map(p => `
-      <div class="star-row">
-        <span>${escapeHtml(p.fullName)}</span>
-        <span class="mono" style="color:var(--text-dim)">${escapeHtml(p.team)}</span>
-        <span class="pts mono">${p.pts}</span>
-      </div>
-    `).join('')}
-  `;
 }
 
 async function renderRecentActivity() {
   const el = document.getElementById('recent-activity');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
-  const activity = await fetchRecentActivity();
 
-  if (activity.length === 0) {
+  try {
+    const activity = await fetchRecentActivity();
+
+    if (activity.length === 0) {
+      el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
+      return;
+    }
+
+    el.innerHTML = activity.map(a => `
+      <div class="activity-row">
+        <span>${escapeHtml(a.teamName)}</span>
+        <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.createdAt || '').slice(0,10))}</span>
+      </div>
+    `).join('');
+  } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
-    return;
   }
-
-  el.innerHTML = activity.map(a => `
-    <div class="activity-row">
-      <span>${escapeHtml(a.teamName)}</span>
-      <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.createdAt || '').slice(0,10))}</span>
-    </div>
-  `).join('');
 }
 
 // ---------- Home ----------
