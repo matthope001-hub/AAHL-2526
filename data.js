@@ -10,8 +10,14 @@ const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzJA2dDY7N2IY9xrwMpr
 const TOTAL_BOXES = 24;
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 
-async function apiGet(action) {
-  const res = await fetch(`${WEBAPP_URL}?action=${action}`);
+async function apiGet(action, params) {
+  let url = `${WEBAPP_URL}?action=${action}`;
+  if (params) {
+    for (const key in params) {
+      url += `&${key}=${encodeURIComponent(params[key])}`;
+    }
+  }
+  const res = await fetch(url);
   return res.json();
 }
 
@@ -32,6 +38,11 @@ async function fetchStarsOfNight() {
 async function fetchRecentActivity() {
   const result = await apiGet('recentActivity');
   return result.success ? result.data : [];
+}
+
+async function fetchEntryPicks(entryId) {
+  const result = await apiGet('entryPicks', { entryId });
+  return result.success ? result.data : { error: result.error || "Couldn't load picks." };
 }
 
 async function fetchLastSeasonStandings() {
