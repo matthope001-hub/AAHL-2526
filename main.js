@@ -213,11 +213,18 @@ function openAdminPicksModal(entry) {
     const playerId = entry.picks[boxId];
     const boxPlayer = (box.players || []).find(p => p.playerId === playerId);
     const fullPlayer = allPlayers.find(ap => ap.id === playerId);
+    const s = (fullPlayer && fullPlayer.stats) || {};
+    const pts = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig) : 0;
+    const statLine = box.boxType === 'G'
+      ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0}SO &middot; ${s.saves || 0}SV`
+      : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks}HT` : ''}`;
     grouped[box.boxType].push({
       boxLabel: box.boxLabel,
       name: boxPlayer ? boxPlayer.name : playerId,
       team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : ''),
-      headshot: fullPlayer ? fullPlayer.headshotUrl : ''
+      headshot: fullPlayer ? fullPlayer.headshotUrl : '',
+      statLine,
+      pts: pts.toFixed(2)
     });
   });
 
@@ -236,6 +243,8 @@ function openAdminPicksModal(entry) {
           <div class="modal-pick-row">
             ${p.headshot ? `<img class="modal-pick-photo" src="${p.headshot}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
             <span class="modal-pick-name">${escapeHtml(p.name)}</span>
+            <span class="mono modal-pick-stats">${p.statLine}</span>
+            <span class="mono modal-pick-pts">${p.pts}pts</span>
             <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
           </div>
         `).join('')}
@@ -288,11 +297,18 @@ async function openTeamPicksModal(entryId, teamName) {
     const playerId = data.picks[boxId];
     const boxPlayer = (box.players || []).find(p => p.playerId === playerId);
     const fullPlayer = allPlayers.find(ap => ap.id === playerId);
+    const s = (fullPlayer && fullPlayer.stats) || {};
+    const pts = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig) : 0;
+    const statLine = box.boxType === 'G'
+      ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0}SO &middot; ${s.saves || 0}SV`
+      : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks}HT` : ''}`;
     grouped[box.boxType].push({
       boxLabel: box.boxLabel,
       name: boxPlayer ? boxPlayer.name : playerId,
       team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : ''),
-      headshot: fullPlayer ? fullPlayer.headshotUrl : ''
+      headshot: fullPlayer ? fullPlayer.headshotUrl : '',
+      statLine,
+      pts: pts.toFixed(2)
     });
   });
 
@@ -310,6 +326,8 @@ async function openTeamPicksModal(entryId, teamName) {
           <div class="modal-pick-row">
             ${p.headshot ? `<img class="modal-pick-photo" src="${p.headshot}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
             <span class="modal-pick-name">${escapeHtml(p.name)}</span>
+            <span class="mono modal-pick-stats">${p.statLine}</span>
+            <span class="mono modal-pick-pts">${p.pts}pts</span>
             <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
           </div>
         `).join('')}
