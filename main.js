@@ -294,6 +294,13 @@ function renderScoringSummary() {
   `;
 }
 
+function ordinal(n) {
+  if (!n) return '';
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function nhlProfileUrl(fullName, playerId) {
   const slug = (fullName || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -307,6 +314,7 @@ function nhlProfileUrl(fullName, playerId) {
 let allBoxes = [];
 let signupPicks = {}; // { boxId: playerId }
 let divisionPicks = {}; // { division: teamAbbrev }
+let lastSeasonStandings = {};
 
 const DIVISION_TEAMS = {
   Atlantic: [['BOS','Boston Bruins'],['BUF','Buffalo Sabres'],['DET','Detroit Red Wings'],['FLA','Florida Panthers'],['MTL','Montreal Canadiens'],['OTT','Ottawa Senators'],['TBL','Tampa Bay Lightning'],['TOR','Toronto Maple Leafs']],
@@ -323,6 +331,9 @@ async function renderSignupForm() {
 
   if (allBoxes.length === 0) {
     allBoxes = await fetchBoxes();
+  }
+  if (Object.keys(lastSeasonStandings).length === 0) {
+    lastSeasonStandings = await fetchLastSeasonStandings();
   }
 
   const grouped = { F: [], D: [], G: [] };
@@ -387,20 +398,30 @@ async function renderSignupForm() {
 
     <h3 class="group-title">Division Winner Picks <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+10 pts bonus each, awarded at season end)</span></h3>
     <div class="box-grid">
-      ${DIVISIONS.map(division => `
+      ${DIVISIONS.map(division => {
+        const teams = [...DIVISION_TEAMS[division]].sort((a, b) => {
+          const ra = (lastSeasonStandings[a[0]] || {}).rank ?? 99;
+          const rb = (lastSeasonStandings[b[0]] || {}).rank ?? 99;
+          return ra - rb;
+        });
+        return `
         <div class="box-picker">
           <div class="box-picker-label">${escapeHtml(division)}</div>
           <div class="box-picker-options">
-            ${DIVISION_TEAMS[division].map(([abbrev, fullName]) => `
+            ${teams.map(([abbrev, fullName]) => {
+              const record = lastSeasonStandings[abbrev];
+              const refLabel = record ? `${record.points}pts (${ordinal(record.rank)}, 25-26)` : '';
+              return `
               <label class="box-option">
                 <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
+                <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
               </label>
-            `).join('')}
+            `;}).join('')}
           </div>
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>
 
     <button id="submit-entry-btn">Submit Entry</button>
