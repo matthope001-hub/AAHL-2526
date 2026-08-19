@@ -543,10 +543,25 @@ function renderAdminPanel() {
   if (!adminPassword) {
     el.innerHTML = `
       <label>Admin Password</label>
-      <input type="text" id="admin-pw-input" style="max-width:300px;">
+      <div class="pw-field-wrap">
+        <input type="password" id="admin-pw-input" style="max-width:300px;">
+        <button type="button" id="admin-pw-toggle" class="pw-toggle-btn">Show</button>
+      </div>
       <button id="admin-login-btn">Log In</button>
       <div id="admin-login-status" class="status-msg"></div>
     `;
+    document.getElementById('admin-pw-toggle').addEventListener('click', () => {
+      const input = document.getElementById('admin-pw-input');
+      const btn = document.getElementById('admin-pw-toggle');
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+      }
+    });
+
     document.getElementById('admin-login-btn').addEventListener('click', async () => {
       const pw = document.getElementById('admin-pw-input').value;
       const statusEl = document.getElementById('admin-login-status');
