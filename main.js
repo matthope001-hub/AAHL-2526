@@ -7,6 +7,7 @@
 let allPlayers = [];
 let allStandings = [];
 let currentConfig = {};
+let poolPlayerIds = new Set();
 
 // ---------- Navigation ----------
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -29,6 +30,9 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
 // ---------- Init ----------
 async function init() {
+  allBoxes = await fetchBoxes();
+  allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
+
   [allPlayers, allStandings, currentConfig] = await Promise.all([
     fetchPlayers(), fetchStandings(), fetchConfig()
   ]);
@@ -129,6 +133,30 @@ function renderStandingsTable() {
 
 // ---------- Players ----------
 let playerFilter = 'all';
+let playerSort = { column: 'pts', dir: 'desc' };
+
+const PLAYER_COLUMNS = [
+  { key: 'name', label: 'Player', sortable: false },
+  { key: 'team', label: 'NHL', sortable: false },
+  { key: 'position', label: 'Pos', sortable: false },
+  { key: 'goals', label: 'G', sortable: true },
+  { key: 'assists', label: 'A', sortable: true },
+  { key: 'sog', label: 'SOG', sortable: true },
+  { key: 'pim', label: 'PIM', sortable: true },
+  { key: 'wins', label: 'W', sortable: true },
+  { key: 'losses', label: 'L', sortable: true },
+  { key: 'otl', label: 'OTL', sortable: true },
+  { key: 'shutouts', label: 'SO', sortable: true },
+  { key: 'saves', label: 'SV', sortable: true },
+  { key: 'hatTricks', label: '🎩', sortable: true },
+  { key: 'pts', label: 'Pts', sortable: true }
+];
+
+function playerColumnValue(p, key) {
+  if (key === 'pts') return computePlayerPoints(p, currentConfig);
+  const s = p.stats || {};
+  return s[key] || 0;
+}
 
 document.querySelectorAll('.filter-tab').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -141,7 +169,7 @@ document.querySelectorAll('.filter-tab').forEach(btn => {
 
 function renderPlayersTable(searchQuery) {
   const el = document.getElementById('players-table');
-  let list = [...allPlayers];
+  let list = allPlayers.filter(p => poolPlayerIds.has(p.id));
 
   if (playerFilter !== 'all') {
     const posGroups = { F: ['C', 'L', 'R'], D: ['D'], G: ['G'] };
@@ -153,41 +181,58 @@ function renderPlayersTable(searchQuery) {
     list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
   }
 
-  list.sort((a, b) => computePlayerPoints(b, currentConfig) - computePlayerPoints(a, currentConfig));
-  list = list.slice(0, 150);
+  list.sort((a, b) => {
+    const diff = playerColumnValue(b, playerSort.column) - playerColumnValue(a, playerSort.column);
+    return playerSort.dir === 'asc' ? -diff : diff;
+  });
 
   el.innerHTML = `
-    <table>
-      <thead>
-        <tr>
-          <th>Player</th><th>NHL</th><th>Pos</th>
-          <th>G</th><th>A</th><th>SOG</th><th>PIM</th>
-          <th>W</th><th>L</th><th>OTL</th><th>SO</th><th>SV</th>
-          <th>🎩</th><th>Pts</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${list.map(p => {
-          const s = p.stats || {};
-          return `
+    <div class="players-table-scroll">
+      <table>
+        <thead>
           <tr>
-            <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}</td>
-            <td>${escapeHtml(p.team || '')}</td>
-            <td>${escapeHtml(p.position || '')}</td>
-            <td>${s.goals || 0}</td>
-            <td>${s.assists || 0}</td>
-            <td>${s.sog || 0}</td>
-            <td>${s.pim || 0}</td>
-            <td>${s.wins || 0}</td>
-            <td>${s.losses || 0}</td>
-            <td>${s.otl || 0}</td>
-            <td>${s.shutouts || 0}</td>
-            <td>${s.saves || 0}</td>
-            <td>${s.hatTricks ? `<span class="hat-trick">${s.hatTricks}</span>` : '—'}</td>
-            <td class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</td>
-          </tr>`;}).join('')}
-      </tbody>
-    </table>`;
+            ${PLAYER_COLUMNS.map(col => `
+              <th class="${col.sortable ? 'sortable-col' : ''} ${playerSort.column === col.key ? 'sorted-col' : ''}" data-key="${col.key}">
+                ${escapeHtml(col.label)}${playerSort.column === col.key ? (playerSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}
+              </th>
+            `).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(p => {
+            const s = p.stats || {};
+            return `
+            <tr>
+              <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}</td>
+              <td>${escapeHtml(p.team || '')}</td>
+              <td>${escapeHtml(p.position || '')}</td>
+              <td>${s.goals || 0}</td>
+              <td>${s.assists || 0}</td>
+              <td>${s.sog || 0}</td>
+              <td>${s.pim || 0}</td>
+              <td>${s.wins || 0}</td>
+              <td>${s.losses || 0}</td>
+              <td>${s.otl || 0}</td>
+              <td>${s.shutouts || 0}</td>
+              <td>${s.saves || 0}</td>
+              <td>${s.hatTricks ? `<span class="hat-trick">${s.hatTricks}</span>` : '—'}</td>
+              <td class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</td>
+            </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  el.querySelectorAll('.sortable-col').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (playerSort.column === key) {
+        playerSort.dir = playerSort.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        playerSort = { column: key, dir: 'desc' };
+      }
+      renderPlayersTable(document.getElementById('player-search').value);
+    });
+  });
 }
 
 document.getElementById('player-search').addEventListener('input', (e) => {
