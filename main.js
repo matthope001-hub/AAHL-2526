@@ -144,7 +144,66 @@ function renderStandingsTable() {
   attachTeamLinkListeners(el);
 }
 
-function attachTeamLinkListeners(container) {
+function openAdminPicksModal(entry) {
+  const modal = document.getElementById('team-picks-modal');
+  const body = document.getElementById('team-picks-body');
+  modal.style.display = 'flex';
+
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+
+  const grouped = { F: [], D: [], G: [] };
+  Object.keys(entry.picks || {}).forEach(boxId => {
+    const box = boxById[boxId];
+    if (!box) return;
+    const playerId = entry.picks[boxId];
+    const boxPlayer = (box.players || []).find(p => p.playerId === playerId);
+    const fullPlayer = allPlayers.find(ap => ap.id === playerId);
+    grouped[box.boxType].push({
+      boxLabel: box.boxLabel,
+      name: boxPlayer ? boxPlayer.name : playerId,
+      team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : ''),
+      headshot: fullPlayer ? fullPlayer.headshotUrl : ''
+    });
+  });
+
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+  const divisionRows = Object.entries(entry.divisionPicks || {})
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono">${escapeHtml(team)}</span></div>`)
+    .join('');
+
+  body.innerHTML = `
+    <h2 style="margin-bottom:4px;">${escapeHtml(entry.teamName)}</h2>
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">${escapeHtml(entry.ownerName)} · ${escapeHtml(entry.email)}</p>
+    ${Object.keys(groupTitles).map(type => `
+      <h3 class="group-title">${groupTitles[type]}</h3>
+      <div class="modal-pick-list">
+        ${grouped[type].map(p => `
+          <div class="modal-pick-row">
+            ${p.headshot ? `<img class="modal-pick-photo" src="${p.headshot}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
+            <span class="modal-pick-name">${escapeHtml(p.name)}</span>
+            <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+    <h3 class="group-title">Division Picks</h3>
+    <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
+  `;
+}
+
+function startEditingEntry(entry) {
+  editingEntryId = entry.id;
+  signupPicks = Object.assign({}, entry.picks || {});
+  divisionPicks = Object.assign({}, entry.divisionPicks || {});
+  signupFields = { teamName: entry.teamName, ownerName: entry.ownerName, email: entry.email };
+
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-signup').classList.add('active');
+
+  renderSignupFormBody();
+}
   container.querySelectorAll('.team-link').forEach(el => {
     el.addEventListener('click', () => openTeamPicksModal(el.dataset.entryId, el.textContent));
   });
@@ -410,6 +469,7 @@ const DIVISION_TEAMS = {
 };
 
 async function renderSignupForm() {
+  editingEntryId = null;
   signupPicks = {};
   divisionPicks = {};
   signupFields = { teamName: '', ownerName: '', email: '' };
@@ -619,8 +679,8 @@ function renderSignupConfirmStep() {
   }).join('');
 
   el.innerHTML = `
-    <h2 style="margin-bottom:4px;">Review Your Team</h2>
-    <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">Double-check everything below. Once confirmed, you'll get an email copy of your picks and payment instructions.</p>
+    <h2 style="margin-bottom:4px;">${editingEntryId ? 'Review Changes' : 'Review Your Team'}</h2>
+    <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">${editingEntryId ? "Double-check everything below, then save." : "Double-check everything below. Once confirmed, you'll get an email copy of your picks and payment instructions."}</p>
 
     <div class="panel" style="margin-bottom:16px;">
       <div class="activity-row"><span>Team Name</span><span class="mono">${escapeHtml(signupFields.teamName)}</span></div>
@@ -645,7 +705,7 @@ function renderSignupConfirmStep() {
 
     <div style="display:flex; gap:10px; margin-top:20px;">
       <button id="confirm-back-btn" style="background:var(--bg-panel-alt); color:var(--text);">Back to Edit</button>
-      <button id="confirm-submit-btn">Confirm & Submit</button>
+      <button id="confirm-submit-btn">${editingEntryId ? 'Save Changes' : 'Confirm & Submit'}</button>
     </div>
     <div id="signup-status" class="status-msg"></div>
   `;
@@ -656,8 +716,33 @@ function renderSignupConfirmStep() {
 
 async function doFinalSubmit() {
   const statusEl = document.getElementById('signup-status');
-  statusEl.textContent = 'Submitting...';
+  statusEl.textContent = editingEntryId ? 'Saving...' : 'Submitting...';
   statusEl.className = 'status-msg';
+
+  if (editingEntryId) {
+    const result = await adminUpdateEntry(adminPassword, editingEntryId, {
+      teamName: signupFields.teamName,
+      ownerName: signupFields.ownerName,
+      email: signupFields.email,
+      picks: signupPicks,
+      divisionPicks: divisionPicks
+    });
+
+    if (result.success) {
+      const savedId = editingEntryId;
+      editingEntryId = null;
+      document.getElementById('signup-form').innerHTML = `
+        <div class="panel" style="text-align:center; padding:32px;">
+          <h2 style="color:var(--ice); margin-bottom:12px;">Changes saved</h2>
+          <p style="color:var(--text-dim); font-size:14px;">Entry ID: <span class="mono">${escapeHtml(savedId)}</span></p>
+        </div>
+      `;
+    } else {
+      statusEl.textContent = 'Error: ' + result.error;
+      statusEl.className = 'status-msg error';
+    }
+    return;
+  }
 
   const result = await submitEntry({
     teamName: signupFields.teamName,
@@ -705,6 +790,8 @@ async function renderIRPanel() {
 
 // ---------- Admin (password gated) ----------
 let adminPassword = null;
+let adminEntriesCache = [];
+let editingEntryId = null;
 
 function renderAdminPanel() {
   const el = document.getElementById('admin-panel');
@@ -766,6 +853,7 @@ async function loadAdminEntries() {
 
 function renderAdminEntries(entries) {
   const el = document.getElementById('admin-panel');
+  adminEntriesCache = entries;
 
   if (entries.length === 0) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
@@ -785,6 +873,8 @@ function renderAdminEntries(entries) {
             <td>${e.paymentReceived ? '<span style="color:var(--ice)">✓ Paid</span>' : '<span style="color:var(--text-dim)">Unpaid</span>'}</td>
             <td>
               ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
+              <button class="admin-btn admin-view-picks" data-id="${e.id}">View Picks</button>
+              <button class="admin-btn admin-edit-picks" data-id="${e.id}">Edit</button>
               <button class="admin-btn admin-toggle-paid" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}">${e.paymentReceived ? 'Mark Unpaid' : 'Mark Paid'}</button>
               <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
               <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
@@ -798,6 +888,20 @@ function renderAdminEntries(entries) {
     btn.addEventListener('click', async () => {
       await adminApproveEntry(adminPassword, btn.dataset.id);
       loadAdminEntries();
+    });
+  });
+
+  el.querySelectorAll('.admin-view-picks').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const entry = adminEntriesCache.find(e => e.id === btn.dataset.id);
+      if (entry) openAdminPicksModal(entry);
+    });
+  });
+
+  el.querySelectorAll('.admin-edit-picks').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const entry = adminEntriesCache.find(e => e.id === btn.dataset.id);
+      if (entry) startEditingEntry(entry);
     });
   });
 
