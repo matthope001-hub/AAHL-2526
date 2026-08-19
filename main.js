@@ -111,12 +111,13 @@ function renderHomeStandingsPreview() {
         ${top5.map(e => `
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank}</td>
-            <td>${escapeHtml(e.teamName)}</td>
+            <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
             <td>${escapeHtml(e.boxLabel || '')}</td>
             <td class="pts">${e.pts}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
+  attachTeamLinkListeners(el);
 }
 
 // ---------- Standings ----------
@@ -134,13 +135,82 @@ function renderStandingsTable() {
         ${sorted.map(e => `
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank}</td>
-            <td>${escapeHtml(e.teamName)}</td>
+            <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
             <td>${escapeHtml(e.boxLabel || '')}</td>
             <td class="pts">${e.pts}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
+  attachTeamLinkListeners(el);
 }
+
+function attachTeamLinkListeners(container) {
+  container.querySelectorAll('.team-link').forEach(el => {
+    el.addEventListener('click', () => openTeamPicksModal(el.dataset.entryId, el.textContent));
+  });
+}
+
+// ---------- Team Picks Modal ----------
+async function openTeamPicksModal(entryId, teamName) {
+  const modal = document.getElementById('team-picks-modal');
+  const body = document.getElementById('team-picks-body');
+  modal.style.display = 'flex';
+  body.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+
+  const data = await fetchEntryPicks(entryId);
+  if (!data || data.error) {
+    body.innerHTML = `<p class="mono" style="color:var(--text-dim)">${escapeHtml((data && data.error) || "Couldn't load picks.")}</p>`;
+    return;
+  }
+
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+
+  const grouped = { F: [], D: [], G: [] };
+  Object.keys(data.picks || {}).forEach(boxId => {
+    const box = boxById[boxId];
+    if (!box) return;
+    const playerId = data.picks[boxId];
+    const boxPlayer = (box.players || []).find(p => p.playerId === playerId);
+    const fullPlayer = allPlayers.find(ap => ap.id === playerId);
+    grouped[box.boxType].push({
+      boxLabel: box.boxLabel,
+      name: boxPlayer ? boxPlayer.name : playerId,
+      team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : ''),
+      headshot: fullPlayer ? fullPlayer.headshotUrl : ''
+    });
+  });
+
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+  const divisionRows = Object.entries(data.divisionPicks || {})
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono">${escapeHtml(team)}</span></div>`)
+    .join('');
+
+  body.innerHTML = `
+    <h2 style="margin-bottom:12px;">${escapeHtml(data.teamName)}</h2>
+    ${Object.keys(groupTitles).map(type => `
+      <h3 class="group-title">${groupTitles[type]}</h3>
+      <div class="modal-pick-list">
+        ${grouped[type].map(p => `
+          <div class="modal-pick-row">
+            ${p.headshot ? `<img class="modal-pick-photo" src="${p.headshot}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
+            <span class="modal-pick-name">${escapeHtml(p.name)}</span>
+            <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+    <h3 class="group-title">Division Picks</h3>
+    <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
+  `;
+}
+
+document.getElementById('team-picks-close').addEventListener('click', () => {
+  document.getElementById('team-picks-modal').style.display = 'none';
+});
+document.getElementById('team-picks-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'team-picks-modal') e.target.style.display = 'none';
+});
 
 // ---------- Players ----------
 let playerFilter = 'all';
