@@ -344,12 +344,13 @@ button:hover { opacity: 0.85; }
 .modal-pick-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 6px 8px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
+  flex-wrap: wrap;
 }
 .modal-pick-photo {
   width: 24px;
@@ -359,8 +360,10 @@ button:hover { opacity: 0.85; }
   flex-shrink: 0;
 }
 .modal-pick-photo-empty { background: var(--bg-panel-alt); border: 1px solid var(--border); }
-.modal-pick-name { flex: 1; }
-.modal-pick-meta { color: var(--text-dim); }
+.modal-pick-name { flex: 1; min-width: 90px; }
+.modal-pick-stats { color: var(--text-dim); }
+.modal-pick-pts { color: var(--ice); font-weight: 700; }
+.modal-pick-meta { color: var(--text-dim); flex-shrink: 0; }
 
 .admin-btn {
   background: var(--bg-panel-alt);
