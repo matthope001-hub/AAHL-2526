@@ -204,6 +204,8 @@ function startEditingEntry(entry) {
 
   renderSignupFormBody();
 }
+
+function attachTeamLinkListeners(container) {
   container.querySelectorAll('.team-link').forEach(el => {
     el.addEventListener('click', () => openTeamPicksModal(el.dataset.entryId, el.textContent));
   });
