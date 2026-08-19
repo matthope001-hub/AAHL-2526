@@ -44,6 +44,35 @@ async function init() {
   renderHomeStandingsPreview();
   renderStarsOfNight();
   renderRecentActivity();
+  renderStatTicker();
+}
+
+async function renderStatTicker() {
+  const wrap = document.getElementById('stat-ticker');
+  const track = document.getElementById('stat-ticker-track');
+
+  try {
+    const stars = await fetchStarsOfNight();
+    const performers = (stars && stars.allPerformers || []).filter(p => poolPlayerIds.has(p.playerId) && p.pts > 0);
+
+    if (!stars || performers.length === 0) {
+      wrap.style.display = 'none';
+      return;
+    }
+
+    const chips = performers.map(p => {
+      const statLine = p.isGoalie
+        ? `${p.decision === 'W' ? 'W' : p.decision === 'L' ? 'L' : 'OTL'}${p.shutout ? ' SO' : ''} ${p.saves}SV`
+        : `${p.goals}G ${p.assists}A`;
+      return `<span class="ticker-chip"><span class="ticker-name">${escapeHtml(p.fullName)}</span> (${escapeHtml(p.team)}) <span class="ticker-stats">${statLine}</span> <span class="ticker-pts">+${p.pts}pts</span></span>`;
+    });
+
+    // Duplicate the chip list so the marquee loops seamlessly.
+    track.innerHTML = chips.concat(chips).join('<span class="ticker-chip">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span>');
+    wrap.style.display = 'block';
+  } catch (e) {
+    wrap.style.display = 'none';
+  }
 }
 
 async function renderStarsOfNight() {
