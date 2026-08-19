@@ -209,6 +209,7 @@ button:hover { opacity: 0.85; }
   position: relative;
   flex-shrink: 0;
 }
+.player-nhl-link { display: block; line-height: 0; cursor: pointer; }
 .box-option-photo {
   width: 26px;
   height: 26px;
