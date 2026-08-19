@@ -396,6 +396,7 @@ let allBoxes = [];
 let signupPicks = {}; // { boxId: playerId }
 let divisionPicks = {}; // { division: teamAbbrev }
 let lastSeasonStandings = {};
+let signupFields = { teamName: '', ownerName: '', email: '' };
 
 const DIVISION_TEAMS = {
   Atlantic: [['BOS','Boston Bruins'],['BUF','Buffalo Sabres'],['DET','Detroit Red Wings'],['FLA','Florida Panthers'],['MTL','Montreal Canadiens'],['OTT','Ottawa Senators'],['TBL','Tampa Bay Lightning'],['TOR','Toronto Maple Leafs']],
@@ -407,6 +408,11 @@ const DIVISION_TEAMS = {
 async function renderSignupForm() {
   signupPicks = {};
   divisionPicks = {};
+  signupFields = { teamName: '', ownerName: '', email: '' };
+  await renderSignupFormBody();
+}
+
+async function renderSignupFormBody() {
   const el = document.getElementById('signup-form');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading boxes...</p>`;
 
@@ -423,12 +429,12 @@ async function renderSignupForm() {
 
   el.innerHTML = `
     <label>Team Name</label>
-    <input type="text" id="f-teamName">
+    <input type="text" id="f-teamName" value="${escapeHtml(signupFields.teamName)}">
     <label>Owner Name</label>
-    <input type="text" id="f-ownerName">
+    <input type="text" id="f-ownerName" value="${escapeHtml(signupFields.ownerName)}">
     <label>Email</label>
-    <input type="email" id="f-email">
-    <div class="picks-count mono" id="picks-count">0 / ${TOTAL_BOXES} picked</div>
+    <input type="email" id="f-email" value="${escapeHtml(signupFields.email)}">
+    <div class="picks-count mono" id="picks-count">${Object.keys(signupPicks).length} / ${TOTAL_BOXES} picked</div>
 
     ${Object.keys(groupTitles).map(type => `
       <h3 class="group-title">${groupTitles[type]}</h3>
@@ -456,7 +462,7 @@ async function renderSignupForm() {
                   : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks} HT` : ''}`;
                 return `
                 <label class="box-option">
-                  <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}">
+                  <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}" ${signupPicks[box.id] === p.playerId ? 'checked' : ''}>
                   <span class="box-option-photo-wrap">
                     ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                     ${headshot ? `
@@ -497,7 +503,7 @@ async function renderSignupForm() {
               const refLabel = record ? `${record.points}pts (${ordinal(record.rank)}, 25-26)` : '';
               return `
               <label class="box-option">
-                <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}">
+                <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}" ${divisionPicks[division] === abbrev ? 'checked' : ''}>
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
                 <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
@@ -565,18 +571,91 @@ async function handleSubmitEntry() {
     }
   }
 
+  signupFields = { teamName, ownerName, email };
+  renderSignupConfirmStep();
+}
+
+function renderSignupConfirmStep() {
+  const el = document.getElementById('signup-form');
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+  const grouped = { F: [], D: [], G: [] };
+
+  Object.keys(signupPicks).forEach(boxId => {
+    const box = allBoxes.find(b => String(b.id) === String(boxId));
+    if (!box) return;
+    const boxPlayer = (box.players || []).find(p => p.playerId === signupPicks[boxId]);
+    const fullPlayer = allPlayers.find(ap => ap.id === signupPicks[boxId]);
+    grouped[box.boxType].push({
+      boxLabel: box.boxLabel,
+      name: boxPlayer ? boxPlayer.name : signupPicks[boxId],
+      team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : '')
+    });
+  });
+
+  const divisionRows = DIVISIONS.map(division => {
+    const abbrev = divisionPicks[division];
+    const teamEntry = DIVISION_TEAMS[division].find(t => t[0] === abbrev);
+    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <h2 style="margin-bottom:4px;">Review Your Team</h2>
+    <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">Double-check everything below. Once confirmed, you'll get an email copy of your picks and payment instructions.</p>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="activity-row"><span>Team Name</span><span class="mono">${escapeHtml(signupFields.teamName)}</span></div>
+      <div class="activity-row"><span>Owner Name</span><span class="mono">${escapeHtml(signupFields.ownerName)}</span></div>
+      <div class="activity-row"><span>Email</span><span class="mono">${escapeHtml(signupFields.email)}</span></div>
+    </div>
+
+    ${Object.keys(groupTitles).map(type => `
+      <h3 class="group-title">${groupTitles[type]}</h3>
+      <div class="modal-pick-list">
+        ${grouped[type].map(p => `
+          <div class="modal-pick-row">
+            <span class="modal-pick-name">${escapeHtml(p.name)}</span>
+            <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('')}
+
+    <h3 class="group-title">Division Winner Picks</h3>
+    <div class="panel">${divisionRows}</div>
+
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button id="confirm-back-btn" style="background:var(--bg-panel-alt); color:var(--text);">Back to Edit</button>
+      <button id="confirm-submit-btn">Confirm & Submit</button>
+    </div>
+    <div id="signup-status" class="status-msg"></div>
+  `;
+
+  document.getElementById('confirm-back-btn').addEventListener('click', renderSignupFormBody);
+  document.getElementById('confirm-submit-btn').addEventListener('click', doFinalSubmit);
+}
+
+async function doFinalSubmit() {
+  const statusEl = document.getElementById('signup-status');
   statusEl.textContent = 'Submitting...';
   statusEl.className = 'status-msg';
 
   const result = await submitEntry({
-    teamName, ownerName, email,
+    teamName: signupFields.teamName,
+    ownerName: signupFields.ownerName,
+    email: signupFields.email,
     picks: signupPicks,
     divisionPicks: divisionPicks
   });
 
   if (result.success) {
-    statusEl.textContent = `Entry submitted! ID: ${result.entryId}`;
-    statusEl.className = 'status-msg success';
+    document.getElementById('signup-form').innerHTML = `
+      <div class="panel" style="text-align:center; padding:32px;">
+        <h2 style="color:var(--ice); margin-bottom:12px;">You're in!</h2>
+        <p style="margin-bottom:8px;">Entry ID: <span class="mono">${escapeHtml(result.entryId)}</span></p>
+        <p style="color:var(--text-dim); font-size:14px;">A confirmation email with your picks and payment instructions is on its way to ${escapeHtml(signupFields.email)}.</p>
+        <p style="color:var(--text-dim); font-size:13px; margin-top:12px;">Don't see it in a few minutes? Check your spam/junk folder.</p>
+      </div>
+    `;
   } else {
     statusEl.textContent = 'Error: ' + result.error;
     statusEl.className = 'status-msg error';
@@ -675,7 +754,7 @@ function renderAdminEntries(entries) {
 
   el.innerHTML = `
     <table>
-      <thead><tr><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
       <tbody>
         ${entries.map(e => `
           <tr data-entry-id="${e.id}">
@@ -683,8 +762,10 @@ function renderAdminEntries(entries) {
             <td>${escapeHtml(e.ownerName)}</td>
             <td class="mono">${escapeHtml(e.email)}</td>
             <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
+            <td>${e.paymentReceived ? '<span style="color:var(--ice)">✓ Paid</span>' : '<span style="color:var(--text-dim)">Unpaid</span>'}</td>
             <td>
               ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
+              <button class="admin-btn admin-toggle-paid" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}">${e.paymentReceived ? 'Mark Unpaid' : 'Mark Paid'}</button>
               <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
               <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
             </td>
@@ -696,6 +777,14 @@ function renderAdminEntries(entries) {
   el.querySelectorAll('.admin-approve').forEach(btn => {
     btn.addEventListener('click', async () => {
       await adminApproveEntry(adminPassword, btn.dataset.id);
+      loadAdminEntries();
+    });
+  });
+
+  el.querySelectorAll('.admin-toggle-paid').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const currentlyPaid = btn.dataset.paid === '1';
+      await adminSetPayment(adminPassword, btn.dataset.id, !currentlyPaid);
       loadAdminEntries();
     });
   });
