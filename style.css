@@ -406,7 +406,7 @@ button:hover { opacity: 0.85; }
 .stat-ticker-track {
   display: inline-flex;
   gap: 32px;
-  animation: ticker-scroll 120s linear infinite;
+  animation: ticker-scroll 240s linear infinite;
   padding-left: 100%;
 }
 .stat-ticker:hover .stat-ticker-track { animation-play-state: paused; }
