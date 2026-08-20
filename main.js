@@ -23,6 +23,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'standings') refreshAndRenderStandings();
     if (view === 'players') { await ensurePlayersLoaded(); renderPlayersTable(); }
     if (view === 'scoring') renderScoringSummary();
+    if (view === 'rules') renderRulesPage();
     if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
     if (view === 'signup') { await ensurePlayersLoaded(); renderSignupForm(); }
@@ -504,6 +505,49 @@ document.getElementById('player-search').addEventListener('input', (e) => {
 });
 
 // ---------- Scoring ----------
+// ---------- Rules ----------
+function renderRulesPage() {
+  const el = document.getElementById('rules-content');
+  const c = currentConfig;
+
+  el.innerHTML = `
+    <h3 class="group-title" style="margin-top:0;">Format</h3>
+    <p style="margin-bottom:8px;">24-box pick'em pool: 16 Forward boxes, 5 Defense boxes, 3 Goalie boxes. Pick exactly one player per box — 24 picks total. Also pick a projected winner for each of the 4 NHL divisions (Atlantic, Metropolitan, Central, Pacific).</p>
+    <p style="margin-bottom:16px; color:var(--text-dim);">No limit on entries per email address — submit as many teams as you'd like, each fully paid.</p>
+
+    <h3 class="group-title">Entry</h3>
+    <p style="margin-bottom:16px;">Entry fee is <strong>$${c.entryFee ?? 10}</strong> per team, sent to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong> with your team name and your name included in the payment note. Entries are marked Pending until payment is confirmed and approved by the commissioner.</p>
+
+    <h3 class="group-title">Picks Lock</h3>
+    <p style="margin-bottom:16px;">All picks lock permanently at <strong>${formatDeadline(c.deadline)}</strong>. No new entries and no roster changes are accepted after this point.</p>
+
+    <h3 class="group-title">Scoring</h3>
+    <p style="margin-bottom:8px;">Points accrue all season from your 24 picked players' real NHL stats. Full scoring breakdown is on the <a href="#" data-view="scoring" class="rules-inline-link">Scoring page</a>.</p>
+    <p style="margin-bottom:16px; color:var(--text-dim);">Division winner picks are worth +10 pts each, and are <strong>live and fluid</strong> — awarded to whoever's currently in 1st place in that division, recalculated every night. If the lead changes, the bonus moves with it.</p>
+
+    <h3 class="group-title">Tiebreakers</h3>
+    <p style="margin-bottom:8px;">If two or more entries are tied on total points, the tie is broken in this order:</p>
+    <p style="margin-bottom:4px;">1. Highest combined goals + assists across all picks.</p>
+    <p style="margin-bottom:16px;">2. If still tied, that same total plus all your goalies' combined saves.</p>
+
+    <h3 class="group-title">Payout</h3>
+    <p style="margin-bottom:16px;">Prize pool is split: <strong>${((c.payout1st ?? 0.5) * 100).toFixed(0)}%</strong> to 1st place, <strong>${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%</strong> to 2nd, <strong>${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%</strong> to 3rd. Current prize pool: <strong>$${(c.prizePool ?? 0).toFixed(0)}</strong>.</p>
+
+    <h3 class="group-title">Roster Reference</h3>
+    <p style="margin-bottom:16px;">The players available in each box, along with their current-season stats, are shown on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
+
+    <h3 class="group-title">Viewing Other Teams' Picks</h3>
+    <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick. Before lock, picks stay private to keep strategy fair.</p>
+  `;
+
+  el.querySelectorAll('.rules-inline-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelector(`.nav-link[data-view="${link.dataset.view}"]`).click();
+    });
+  });
+}
+
 function renderScoringSummary() {
   const el = document.getElementById('scoring-summary');
   const c = currentConfig;
