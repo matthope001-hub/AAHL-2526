@@ -102,9 +102,8 @@ async function renderStarsOfNight() {
     el.innerHTML = `
       <div class="stars-cards-row">
         ${performers.map((p, i) => {
-          const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
-          const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
-          const posLabel = p.isGoalie ? 'G' : (fullPlayer ? fullPlayer.position : '');
+          const headshot = p.headshotUrl || '';
+          const posLabel = p.isGoalie ? 'G' : (p.position || '');
           const chips = p.isGoalie
             ? [`${p.decision === 'W' ? '1W' : p.decision === 'L' ? '1L' : '1OTL'}`, p.shutout ? 'SO' : null, `${p.saves}SV`].filter(Boolean)
             : [p.goals ? `${p.goals}G` : null, p.assists ? `${p.assists}A` : null, p.sog ? `${p.sog}SOG` : null].filter(Boolean);
