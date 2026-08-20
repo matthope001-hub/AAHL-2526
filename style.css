@@ -451,14 +451,28 @@ button:hover { opacity: 0.85; }
   gap: 6px;
 }
 
-.star-row, .activity-row {
-  display: flex;
-  justify-content: space-between;
+.star-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 70px;
   align-items: center;
+  gap: 10px;
   padding: 7px 0;
   border-bottom: 1px solid var(--bg-panel-alt);
   font-size: 13px;
 }
+.star-row span:nth-child(2), .star-row span:nth-child(3) { text-align: right; }
+
+.activity-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--bg-panel-alt);
+  font-size: 13px;
+}
+.activity-row span:last-child { text-align: right; }
+
 .star-row:last-child, .activity-row:last-child { border-bottom: none; }
 
 .filter-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
