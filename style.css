@@ -571,3 +571,83 @@ button:hover { opacity: 0.85; }
   .main-nav { gap: 14px; }
   .nav-link { font-size: 13px; }
 }
+
+/* ============================================================
+   MOBILE OPTIMIZATION
+   ============================================================ */
+@media (max-width: 640px) {
+  /* Header: stack brand and nav, let nav scroll horizontally
+     instead of squishing or overflowing off-screen */
+  .header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 16px;
+    gap: 10px;
+  }
+  .brand { font-size: 22px; }
+  .brand-logo, .brand-mascot { height: 22px; }
+
+  .main-nav {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 16px;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .main-nav::-webkit-scrollbar { display: none; }
+  .nav-link {
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Any table gets a horizontal scroll safety net inside its panel
+     instead of crushing columns unreadably small */
+  .panel {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px;
+  }
+  table { font-size: 13px; }
+  th, td { padding: 8px; white-space: nowrap; }
+
+  /* Box picker: single column already kicks in at 640px via the
+     existing box-grid rule - bump text back up since there's room */
+  .box-option {
+    font-size: 13px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .box-option-photo { width: 28px; height: 28px; }
+  .box-option-stats { font-size: 12px; padding-left: 36px; }
+  .box-picker-label { font-size: 12px; padding: 6px 10px; }
+
+  /* Modal: full-width on small screens, readable pick rows */
+  .modal-content {
+    width: 95vw;
+    max-height: 90vh;
+    padding: 16px;
+  }
+  .modal-pick-list { grid-template-columns: 1fr; }
+  .modal-pick-row { font-size: 13px; padding: 8px; }
+
+  /* Ticker: bigger text, since it's the main readability complaint */
+  .ticker-chip { font-size: 15px; }
+
+  /* Scoring cards: single column, roomier */
+  .scoring-grid { grid-template-columns: 1fr; }
+  .scoring-table { font-size: 14px; }
+
+  /* Forms */
+  input[type="text"], input[type="email"], select {
+    font-size: 16px; /* prevents iOS auto-zoom on focus */
+    padding: 12px;
+  }
+  button { width: 100%; padding: 14px; font-size: 15px; }
+
+  .hero-title { font-size: 32px; }
+  .hero-sub { font-size: 15px; }
+  .section-title { font-size: 22px; }
+  .group-title { font-size: 18px; }
+}
