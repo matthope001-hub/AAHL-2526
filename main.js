@@ -143,30 +143,32 @@ async function refreshAndRenderHome() {
 
 // ---------- Home ----------
 function renderHomeStandingsPreview() {
-  const top5 = [...allStandings].sort((a, b) => {
+  const sorted = [...allStandings].sort((a, b) => {
     if (a.rank == null && b.rank == null) return 0;
     if (a.rank == null) return 1;
     if (b.rank == null) return -1;
     return a.rank - b.rank;
-  }).slice(0, 5);
+  });
   const el = document.getElementById('home-standings-preview');
-  if (top5.length === 0) {
+  if (sorted.length === 0) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     return;
   }
   el.innerHTML = `
-    <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>Approved</th></tr></thead>
-      <tbody>
-        ${top5.map(e => `
-          <tr>
-            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
-            <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            <td class="pts">${e.pts}</td>
-            <td>${e.approved ? '<span style="color:var(--ice)">✓</span>' : '<span style="color:#ff5c5c">✗</span>'}</td>
-          </tr>`).join('')}
-      </tbody>
-    </table>`;
+    <div class="players-table-scroll" style="max-height:50vh;">
+      <table>
+        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>Approved</th></tr></thead>
+        <tbody>
+          ${sorted.map(e => `
+            <tr>
+              <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
+              <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
+              <td class="pts">${e.pts}</td>
+              <td>${e.approved ? '<span style="color:var(--ice)">✓</span>' : '<span style="color:#ff5c5c">✗</span>'}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
   attachTeamLinkListeners(el);
 }
 
