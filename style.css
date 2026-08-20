@@ -615,6 +615,93 @@ button:hover { opacity: 0.85; }
 
 .box-option-readonly { cursor: default; padding-left: 10px; }
 
+.stars-cards-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.star-card {
+  flex: 1;
+  min-width: 220px;
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 10px 12px;
+  position: relative;
+}
+.star-badge {
+  display: inline-block;
+  background: var(--amber);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  margin-bottom: 8px;
+}
+.star-card-body {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.star-photo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.star-photo-empty { background: var(--bg-panel); border: 1px solid var(--border); }
+.star-info { flex: 1; min-width: 0; }
+.star-player-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.star-player-meta { color: var(--text-dim); font-size: 11px; margin-bottom: 4px; }
+.star-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.stat-chip {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--ice);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.star-pts-wrap {
+  text-align: right;
+  flex-shrink: 0;
+}
+.star-pts {
+  display: block;
+  color: var(--amber);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1;
+}
+.star-pts-label { color: var(--text-dim); font-size: 10px; }
+.star-date {
+  color: var(--text-dim);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .stars-cards-row { flex-direction: column; }
+  .star-date { padding-top: 4px; }
+}
+
 .rules-inline-link { color: var(--ice); text-decoration: underline; cursor: pointer; }
 
 .hat-trick { color: var(--amber); font-weight: 700; }
