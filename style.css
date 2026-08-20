@@ -570,6 +570,13 @@ button:hover { opacity: 0.85; }
   50% { box-shadow: 0 0 0 3px rgba(255, 92, 92, 0.4); }
 }
 
+.team-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .hat-trick { color: var(--amber); font-weight: 700; }
 
 .site-footer {
