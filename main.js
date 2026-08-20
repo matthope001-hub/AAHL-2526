@@ -390,20 +390,20 @@ let playerFilter = 'all';
 let playerSort = { column: 'pts', dir: 'desc' };
 
 const PLAYER_COLUMNS = [
-  { key: 'name', label: 'Player', sortable: false, filters: ['all', 'F', 'D', 'G'] },
-  { key: 'team', label: 'NHL', sortable: false, filters: ['all', 'F', 'D', 'G'] },
-  { key: 'position', label: 'Pos', sortable: false, filters: ['all', 'F', 'D', 'G'] },
-  { key: 'goals', label: 'G', sortable: true, filters: ['all', 'F', 'D'] },
-  { key: 'assists', label: 'A', sortable: true, filters: ['all', 'F', 'D'] },
-  { key: 'sog', label: 'SOG', sortable: true, filters: ['all', 'F', 'D'] },
-  { key: 'pim', label: 'PIM', sortable: true, filters: ['all', 'D'] },
-  { key: 'wins', label: 'W', sortable: true, filters: ['all', 'G'] },
-  { key: 'losses', label: 'L', sortable: true, filters: ['all', 'G'] },
-  { key: 'otl', label: 'OTL', sortable: true, filters: ['all', 'G'] },
-  { key: 'shutouts', label: 'SO', sortable: true, filters: ['all', 'G'] },
-  { key: 'saves', label: 'SV', sortable: true, filters: ['all', 'G'] },
-  { key: 'hatTricks', label: '🎩', sortable: true, filters: ['all', 'F', 'D'] },
-  { key: 'pts', label: 'Pts', sortable: true, filters: ['all', 'F', 'D', 'G'] }
+  { key: 'name', label: 'Player', title: 'Player Name', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'team', label: 'NHL', title: 'NHL Team', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'position', label: 'Pos', title: 'Position', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'goals', label: 'G', title: 'Goals', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'assists', label: 'A', title: 'Assists', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'sog', label: 'SOG', title: 'Shots on Goal', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'pim', label: 'PIM', title: 'Penalty Minutes', sortable: true, filters: ['all', 'D'] },
+  { key: 'wins', label: 'W', title: 'Wins', sortable: true, filters: ['all', 'G'] },
+  { key: 'losses', label: 'L', title: 'Losses', sortable: true, filters: ['all', 'G'] },
+  { key: 'otl', label: 'OTL', title: 'Overtime Losses', sortable: true, filters: ['all', 'G'] },
+  { key: 'shutouts', label: 'SO', title: 'Shutouts', sortable: true, filters: ['all', 'G'] },
+  { key: 'saves', label: 'SV', title: 'Saves', sortable: true, filters: ['all', 'G'] },
+  { key: 'hatTricks', label: '🎩', title: 'Hat Tricks', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'pts', label: 'Pts', title: 'Fantasy Points', sortable: true, filters: ['all', 'F', 'D', 'G'] }
 ];
 
 function playerColumnValue(p, key) {
@@ -471,7 +471,7 @@ function renderPlayersTable(searchQuery) {
         <thead>
           <tr>
             ${visibleColumns.map(col => `
-              <th class="${col.sortable ? 'sortable-col' : ''} ${playerSort.column === col.key ? 'sorted-col' : ''}" data-key="${col.key}">
+              <th class="${col.sortable ? 'sortable-col' : ''} ${playerSort.column === col.key ? 'sorted-col' : ''}" data-key="${col.key}" title="${escapeHtml(col.title)}">
                 ${escapeHtml(col.label)}${playerSort.column === col.key ? (playerSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}
               </th>
             `).join('')}
