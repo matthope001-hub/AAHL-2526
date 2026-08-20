@@ -426,6 +426,23 @@ button:hover { opacity: 0.85; }
 
 .brand { display: inline-flex; align-items: center; }
 
+.hero-cta-btn {
+  display: inline-block;
+  background: var(--ice);
+  color: #ffffff !important;
+  border: none !important;
+  padding: 12px 28px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  cursor: pointer;
+  margin: 16px 0 20px;
+}
+.hero-cta-btn:hover { opacity: 0.85; color: #ffffff; border-color: transparent; }
+
 .hero-stats-row { display: flex; gap: 10px; margin-top: 0; }
 .hero-stat {
   background: var(--bg-panel);
