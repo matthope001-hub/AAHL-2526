@@ -151,6 +151,22 @@ async function refreshAndRenderHome() {
 }
 
 // ---------- Home ----------
+function payoutForRank(rank) {
+  if (rank == null) return null;
+  const c = currentConfig;
+  const pool = c.prizePool ?? 0;
+  if (rank === 1) return pool * (c.payout1st ?? 0.5);
+  if (rank === 2) return pool * (c.payout2nd ?? 0.3);
+  if (rank === 3) return pool * (c.payout3rd ?? 0.2);
+  return null;
+}
+
+function payoutHtml(rank) {
+  const amount = payoutForRank(rank);
+  if (amount == null) return '<span class="mono" style="color:var(--text-dim)">—</span>';
+  return `<span class="mono" style="color:var(--amber); font-weight:700;">$${amount.toFixed(2)}</span>`;
+}
+
 function rankMovementHtml(e) {
   if (e.rankChange == null) return '<span class="mono" style="color:var(--text-dim)">—</span>';
   if (e.rankChange > 0) return `<span class="mono" style="color:#3ecf6a">▲${e.rankChange}</span>`;
@@ -180,7 +196,7 @@ function renderHomeStandingsPreview() {
   el.innerHTML = `
     <div class="players-table-scroll" style="max-height:50vh;">
       <table>
-        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>±Pts</th><th>Move</th></tr></thead>
+        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>±Pts</th><th>Move</th><th>Payout</th></tr></thead>
         <tbody>
           ${sorted.map(e => `
             <tr>
@@ -189,6 +205,7 @@ function renderHomeStandingsPreview() {
               <td class="pts">${e.pts.toFixed(2)}</td>
               <td>${ptsDeltaHtml(e)}</td>
               <td>${rankMovementHtml(e)}</td>
+              <td>${payoutHtml(e.rank)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -216,7 +233,7 @@ function renderStandingsTable() {
   }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>±Pts (24h)</th><th>Move</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>±Pts (24h)</th><th>Move</th><th>Payout</th></tr></thead>
       <tbody>
         ${sorted.map(e => `
           <tr>
@@ -225,6 +242,7 @@ function renderStandingsTable() {
             <td class="pts">${e.pts.toFixed(2)}</td>
             <td>${ptsDeltaHtml(e)}</td>
             <td>${rankMovementHtml(e)}</td>
+            <td>${payoutHtml(e.rank)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -522,7 +540,7 @@ function renderRulesPage() {
     <p style="margin-bottom:16px;">All picks lock permanently at <strong>${formatDeadline(c.deadline)}</strong>. No new entries and no roster changes are accepted after this point.</p>
 
     <h3 class="group-title">Scoring</h3>
-    <p style="margin-bottom:8px;">Points accrue all season from your 24 picked players' real NHL stats. Full scoring breakdown is on the <a href="#" data-view="scoring" class="rules-inline-link">Scoring page</a>.</p>
+    <p style="margin-bottom:8px;">Points accrue all season from your 24 picked players' real NHL stats, plus the live division bonus from your 4 division picks. Full scoring breakdown is on the <a href="#" data-view="scoring" class="rules-inline-link">Scoring page</a>.</p>
     <p style="margin-bottom:16px; color:var(--text-dim);">Division winner picks are worth +10 pts each, and are <strong>live and fluid</strong> — awarded to whoever's currently in 1st place in that division, recalculated every night. If the lead changes, the bonus moves with it.</p>
 
     <h3 class="group-title">Tiebreakers</h3>
@@ -583,7 +601,7 @@ function renderScoringSummary() {
 
   el.innerHTML = `
     <p style="color:var(--text-dim); margin-bottom:16px; font-size:14px;">
-      24-box pick'em — 16 Forward, 5 Defense, 3 Goalie boxes. One pick per box, scored on real NHL stats.
+      24-box pick'em (16 Forward, 5 Defense, 3 Goalie) + 4 division winner picks. Points scored on real NHL stats all season, plus the division bonus.
     </p>
     <div class="scoring-grid">
       ${cards.map(card => `
