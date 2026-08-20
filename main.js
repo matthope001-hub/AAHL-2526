@@ -23,6 +23,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'standings') refreshAndRenderStandings();
     if (view === 'players') { await ensurePlayersLoaded(); renderPlayersTable(); }
     if (view === 'scoring') renderScoringSummary();
+    if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
     if (view === 'signup') { await ensurePlayersLoaded(); renderSignupForm(); }
     if (view === 'admin') renderAdminPanel();
@@ -887,6 +888,57 @@ async function doFinalSubmit() {
     statusEl.textContent = 'Error: ' + result.error;
     statusEl.className = 'status-msg error';
   }
+}
+
+// ---------- Boxes Reference (public, read-only) ----------
+async function renderBoxesReference() {
+  const el = document.getElementById('boxes-reference');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+
+  if (allBoxes.length === 0) {
+    allBoxes = await fetchBoxes();
+  }
+
+  const grouped = { F: [], D: [], G: [] };
+  allBoxes.forEach(b => grouped[b.boxType].push(b));
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+
+  el.innerHTML = Object.keys(groupTitles).map(type => `
+    <h3 class="group-title">${groupTitles[type]}</h3>
+    <div class="box-grid">
+      ${grouped[type].map(box => {
+        const ranked = [...box.players].map(p => {
+          const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
+          const s = (fullPlayer && fullPlayer.stats) || {};
+          const ptsNum = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig) : 0;
+          return { p, fullPlayer, s, ptsNum };
+        }).sort((a, b) => b.ptsNum - a.ptsNum);
+
+        return `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
+          <div class="box-picker-options">
+            ${ranked.map(({ p, fullPlayer, s, ptsNum }) => {
+              const currentTeam = fullPlayer ? fullPlayer.team : p.team;
+              const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+              const statLine = box.boxType === 'G'
+                ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL · ${s.shutouts || 0}SO · ${s.saves || 0}SV`
+                : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` · ${s.hatTricks}HT` : ''}`;
+              return `
+              <div class="box-option box-option-readonly">
+                <span class="box-option-photo-wrap">
+                  ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                </span>
+                <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
+                <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts</span>
+                <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
+              </div>
+            `;}).join('')}
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+  `).join('');
 }
 
 // ---------- IR List (public) ----------
