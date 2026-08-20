@@ -87,22 +87,29 @@ async function renderStarsOfNight() {
 
   try {
     const stars = await fetchStarsOfNight();
-    const performers = (stars && stars.topPerformers || []).filter(p => poolPlayerIds.has(p.playerId));
+    const performers = (stars && stars.topPerformers || []).filter(p => poolPlayerIds.has(p.playerId)).slice(0, 3);
 
     if (!stars || performers.length === 0) {
       el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No games played yet.</p>`;
       return;
     }
 
+    const starLabels = ['1st Star', '2nd Star', '3rd Star'];
+
     el.innerHTML = `
       <div class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:8px;">${escapeHtml(stars.date)}</div>
-      ${performers.map(p => `
-        <div class="star-row">
-          <span>${escapeHtml(p.fullName)}</span>
-          <span class="mono" style="color:var(--text-dim)">${escapeHtml(p.team)}</span>
-          <span class="pts mono">${p.pts}</span>
+      ${performers.map((p, i) => {
+        const statLine = p.isGoalie
+          ? `${p.decision === 'W' ? 'W' : p.decision === 'L' ? 'L' : 'OTL'}${p.shutout ? ' SO' : ''} · ${p.saves}SV`
+          : `${p.goals}G ${p.assists}A ${p.sog || 0}SOG`;
+        return `
+        <div class="star-row-full">
+          <span class="star-rank-label">${starLabels[i]}</span>
+          <span class="star-name">${escapeHtml(p.fullName)} <span class="mono" style="color:var(--text-dim)">(${escapeHtml(p.team)})</span></span>
+          <span class="mono star-stats">${statLine}</span>
+          <span class="pts mono">${p.pts.toFixed(2)}pts</span>
         </div>
-      `).join('')}
+      `;}).join('')}
     `;
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No games played yet.</p>`;
