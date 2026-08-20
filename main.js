@@ -575,6 +575,18 @@ async function renderSignupForm() {
   signupPicks = {};
   divisionPicks = {};
   signupFields = { teamName: '', ownerName: '', email: '' };
+
+  const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
+  if (currentConfig.picksLocked || deadlinePassed) {
+    document.getElementById('signup-form').innerHTML = `
+      <div class="panel" style="text-align:center; padding:32px;">
+        <h2 style="color:var(--amber); margin-bottom:12px;">Picks Are Locked</h2>
+        <p style="color:var(--text-dim); font-size:14px;">The season has started and new entries are no longer being accepted.</p>
+      </div>
+    `;
+    return;
+  }
+
   await renderSignupFormBody();
 }
 
