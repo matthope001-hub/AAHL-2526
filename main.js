@@ -390,20 +390,20 @@ let playerFilter = 'all';
 let playerSort = { column: 'pts', dir: 'desc' };
 
 const PLAYER_COLUMNS = [
-  { key: 'name', label: 'Player', sortable: false },
-  { key: 'team', label: 'NHL', sortable: false },
-  { key: 'position', label: 'Pos', sortable: false },
-  { key: 'goals', label: 'G', sortable: true },
-  { key: 'assists', label: 'A', sortable: true },
-  { key: 'sog', label: 'SOG', sortable: true },
-  { key: 'pim', label: 'PIM', sortable: true },
-  { key: 'wins', label: 'W', sortable: true },
-  { key: 'losses', label: 'L', sortable: true },
-  { key: 'otl', label: 'OTL', sortable: true },
-  { key: 'shutouts', label: 'SO', sortable: true },
-  { key: 'saves', label: 'SV', sortable: true },
-  { key: 'hatTricks', label: '🎩', sortable: true },
-  { key: 'pts', label: 'Pts', sortable: true }
+  { key: 'name', label: 'Player', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'team', label: 'NHL', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'position', label: 'Pos', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'goals', label: 'G', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'assists', label: 'A', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'sog', label: 'SOG', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'pim', label: 'PIM', sortable: true, filters: ['all', 'D'] },
+  { key: 'wins', label: 'W', sortable: true, filters: ['all', 'G'] },
+  { key: 'losses', label: 'L', sortable: true, filters: ['all', 'G'] },
+  { key: 'otl', label: 'OTL', sortable: true, filters: ['all', 'G'] },
+  { key: 'shutouts', label: 'SO', sortable: true, filters: ['all', 'G'] },
+  { key: 'saves', label: 'SV', sortable: true, filters: ['all', 'G'] },
+  { key: 'hatTricks', label: '🎩', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'pts', label: 'Pts', sortable: true, filters: ['all', 'F', 'D', 'G'] }
 ];
 
 function playerColumnValue(p, key) {
@@ -435,17 +435,42 @@ function renderPlayersTable(searchQuery) {
     list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
   }
 
+  const visibleColumns = PLAYER_COLUMNS.filter(col => col.filters.includes(playerFilter));
+
+  // If sorting by a column that's no longer visible after switching filters
+  // (e.g. was sorting by Saves, then switched to Forwards), fall back to Pts.
+  if (!visibleColumns.some(c => c.key === playerSort.column)) {
+    playerSort = { column: 'pts', dir: 'desc' };
+  }
+
   list.sort((a, b) => {
     const diff = playerColumnValue(b, playerSort.column) - playerColumnValue(a, playerSort.column);
     return playerSort.dir === 'asc' ? -diff : diff;
   });
+
+  const cellRenderers = {
+    name: (p) => `${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}`,
+    team: (p) => escapeHtml(p.team || ''),
+    position: (p) => escapeHtml(p.position || ''),
+    goals: (p) => (p.stats && p.stats.goals) || 0,
+    assists: (p) => (p.stats && p.stats.assists) || 0,
+    sog: (p) => (p.stats && p.stats.sog) || 0,
+    pim: (p) => (p.stats && p.stats.pim) || 0,
+    wins: (p) => (p.stats && p.stats.wins) || 0,
+    losses: (p) => (p.stats && p.stats.losses) || 0,
+    otl: (p) => (p.stats && p.stats.otl) || 0,
+    shutouts: (p) => (p.stats && p.stats.shutouts) || 0,
+    saves: (p) => (p.stats && p.stats.saves) || 0,
+    hatTricks: (p) => (p.stats && p.stats.hatTricks) ? `<span class="hat-trick">${p.stats.hatTricks}</span>` : '—',
+    pts: (p) => `<span class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</span>`
+  };
 
   el.innerHTML = `
     <div class="players-table-scroll">
       <table>
         <thead>
           <tr>
-            ${PLAYER_COLUMNS.map(col => `
+            ${visibleColumns.map(col => `
               <th class="${col.sortable ? 'sortable-col' : ''} ${playerSort.column === col.key ? 'sorted-col' : ''}" data-key="${col.key}">
                 ${escapeHtml(col.label)}${playerSort.column === col.key ? (playerSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}
               </th>
@@ -453,25 +478,10 @@ function renderPlayersTable(searchQuery) {
           </tr>
         </thead>
         <tbody>
-          ${list.map(p => {
-            const s = p.stats || {};
-            return `
+          ${list.map(p => `
             <tr>
-              <td>${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}</td>
-              <td>${escapeHtml(p.team || '')}</td>
-              <td>${escapeHtml(p.position || '')}</td>
-              <td>${s.goals || 0}</td>
-              <td>${s.assists || 0}</td>
-              <td>${s.sog || 0}</td>
-              <td>${s.pim || 0}</td>
-              <td>${s.wins || 0}</td>
-              <td>${s.losses || 0}</td>
-              <td>${s.otl || 0}</td>
-              <td>${s.shutouts || 0}</td>
-              <td>${s.saves || 0}</td>
-              <td>${s.hatTricks ? `<span class="hat-trick">${s.hatTricks}</span>` : '—'}</td>
-              <td class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</td>
-            </tr>`;}).join('')}
+              ${visibleColumns.map(col => `<td>${cellRenderers[col.key](p)}</td>`).join('')}
+            </tr>`).join('')}
         </tbody>
       </table>
     </div>`;
