@@ -615,6 +615,8 @@ button:hover { opacity: 0.85; }
 
 .box-option-readonly { cursor: default; padding-left: 10px; }
 
+.rules-inline-link { color: var(--ice); text-decoration: underline; cursor: pointer; }
+
 .hat-trick { color: var(--amber); font-weight: 700; }
 
 .site-footer {
