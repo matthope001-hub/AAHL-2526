@@ -240,7 +240,7 @@ async function openAdminPicksModal(entry) {
 
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
   const divisionRows = Object.entries(entry.divisionPicks || {})
-    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono">${escapeHtml(team)}</span></div>`)
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}</span></div>`)
     .join('');
 
   body.innerHTML = `
@@ -326,7 +326,7 @@ async function openTeamPicksModal(entryId, teamName) {
 
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
   const divisionRows = Object.entries(data.divisionPicks || {})
-    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono">${escapeHtml(team)}</span></div>`)
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}</span></div>`)
     .join('');
 
   body.innerHTML = `
@@ -654,6 +654,7 @@ async function renderSignupFormBody() {
               return `
               <label class="box-option">
                 <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}" ${divisionPicks[division] === abbrev ? 'checked' : ''}>
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
                 <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
@@ -761,7 +762,7 @@ function renderSignupConfirmStep() {
   const divisionRows = DIVISIONS.map(division => {
     const abbrev = divisionPicks[division];
     const teamEntry = DIVISION_TEAMS[division].find(t => t[0] === abbrev);
-    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
+    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
   }).join('');
 
   el.innerHTML = `
