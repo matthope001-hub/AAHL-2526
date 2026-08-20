@@ -96,22 +96,37 @@ async function renderStarsOfNight() {
       return;
     }
 
-    const starLabels = ['1st Star', '2nd Star', '3rd Star'];
+    const starLabels = ['1ST STAR', '2ND STAR', '3RD STAR'];
+    const dateFormatted = new Date(stars.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
     el.innerHTML = `
-      <div class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:8px;">${escapeHtml(stars.date)}</div>
-      ${performers.map((p, i) => {
-        const statLine = p.isGoalie
-          ? `${p.decision === 'W' ? 'W' : p.decision === 'L' ? 'L' : 'OTL'}${p.shutout ? ' SO' : ''} · ${p.saves}SV`
-          : `${p.goals}G ${p.assists}A ${p.sog || 0}SOG`;
-        return `
-        <div class="star-row-full">
-          <span class="star-rank-label">${starLabels[i]}</span>
-          <span class="star-name">${escapeHtml(p.fullName)} <span class="mono" style="color:var(--text-dim)">(${escapeHtml(p.team)})</span></span>
-          <span class="mono star-stats">${statLine}</span>
-          <span class="pts mono">${p.pts.toFixed(2)}pts</span>
-        </div>
-      `;}).join('')}
+      <div class="stars-cards-row">
+        ${performers.map((p, i) => {
+          const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
+          const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+          const posLabel = p.isGoalie ? 'G' : (fullPlayer ? fullPlayer.position : '');
+          const chips = p.isGoalie
+            ? [`${p.decision === 'W' ? '1W' : p.decision === 'L' ? '1L' : '1OTL'}`, p.shutout ? 'SO' : null, `${p.saves}SV`].filter(Boolean)
+            : [p.goals ? `${p.goals}G` : null, p.assists ? `${p.assists}A` : null, p.sog ? `${p.sog}SOG` : null].filter(Boolean);
+          return `
+          <div class="star-card">
+            <div class="star-badge">${starLabels[i]}</div>
+            <div class="star-card-body">
+              ${headshot ? `<img class="star-photo" src="${headshot}" alt="">` : `<div class="star-photo star-photo-empty"></div>`}
+              <div class="star-info">
+                <div class="star-player-name">${escapeHtml(p.fullName)}</div>
+                <div class="mono star-player-meta">${escapeHtml(p.team)} · ${escapeHtml(posLabel)}</div>
+                <div class="star-chips">${chips.map(c => `<span class="stat-chip">${escapeHtml(c)}</span>`).join('')}</div>
+              </div>
+              <div class="star-pts-wrap">
+                <span class="star-pts">+${p.pts.toFixed(2)}</span>
+                <span class="mono star-pts-label">pts</span>
+              </div>
+            </div>
+          </div>
+        `;}).join('')}
+        <div class="star-date mono">${escapeHtml(dateFormatted)}</div>
+      </div>
     `;
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No games played yet.</p>`;
