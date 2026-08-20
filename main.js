@@ -898,12 +898,15 @@ async function renderBoxesReference() {
   if (allBoxes.length === 0) {
     allBoxes = await fetchBoxes();
   }
+  if (Object.keys(lastSeasonStandings).length === 0) {
+    lastSeasonStandings = await fetchLastSeasonStandings();
+  }
 
   const grouped = { F: [], D: [], G: [] };
   allBoxes.forEach(b => grouped[b.boxType].push(b));
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
 
-  el.innerHTML = Object.keys(groupTitles).map(type => `
+  const playerBoxesHtml = Object.keys(groupTitles).map(type => `
     <h3 class="group-title">${groupTitles[type]}</h3>
     <div class="box-grid">
       ${grouped[type].map(box => {
@@ -939,6 +942,38 @@ async function renderBoxesReference() {
       `;}).join('')}
     </div>
   `).join('');
+
+  const divisionBoxesHtml = `
+    <h3 class="group-title">Division Winner Boxes <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+10 pts bonus each, awarded live all season)</span></h3>
+    <div class="box-grid">
+      ${DIVISIONS.map(division => {
+        const teams = [...DIVISION_TEAMS[division]].sort((a, b) => {
+          const ra = (lastSeasonStandings[a[0]] || {}).rank ?? 99;
+          const rb = (lastSeasonStandings[b[0]] || {}).rank ?? 99;
+          return ra - rb;
+        });
+        return `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(division)}</div>
+          <div class="box-picker-options">
+            ${teams.map(([abbrev, fullName]) => {
+              const record = lastSeasonStandings[abbrev];
+              const refLabel = record ? `${record.points}pts (${ordinal(record.rank)}, 25-26)` : '';
+              return `
+              <div class="box-option box-option-readonly">
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
+                <span class="box-option-name">${escapeHtml(fullName)}</span>
+                <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
+                <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
+              </div>
+            `;}).join('')}
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+  `;
+
+  el.innerHTML = playerBoxesHtml + divisionBoxesHtml;
 }
 
 // ---------- IR List (public) ----------
