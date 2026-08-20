@@ -142,6 +142,20 @@ async function refreshAndRenderHome() {
 }
 
 // ---------- Home ----------
+function rankMovementHtml(e) {
+  if (e.rankChange == null) return '<span class="mono" style="color:var(--text-dim)">—</span>';
+  if (e.rankChange > 0) return `<span class="mono" style="color:#3ecf6a">▲${e.rankChange}</span>`;
+  if (e.rankChange < 0) return `<span class="mono" style="color:#ff5c5c">▼${Math.abs(e.rankChange)}</span>`;
+  return '<span class="mono" style="color:var(--text-dim)">—</span>';
+}
+
+function ptsDeltaHtml(e) {
+  if (e.ptsDelta == null) return '<span class="mono" style="color:var(--text-dim)">—</span>';
+  const sign = e.ptsDelta > 0 ? '+' : '';
+  const color = e.ptsDelta > 0 ? '#3ecf6a' : (e.ptsDelta < 0 ? '#ff5c5c' : 'var(--text-dim)');
+  return `<span class="mono" style="color:${color}">${sign}${e.ptsDelta.toFixed(2)}</span>`;
+}
+
 function renderHomeStandingsPreview() {
   const sorted = [...allStandings].sort((a, b) => {
     if (a.rank == null && b.rank == null) return 0;
@@ -157,13 +171,15 @@ function renderHomeStandingsPreview() {
   el.innerHTML = `
     <div class="players-table-scroll" style="max-height:50vh;">
       <table>
-        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th></tr></thead>
+        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>±Pts</th><th>Move</th></tr></thead>
         <tbody>
           ${sorted.map(e => `
             <tr>
               <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
               <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-              <td class="pts">${e.pts}</td>
+              <td class="pts">${e.pts.toFixed(2)}</td>
+              <td>${ptsDeltaHtml(e)}</td>
+              <td>${rankMovementHtml(e)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -191,13 +207,15 @@ function renderStandingsTable() {
   }
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Points</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>±Pts (24h)</th><th>Move</th></tr></thead>
       <tbody>
         ${sorted.map(e => `
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
             <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            <td class="pts">${e.pts}</td>
+            <td class="pts">${e.pts.toFixed(2)}</td>
+            <td>${ptsDeltaHtml(e)}</td>
+            <td>${rankMovementHtml(e)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
