@@ -717,9 +717,15 @@ button:hover { opacity: 0.85; }
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 24px 0;
+  padding: 32px 24px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 20px;
+  background:
+    linear-gradient(90deg, rgba(10,10,10,0.94) 0%, rgba(10,10,10,0.75) 45%, rgba(10,10,10,0.5) 100%),
+    url('Gemini_Generated_Image_xxsfkaxxsfkaxxsf.jpg');
+  background-size: cover;
+  background-position: right center;
+  border-radius: 4px;
 }
 .hero-eyebrow {
   font-size: 11px;
@@ -911,4 +917,15 @@ a.hero-badge { cursor: pointer; }
   .hero-sub { font-size: 15px; }
   .section-title { font-size: 22px; }
   .group-title { font-size: 18px; }
+}
+
+@media (max-width: 640px) {
+  .hero-header-row {
+    background:
+      linear-gradient(180deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.6) 100%),
+      url('Gemini_Generated_Image_xxsfkaxxsfkaxxsf.jpg');
+    background-size: cover;
+    background-position: center 20%;
+    padding: 24px 16px;
+  }
 }
