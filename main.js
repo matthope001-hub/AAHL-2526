@@ -1266,9 +1266,12 @@ function renderManageMoves() {
   });
 }
 
+let stagedMoves = {}; // boxId -> { oldPlayerId, newPlayerId }
+
 function renderMyTeamMovesPanel() {
   const el = document.getElementById('moves-team-panel');
   if (!myTeamEntry) return;
+  stagedMoves = {};
 
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
@@ -1294,14 +1297,15 @@ function renderMyTeamMovesPanel() {
     ` : ''}
 
     ${myTeamEntry.movesRemaining > 0 ? `
-      <h4 class="group-title">Request a Move</h4>
-      <div id="move-confirm-panel"></div>
+      <h4 class="group-title">Request Moves <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(pick as many box changes as you want, then submit together)</span></h4>
+      <div id="staged-moves-summary"></div>
       <div class="box-grid" id="my-team-box-grid"></div>
     ` : `<p class="mono" style="color:var(--text-dim);">No moves remaining.</p>`}
   `;
 
   if (myTeamEntry.movesRemaining > 0) {
     renderMyTeamBoxPicker();
+    renderStagedMovesSummary_();
   }
 }
 
@@ -1314,6 +1318,7 @@ function renderMyTeamBoxPicker() {
     const box = boxById[boxId];
     if (!box) return '';
     const currentPlayerId = myTeamEntry.picks[boxId];
+    const stagedId = stagedMoves[boxId] ? stagedMoves[boxId].newPlayerId : currentPlayerId;
 
     return `
       <div class="box-picker">
@@ -1321,9 +1326,10 @@ function renderMyTeamBoxPicker() {
         <div class="box-picker-options">
           ${box.players.map(p => {
             const isCurrent = p.playerId === currentPlayerId;
+            const isSelected = p.playerId === stagedId;
             return `
             <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
-              <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}" ${isCurrent ? 'checked' : ''}>
+              <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}" ${isSelected ? 'checked' : ''}>
               <span class="box-option-name">${escapeHtml(p.name)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
               <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
             </label>
@@ -1337,61 +1343,90 @@ function renderMyTeamBoxPicker() {
     radio.addEventListener('change', () => {
       const boxId = radio.dataset.box;
       const currentPlayerId = myTeamEntry.picks[boxId];
-      if (radio.value === currentPlayerId) return; // selected their own current pick, nothing to confirm
-      showMoveConfirmation_(boxId, currentPlayerId, radio.value, radio);
+      if (radio.value === currentPlayerId) {
+        delete stagedMoves[boxId]; // reverted back to their original pick
+      } else {
+        stagedMoves[boxId] = { oldPlayerId: currentPlayerId, newPlayerId: radio.value };
+      }
+      renderStagedMovesSummary_();
     });
   });
 }
 
-function showMoveConfirmation_(boxId, oldPlayerId, newPlayerId, radioEl) {
+function renderStagedMovesSummary_() {
+  const el = document.getElementById('staged-moves-summary');
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
-  const box = boxById[boxId];
 
-  const oldOption = (box.players || []).find(p => p.playerId === oldPlayerId);
-  const newOption = (box.players || []).find(p => p.playerId === newPlayerId);
-  const oldName = oldOption ? oldOption.name : oldPlayerId;
-  const newName = newOption ? newOption.name : newPlayerId;
+  const staged = Object.keys(stagedMoves);
+  if (staged.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
 
-  const confirmEl = document.getElementById('move-confirm-panel');
-  confirmEl.innerHTML = `
+  const seasonStarted = currentConfig.seasonStartDate && new Date() >= new Date(currentConfig.seasonStartDate);
+  const overLimit = seasonStarted && staged.length > myTeamEntry.movesRemaining;
+
+  el.innerHTML = `
     <div class="panel" style="border-color:var(--amber); margin-bottom:16px;">
-      <h4 style="margin-bottom:8px; color:var(--amber);">Confirm this move?</h4>
-      <p style="margin-bottom:14px; font-size:15px;">
-        <strong>${escapeHtml(box.boxLabel)}:</strong><br>
-        ${escapeHtml(oldName)} <span style="color:var(--text-dim);">→</span> ${escapeHtml(newName)}
-      </p>
-      <button id="move-confirm-yes">Confirm Move</button>
-      <button id="move-confirm-no" style="background:var(--bg-panel-alt); color:var(--text); margin-left:8px;">Cancel</button>
+      <h4 style="margin-bottom:10px; color:var(--amber);">Review Your Changes (${staged.length})</h4>
+      ${staged.map(boxId => {
+        const box = boxById[boxId];
+        const move = stagedMoves[boxId];
+        const oldOption = (box.players || []).find(p => p.playerId === move.oldPlayerId);
+        const newOption = (box.players || []).find(p => p.playerId === move.newPlayerId);
+        return `
+          <div class="activity-row">
+            <span><strong>${escapeHtml(box.boxLabel)}:</strong> ${escapeHtml(oldOption ? oldOption.name : move.oldPlayerId)} → ${escapeHtml(newOption ? newOption.name : move.newPlayerId)}</span>
+            <button class="admin-btn" data-remove-box="${boxId}">Remove</button>
+          </div>
+        `;
+      }).join('')}
+      ${overLimit ? `<p class="status-msg error" style="margin-top:10px;">You only have ${myTeamEntry.movesRemaining} move${myTeamEntry.movesRemaining === 1 ? '' : 's'} remaining - remove ${staged.length - myTeamEntry.movesRemaining} change${staged.length - myTeamEntry.movesRemaining === 1 ? '' : 's'} before submitting.</p>` : ''}
+      <button id="submit-all-moves-btn" ${overLimit ? 'disabled' : ''} style="margin-top:12px;">Submit ${staged.length} Change${staged.length === 1 ? '' : 's'}</button>
     </div>
   `;
-  confirmEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-  document.getElementById('move-confirm-yes').addEventListener('click', () => {
-    confirmEl.innerHTML = '';
-    requestMoveFromUI_(boxId, newPlayerId);
+  el.querySelectorAll('[data-remove-box]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const boxId = btn.dataset.removeBox;
+      delete stagedMoves[boxId];
+      const currentPlayerId = myTeamEntry.picks[boxId];
+      const radio = document.querySelector(`input[name="move-target-${boxId}"][value="${currentPlayerId}"]`);
+      if (radio) radio.checked = true;
+      renderStagedMovesSummary_();
+    });
   });
-  document.getElementById('move-confirm-no').addEventListener('click', () => {
-    confirmEl.innerHTML = '';
-    radioEl.checked = false;
-    const currentRadio = document.querySelector(`input[name="move-target-${boxId}"][value="${oldPlayerId}"]`);
-    if (currentRadio) currentRadio.checked = true;
-  });
+
+  if (!overLimit) {
+    document.getElementById('submit-all-moves-btn').addEventListener('click', submitAllStagedMoves_);
+  }
 }
 
-async function requestMoveFromUI_(boxId, newPlayerId) {
+async function submitAllStagedMoves_() {
   const entryId = document.getElementById('moves-entryid-input').value.trim();
   const email = document.getElementById('moves-email-input').value.trim();
+  const boxIds = Object.keys(stagedMoves);
 
-  const result = await submitRosterMoveRequest(entryId, email, boxId, newPlayerId);
-  if (result.success) {
-    const refreshed = await findEntryForMoves(entryId, email);
-    if (refreshed.success) myTeamEntry = refreshed.data;
-    renderMyTeamMovesPanel();
-    alert(result.preSeason ? 'Pick updated!' : 'Move requested! It will be applied once the commissioner approves it.');
+  const btn = document.getElementById('submit-all-moves-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  const errors = [];
+  for (const boxId of boxIds) {
+    const move = stagedMoves[boxId];
+    const result = await submitRosterMoveRequest(entryId, email, boxId, move.newPlayerId);
+    if (!result.success) errors.push(`${boxId}: ${result.error}`);
+  }
+
+  const refreshed = await findEntryForMoves(entryId, email);
+  if (refreshed.success) myTeamEntry = refreshed.data;
+  renderMyTeamMovesPanel();
+
+  if (errors.length > 0) {
+    alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
   } else {
-    alert('Error: ' + result.error);
-    renderMyTeamMovesPanel();
+    alert('Changes submitted!');
   }
 }
 
