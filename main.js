@@ -1267,11 +1267,13 @@ function renderManageMoves() {
 }
 
 let stagedMoves = {}; // boxId -> { oldPlayerId, newPlayerId }
+let stagedDivisionChanges = {}; // division -> { oldTeam, newTeam }
 
 function renderMyTeamMovesPanel() {
   const el = document.getElementById('moves-team-panel');
   if (!myTeamEntry) return;
   stagedMoves = {};
+  stagedDivisionChanges = {};
 
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
@@ -1296,12 +1298,23 @@ function renderMyTeamMovesPanel() {
       </div>
     ` : ''}
 
+    ${!myTeamEntry.seasonStarted ? `
+      <h4 class="group-title">Division Winner Picks <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(free to change until the season starts, then these lock permanently)</span></h4>
+      <div id="staged-division-summary"></div>
+      <div class="box-grid" id="my-team-division-grid"></div>
+    ` : ''}
+
     ${myTeamEntry.movesRemaining > 0 ? `
       <h4 class="group-title">Request Moves <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(pick as many box changes as you want, then submit together)</span></h4>
       <div id="staged-moves-summary"></div>
       <div class="box-grid" id="my-team-box-grid"></div>
     ` : `<p class="mono" style="color:var(--text-dim);">No moves remaining.</p>`}
   `;
+
+  if (!myTeamEntry.seasonStarted) {
+    renderMyTeamDivisionPicker();
+    renderStagedDivisionSummary_();
+  }
 
   if (myTeamEntry.movesRemaining > 0) {
     renderMyTeamBoxPicker();
@@ -1427,6 +1440,117 @@ async function submitAllStagedMoves_() {
     alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
   } else {
     alert('Changes submitted!');
+  }
+}
+
+function renderMyTeamDivisionPicker() {
+  const grid = document.getElementById('my-team-division-grid');
+  if (!grid) return;
+
+  grid.innerHTML = DIVISIONS.map(division => {
+    const currentAbbrev = myTeamEntry.divisionPicks[division];
+    const stagedAbbrev = stagedDivisionChanges[division] ? stagedDivisionChanges[division].newTeam : currentAbbrev;
+
+    return `
+      <div class="box-picker">
+        <div class="box-picker-label">${escapeHtml(division)}</div>
+        <div class="box-picker-options">
+          ${DIVISION_TEAMS[division].map(([abbrev, fullName]) => {
+            const isCurrent = abbrev === currentAbbrev;
+            const isSelected = abbrev === stagedAbbrev;
+            return `
+            <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
+              <input type="radio" name="division-target-${division}" data-division="${division}" value="${abbrev}" ${isSelected ? 'checked' : ''}>
+              <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
+              <span class="box-option-name">${escapeHtml(fullName)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
+              <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
+            </label>
+          `;}).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const division = radio.dataset.division;
+      const currentAbbrev = myTeamEntry.divisionPicks[division];
+      if (radio.value === currentAbbrev) {
+        delete stagedDivisionChanges[division];
+      } else {
+        stagedDivisionChanges[division] = { oldTeam: currentAbbrev, newTeam: radio.value };
+      }
+      renderStagedDivisionSummary_();
+    });
+  });
+}
+
+function renderStagedDivisionSummary_() {
+  const el = document.getElementById('staged-division-summary');
+  if (!el) return;
+
+  const staged = Object.keys(stagedDivisionChanges);
+  if (staged.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="panel" style="border-color:var(--amber); margin-bottom:16px;">
+      <h4 style="margin-bottom:10px; color:var(--amber);">Review Division Changes (${staged.length})</h4>
+      ${staged.map(division => {
+        const change = stagedDivisionChanges[division];
+        const oldTeam = DIVISION_TEAMS[division].find(t => t[0] === change.oldTeam);
+        const newTeam = DIVISION_TEAMS[division].find(t => t[0] === change.newTeam);
+        return `
+          <div class="activity-row">
+            <span><strong>${escapeHtml(division)}:</strong> ${escapeHtml(oldTeam ? oldTeam[1] : change.oldTeam)} → ${escapeHtml(newTeam ? newTeam[1] : change.newTeam)}</span>
+            <button class="admin-btn" data-remove-division="${division}">Remove</button>
+          </div>
+        `;
+      }).join('')}
+      <button id="submit-division-changes-btn" style="margin-top:12px;">Submit ${staged.length} Change${staged.length === 1 ? '' : 's'}</button>
+    </div>
+  `;
+
+  el.querySelectorAll('[data-remove-division]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const division = btn.dataset.removeDivision;
+      delete stagedDivisionChanges[division];
+      const currentAbbrev = myTeamEntry.divisionPicks[division];
+      const radio = document.querySelector(`input[name="division-target-${division}"][value="${currentAbbrev}"]`);
+      if (radio) radio.checked = true;
+      renderStagedDivisionSummary_();
+    });
+  });
+
+  document.getElementById('submit-division-changes-btn').addEventListener('click', submitAllStagedDivisionChanges_);
+}
+
+async function submitAllStagedDivisionChanges_() {
+  const entryId = document.getElementById('moves-entryid-input').value.trim();
+  const email = document.getElementById('moves-email-input').value.trim();
+  const divisions = Object.keys(stagedDivisionChanges);
+
+  const btn = document.getElementById('submit-division-changes-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  const errors = [];
+  for (const division of divisions) {
+    const change = stagedDivisionChanges[division];
+    const result = await submitDivisionPickChange(entryId, email, division, change.newTeam);
+    if (!result.success) errors.push(`${division}: ${result.error}`);
+  }
+
+  const refreshed = await findEntryForMoves(entryId, email);
+  if (refreshed.success) myTeamEntry = refreshed.data;
+  renderMyTeamMovesPanel();
+
+  if (errors.length > 0) {
+    alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
+  } else {
+    alert('Division picks updated!');
   }
 }
 
