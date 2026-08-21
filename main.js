@@ -27,6 +27,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
     if (view === 'signup') { await ensurePlayersLoaded(); renderSignupForm(); }
+    if (view === 'managemoves') { await ensurePlayersLoaded(); renderManageMoves(); }
     if (view === 'admin') renderAdminPanel();
   });
 });
@@ -333,63 +334,68 @@ function renderStandingsTable() {
   attachTeamLinkListeners(el);
 }
 
-async function openAdminPicksModal(entry) {
+function renderPicksModalBody_(data, ownerLine) {
+  const grouped = { F: [], D: [], G: [] };
+  (data.picks || []).forEach(p => grouped[p.boxType || 'F'].push(p));
+
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+  const divisionRows = Object.entries(data.divisionPicks || {})
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}</span></div>`)
+    .join('');
+
+  return `
+    <h2 style="margin-bottom:4px;">${escapeHtml(data.teamName)}</h2>
+    ${ownerLine ? `<p style="color:var(--text-dim); font-size:13px; margin-bottom:8px;">${ownerLine}</p>` : ''}
+    ${data.pointBank ? `<p class="mono" style="color:var(--amber); font-size:13px; margin-bottom:12px;">Banked from moves: +${data.pointBank.toFixed(2)}pts</p>` : ''}
+    ${Object.keys(groupTitles).map(type => `
+      <h3 class="group-title">${groupTitles[type]}</h3>
+      <div class="modal-pick-list">
+        ${grouped[type].map(p => {
+          const s = allPlayers.find(ap => ap.id === p.playerId);
+          const stats = (s && s.stats) || {};
+          const statLine = p.boxType === 'G'
+            ? `${stats.wins || 0}W ${stats.losses || 0}L ${stats.otl || 0}OTL &middot; ${stats.shutouts || 0}SO &middot; ${stats.saves || 0}SV`
+            : `${stats.goals || 0}G ${stats.assists || 0}A ${stats.sog || 0}SOG${p.boxType === 'D' ? ` ${stats.pim || 0}PIM` : ''}${stats.hatTricks ? ` &middot; ${stats.hatTricks}HT` : ''}`;
+          const hasMoves = p.moves && p.moves.length > 0;
+          return `
+          <div class="modal-pick-wrap">
+            ${hasMoves ? p.moves.map(m => `
+              <div class="move-history-line mono">
+                🔁 ${escapeHtml(m.outPlayerName)} banked +${m.bankedAmount.toFixed(2)}pts <span style="color:var(--text-dim);">(${escapeHtml((m.resolvedAt || m.requestedAt || '').slice(0,10))})</span>
+              </div>
+            `).join('') : ''}
+            <div class="modal-pick-row">
+              ${p.headshotUrl ? `<img class="modal-pick-photo" src="${p.headshotUrl}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
+              <span class="modal-pick-name">${escapeHtml(p.playerName)}</span>
+              <span class="mono modal-pick-stats">${statLine}</span>
+              <span class="mono modal-pick-pts">${hasMoves ? `+${p.contributionSinceAcquired.toFixed(2)}pts since acquired` : `${p.contributionSinceAcquired.toFixed(2)}pts`}</span>
+              <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
+            </div>
+          </div>
+        `;}).join('')}
+      </div>
+    `).join('')}
+    <h3 class="group-title">Division Picks</h3>
+    <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
+  `;
+}
+
+async function openAdminPicksModal(entryId) {
   const modal = document.getElementById('team-picks-modal');
   const body = document.getElementById('team-picks-body');
   modal.style.display = 'flex';
   body.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
   await ensurePlayersLoaded();
 
-  const boxById = {};
-  allBoxes.forEach(b => { boxById[b.id] = b; });
+  const entry = adminEntriesCache.find(e => e.id === entryId);
+  const result = await adminGetEntryPicks(adminPassword, entryId);
+  if (!result.success) {
+    body.innerHTML = `<p class="mono" style="color:var(--text-dim)">${escapeHtml(result.error || "Couldn't load picks.")}</p>`;
+    return;
+  }
 
-  const grouped = { F: [], D: [], G: [] };
-  Object.keys(entry.picks || {}).forEach(boxId => {
-    const box = boxById[boxId];
-    if (!box) return;
-    const playerId = entry.picks[boxId];
-    const boxPlayer = (box.players || []).find(p => p.playerId === playerId);
-    const fullPlayer = allPlayers.find(ap => ap.id === playerId);
-    const s = (fullPlayer && fullPlayer.stats) || {};
-    const pts = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig) : 0;
-    const statLine = box.boxType === 'G'
-      ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0}SO &middot; ${s.saves || 0}SV`
-      : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks}HT` : ''}`;
-    grouped[box.boxType].push({
-      boxLabel: box.boxLabel,
-      name: boxPlayer ? boxPlayer.name : playerId,
-      team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : ''),
-      headshot: fullPlayer ? fullPlayer.headshotUrl : '',
-      statLine,
-      pts: pts.toFixed(2)
-    });
-  });
-
-  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
-  const divisionRows = Object.entries(entry.divisionPicks || {})
-    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}</span></div>`)
-    .join('');
-
-  body.innerHTML = `
-    <h2 style="margin-bottom:4px;">${escapeHtml(entry.teamName)}</h2>
-    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">${escapeHtml(entry.ownerName)} · ${escapeHtml(entry.email)}</p>
-    ${Object.keys(groupTitles).map(type => `
-      <h3 class="group-title">${groupTitles[type]}</h3>
-      <div class="modal-pick-list">
-        ${grouped[type].map(p => `
-          <div class="modal-pick-row">
-            ${p.headshot ? `<img class="modal-pick-photo" src="${p.headshot}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
-            <span class="modal-pick-name">${escapeHtml(p.name)}</span>
-            <span class="mono modal-pick-stats">${p.statLine}</span>
-            <span class="mono modal-pick-pts">${p.pts}pts</span>
-            <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `).join('')}
-    <h3 class="group-title">Division Picks</h3>
-    <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
-  `;
+  const ownerLine = entry ? `${escapeHtml(entry.ownerName)} · ${escapeHtml(entry.email)}` : '';
+  body.innerHTML = renderPicksModalBody_(result.data, ownerLine);
 }
 
 async function startEditingEntry(entry) {
@@ -426,55 +432,7 @@ async function openTeamPicksModal(entryId, teamName) {
   }
   await ensurePlayersLoaded();
 
-  const boxById = {};
-  allBoxes.forEach(b => { boxById[b.id] = b; });
-
-  const grouped = { F: [], D: [], G: [] };
-  Object.keys(data.picks || {}).forEach(boxId => {
-    const box = boxById[boxId];
-    if (!box) return;
-    const playerId = data.picks[boxId];
-    const boxPlayer = (box.players || []).find(p => p.playerId === playerId);
-    const fullPlayer = allPlayers.find(ap => ap.id === playerId);
-    const s = (fullPlayer && fullPlayer.stats) || {};
-    const pts = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig) : 0;
-    const statLine = box.boxType === 'G'
-      ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0}SO &middot; ${s.saves || 0}SV`
-      : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks}HT` : ''}`;
-    grouped[box.boxType].push({
-      boxLabel: box.boxLabel,
-      name: boxPlayer ? boxPlayer.name : playerId,
-      team: fullPlayer ? fullPlayer.team : (boxPlayer ? boxPlayer.team : ''),
-      headshot: fullPlayer ? fullPlayer.headshotUrl : '',
-      statLine,
-      pts: pts.toFixed(2)
-    });
-  });
-
-  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
-  const divisionRows = Object.entries(data.divisionPicks || {})
-    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}</span></div>`)
-    .join('');
-
-  body.innerHTML = `
-    <h2 style="margin-bottom:12px;">${escapeHtml(data.teamName)}</h2>
-    ${Object.keys(groupTitles).map(type => `
-      <h3 class="group-title">${groupTitles[type]}</h3>
-      <div class="modal-pick-list">
-        ${grouped[type].map(p => `
-          <div class="modal-pick-row">
-            ${p.headshot ? `<img class="modal-pick-photo" src="${p.headshot}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
-            <span class="modal-pick-name">${escapeHtml(p.name)}</span>
-            <span class="mono modal-pick-stats">${p.statLine}</span>
-            <span class="mono modal-pick-pts">${p.pts}pts</span>
-            <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `).join('')}
-    <h3 class="group-title">Division Picks</h3>
-    <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
-  `;
+  body.innerHTML = renderPicksModalBody_(data, '');
 }
 
 const teamPicksCloseBtn = document.getElementById('team-picks-close');
@@ -1264,6 +1222,141 @@ async function renderBoxesReference() {
   el.innerHTML = playerBoxesHtml + divisionBoxesHtml;
 }
 
+// ---------- My Team (Roster Moves) ----------
+let myTeamEntry = null;
+
+function renderManageMoves() {
+  const el = document.getElementById('managemoves-content');
+  el.innerHTML = `
+    <div class="panel" style="margin-bottom:16px;">
+      <p style="color:var(--text-dim); font-size:14px; margin-bottom:14px;">Look up your team using the Entry ID and email from your confirmation email. You get 2 roster moves total for the season, and all moves must be requested before the NHL trade deadline (March 1, 2027). Every move needs commissioner approval before it counts.</p>
+      <label>Entry ID</label>
+      <input type="text" id="moves-entryid-input" placeholder="From your confirmation email">
+      <label>Email</label>
+      <input type="email" id="moves-email-input">
+      <button id="moves-lookup-btn">Find My Team</button>
+      <div id="moves-lookup-status" class="status-msg"></div>
+    </div>
+    <div id="moves-team-panel"></div>
+  `;
+
+  document.getElementById('moves-lookup-btn').addEventListener('click', async () => {
+    const entryId = document.getElementById('moves-entryid-input').value.trim();
+    const email = document.getElementById('moves-email-input').value.trim();
+    const statusEl = document.getElementById('moves-lookup-status');
+
+    if (!entryId || !email) {
+      statusEl.textContent = 'Enter both your Entry ID and email.';
+      statusEl.className = 'status-msg error';
+      return;
+    }
+
+    statusEl.textContent = 'Looking up...';
+    statusEl.className = 'status-msg';
+
+    const result = await findEntryForMoves(entryId, email);
+    if (result.success) {
+      statusEl.textContent = '';
+      myTeamEntry = result.data;
+      renderMyTeamMovesPanel();
+    } else {
+      statusEl.textContent = result.error || 'Not found';
+      statusEl.className = 'status-msg error';
+    }
+  });
+}
+
+function renderMyTeamMovesPanel() {
+  const el = document.getElementById('moves-team-panel');
+  if (!myTeamEntry) return;
+
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+
+  el.innerHTML = `
+    <h3 style="margin-bottom:4px;">${escapeHtml(myTeamEntry.teamName)}</h3>
+    <p class="mono" style="color:var(--ice); margin-bottom:16px;">${myTeamEntry.movesRemaining} move${myTeamEntry.movesRemaining === 1 ? '' : 's'} remaining</p>
+
+    ${myTeamEntry.moveHistory.length > 0 ? `
+      <h4 class="group-title">Move History</h4>
+      <div class="panel" style="margin-bottom:16px;">
+        ${myTeamEntry.moveHistory.map(m => {
+          const box = boxById[m.boxId];
+          const outP = allPlayers.find(p => p.id === m.outPlayerId);
+          const inP = allPlayers.find(p => p.id === m.inPlayerId);
+          const statusColor = m.status === 'approved' ? 'var(--ice)' : (m.status === 'rejected' ? '#ff5c5c' : 'var(--amber)');
+          return `<div class="activity-row">
+            <span>${escapeHtml(box ? box.boxLabel : m.boxId)}: ${escapeHtml(outP ? outP.fullName : m.outPlayerId)} → ${escapeHtml(inP ? inP.fullName : m.inPlayerId)}</span>
+            <span class="mono" style="color:${statusColor}; text-transform:capitalize;">${escapeHtml(m.status)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    ` : ''}
+
+    ${myTeamEntry.movesRemaining > 0 ? `
+      <h4 class="group-title">Request a Move</h4>
+      <div class="box-grid" id="my-team-box-grid"></div>
+    ` : `<p class="mono" style="color:var(--text-dim);">No moves remaining.</p>`}
+  `;
+
+  if (myTeamEntry.movesRemaining > 0) {
+    renderMyTeamBoxPicker();
+  }
+}
+
+function renderMyTeamBoxPicker() {
+  const grid = document.getElementById('my-team-box-grid');
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+
+  grid.innerHTML = REQUIRED_BOX_IDS.map(boxId => {
+    const box = boxById[boxId];
+    if (!box) return '';
+    const currentPlayerId = myTeamEntry.picks[boxId];
+    const currentPlayer = allPlayers.find(p => p.id === currentPlayerId);
+
+    return `
+      <div class="box-picker">
+        <div class="box-picker-label">${escapeHtml(box.boxLabel)} — currently: ${escapeHtml(currentPlayer ? currentPlayer.fullName : 'Unknown')}</div>
+        <div class="box-picker-options">
+          ${box.players.filter(p => p.playerId !== currentPlayerId).map(p => `
+            <label class="box-option">
+              <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}">
+              <span class="box-option-name">${escapeHtml(p.name)}</span>
+              <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  grid.querySelectorAll('input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', () => requestMoveFromUI_(radio.dataset.box, radio.value));
+  });
+}
+
+async function requestMoveFromUI_(boxId, newPlayerId) {
+  if (!confirm('Request this roster move? This will use 1 of your remaining moves once approved by the commissioner.')) {
+    renderMyTeamMovesPanel();
+    return;
+  }
+
+  const entryId = document.getElementById('moves-entryid-input').value.trim();
+  const email = document.getElementById('moves-email-input').value.trim();
+
+  const result = await submitRosterMoveRequest(entryId, email, boxId, newPlayerId);
+  if (result.success) {
+    const refreshed = await findEntryForMoves(entryId, email);
+    if (refreshed.success) myTeamEntry = refreshed.data;
+    renderMyTeamMovesPanel();
+    alert('Move requested! It will be applied once the commissioner approves it.');
+  } else {
+    alert('Error: ' + result.error);
+    renderMyTeamMovesPanel();
+  }
+}
+
 // ---------- IR List (public) ----------
 async function renderIRPanel() {
   const el = document.getElementById('ir-panel');
@@ -1366,7 +1459,10 @@ function renderAdminEntries(entries) {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <div id="admin-pending-moves"></div>
   `;
+
+  loadAdminPendingMoves();
 
   if (entries.length === 0) {
     el.innerHTML = toggleHtml + `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
@@ -1457,6 +1553,48 @@ function renderAdminEntries(entries) {
   });
 
   wireAdminCtaToggle_();
+}
+
+async function loadAdminPendingMoves() {
+  const container = document.getElementById('admin-pending-moves');
+  if (!container) return;
+  container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading pending moves...</p>`;
+
+  const result = await adminGetPendingMoves(adminPassword);
+  if (!result.success || !result.data || result.data.length === 0) {
+    container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">No pending moves.</p>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:12px;">Pending Moves (${result.data.length})</h3>
+      ${result.data.map(m => `
+        <div class="activity-row">
+          <span><strong>${escapeHtml(m.teamName)}</strong> — ${escapeHtml(m.boxLabel)}: ${escapeHtml(m.outPlayerName)} → ${escapeHtml(m.inPlayerName)}</span>
+          <span>
+            <button class="admin-btn admin-approve-move" data-id="${m.moveId}">Approve</button>
+            <button class="admin-btn admin-reject-move" data-id="${m.moveId}">Reject</button>
+          </span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  container.querySelectorAll('.admin-approve-move').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await adminApproveMove(adminPassword, btn.dataset.id);
+      loadAdminPendingMoves();
+      loadAdminEntries();
+    });
+  });
+
+  container.querySelectorAll('.admin-reject-move').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await adminRejectMove(adminPassword, btn.dataset.id);
+      loadAdminPendingMoves();
+    });
+  });
 }
 
 function wireAdminCtaToggle_() {
