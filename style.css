@@ -31,6 +31,19 @@ body {
   top: 0;
   z-index: 10;
 }
+.admin-gear-btn {
+  font-size: 20px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.admin-gear-btn:hover,
+.admin-gear-btn.active {
+  border-color: var(--border);
+  color: inherit;
+}
+
 .header-inner {
   max-width: 1100px;
   margin: 0 auto;
@@ -850,6 +863,12 @@ a.hero-badge { cursor: pointer; }
     align-items: flex-start;
     padding: 12px 16px;
     gap: 10px;
+    position: relative;
+  }
+  .admin-gear-btn {
+    position: absolute;
+    top: 12px;
+    right: 16px;
   }
   .brand { font-size: 22px; }
   .brand-logo, .brand-mascot { height: 22px; }
