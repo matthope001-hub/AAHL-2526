@@ -229,8 +229,8 @@ function payoutForRank(rank) {
     if (rank === 2) return pot * 0.10;
     return null; // no 3rd place payout under the $1000 tier
   }
-  if (rank === 1) return pot * 0.25;
-  if (rank === 2) return pot * 0.20;
+  if (rank === 1) return pot * 0.30;
+  if (rank === 2) return pot * 0.15;
   if (rank === 3) return pot * 0.05;
   return null;
 }
@@ -683,9 +683,9 @@ function renderRulesPage() {
         <div class="scoring-card-title">Pot $1,000 or more</div>
         <table class="scoring-table">
           <tbody>
-            <tr><td>🥇 1st Place</td><td class="pts scoring-value">25% of pot</td></tr>
-            <tr><td>🥈 2nd Place</td><td class="pts scoring-value">20% of pot</td></tr>
-            <tr><td>🥉 3rd Place</td><td class="pts scoring-value">5% of pot</td></tr>
+            <tr><td>🥇 1st Place</td><td class="pts scoring-value" style="line-height:1.3;">30% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(50% of player pool)</span></td></tr>
+            <tr><td>🥈 2nd Place</td><td class="pts scoring-value" style="line-height:1.3;">15% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(40% of player pool)</span></td></tr>
+            <tr><td>🥉 3rd Place</td><td class="pts scoring-value" style="line-height:1.3;">5% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(10% of player pool)</span></td></tr>
             <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
           </tbody>
         </table>
@@ -742,8 +742,8 @@ function renderScoringSummary() {
       ['2nd place', '10% of pot'],
       ['Last place', 'Free entry next yr']
     ] : [
-      ['1st place', '25% of pot'],
-      ['2nd place', '20% of pot'],
+      ['1st place', '30% of pot'],
+      ['2nd place', '15% of pot'],
       ['3rd place', '5% of pot'],
       ['Last place', 'Free entry next yr']
     ]},
