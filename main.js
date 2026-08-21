@@ -55,8 +55,9 @@ function applySignupCtaVisibility() {
   const btn = document.getElementById('hero-signup-cta');
   if (!btn) return;
   const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
-  const locked = currentConfig.picksLocked || deadlinePassed;
-  btn.classList.toggle('hero-cta-hidden', !!locked);
+  const autoLocked = currentConfig.picksLocked || deadlinePassed;
+  const manuallyHidden = currentConfig.showSignupCta === false;
+  btn.classList.toggle('hero-cta-hidden', !!autoLocked || manuallyHidden);
 }
 
 function formatDeadlineShort(isoString) {
