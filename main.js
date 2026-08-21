@@ -40,13 +40,20 @@ async function init() {
     fetchStandings(), fetchConfig()
   ]);
 
-  document.getElementById('deadline-display').textContent = formatDeadline(currentConfig.deadline);
+  document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
   renderStarsOfNight();
   renderRecentActivity();
   renderStatTicker();
+  renderDivisionLeadersPanel();
+}
+
+function formatDeadlineShort(isoString) {
+  if (!isoString) return '—';
+  const d = new Date(isoString);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 async function ensurePlayersLoaded() {
@@ -157,11 +164,45 @@ async function renderRecentActivity() {
 
 async function refreshAndRenderHome() {
   [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
+  document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
   renderStarsOfNight();
   renderRecentActivity();
+  renderDivisionLeadersPanel();
+}
+
+async function renderDivisionLeadersPanel() {
+  const el = document.getElementById('division-leaders-panel');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
+
+  try {
+    const leaders = await fetchDivisionLeadersDisplay();
+    if (!leaders || leaders.length === 0) {
+      el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not available yet.</p>`;
+      return;
+    }
+
+    el.innerHTML = leaders.map(d => `
+      <div class="division-leader-row">
+        <div class="division-leader-info">
+          <div class="mono division-leader-name-label">${escapeHtml(d.division)}</div>
+          <div class="division-leader-team">
+            ${d.teamAbbrev ? `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${d.teamAbbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+            ${escapeHtml(d.teamName)}
+          </div>
+          <div class="mono division-leader-record">${d.points}pts · ${d.gamesPlayed}GP</div>
+        </div>
+        <div class="division-leader-earning">
+          <span class="division-leader-count">${d.earningCount}</span>
+          <span class="mono division-leader-count-label">of ${d.totalEntries} earning</span>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not available yet.</p>`;
+  }
 }
 
 // ---------- Home ----------
