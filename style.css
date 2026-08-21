@@ -428,20 +428,29 @@ button:hover { opacity: 0.85; }
 
 .hero-cta-btn {
   display: inline-block;
-  background: var(--ice);
+  background: var(--amber);
   color: #ffffff !important;
-  border: none !important;
-  padding: 12px 28px;
+  border: 2px solid var(--amber) !important;
+  padding: 18px 44px;
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 17px;
+  font-weight: 800;
+  font-size: 22px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   text-decoration: none;
   cursor: pointer;
-  margin: 16px 0 20px;
+  margin: 16px 0 8px;
+  animation: cta-pulse-glow 2s ease-in-out infinite;
 }
-.hero-cta-btn:hover { opacity: 0.85; color: #ffffff; border-color: transparent; }
+.hero-cta-btn:hover { opacity: 0.9; color: #ffffff; transform: scale(1.03); animation: none; }
+.hero-cta-btn.hero-cta-hidden { display: none; }
+@keyframes cta-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 63, 92, 0.6); }
+  50% { box-shadow: 0 0 0 12px rgba(161, 63, 92, 0); }
+}
+  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 63, 92, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(161, 63, 92, 0); }
+}
 
 .hero-stats-row { display: flex; gap: 10px; margin-top: 0; }
 .hero-stat {
