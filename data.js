@@ -45,6 +45,11 @@ async function fetchEntryPicks(entryId) {
   return result.success ? result.data : { error: result.error || "Couldn't load picks." };
 }
 
+async function fetchDivisionLeadersDisplay() {
+  const result = await apiGet('divisionLeadersDisplay');
+  return (result.success && result.data) || [];
+}
+
 async function fetchLastSeasonStandings() {
   const result = await apiGet('lastSeasonStandings');
   return (result.success && result.data && result.data.teams) || {};
