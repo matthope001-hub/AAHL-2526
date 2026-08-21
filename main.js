@@ -216,20 +216,34 @@ async function renderDivisionLeadersPanel() {
 }
 
 // ---------- Home ----------
-function payoutForRank(rank) {
-  if (rank == null) return null;
+function totalPot() {
   const c = currentConfig;
-  const pool = c.prizePool ?? 0;
-  if (rank === 1) return pool * (c.payout1st ?? 0.5);
-  if (rank === 2) return pool * (c.payout2nd ?? 0.3);
-  if (rank === 3) return pool * (c.payout3rd ?? 0.2);
+  return (c.totalEntries ?? 0) * (c.entryFee ?? 10);
+}
+
+function payoutForRank(rank) {
+  if (rank == null || rank > 3) return null;
+  const pot = totalPot();
+  if (pot < 1000) {
+    if (rank === 1) return pot * 0.40;
+    if (rank === 2) return pot * 0.10;
+    return null; // no 3rd place payout under the $1000 tier
+  }
+  if (rank === 1) return pot * 0.25;
+  if (rank === 2) return pot * 0.20;
+  if (rank === 3) return pot * 0.05;
   return null;
 }
 
-function payoutHtml(rank) {
+function payoutHtml(rank, isLastPlace) {
   const amount = payoutForRank(rank);
-  if (amount == null) return '<span class="mono" style="color:var(--text-dim)">—</span>';
-  return `<span class="mono" style="color:var(--amber); font-weight:700;">$${amount.toFixed(2)}</span>`;
+  if (amount != null) {
+    return `<span class="mono" style="color:var(--amber); font-weight:700;">$${amount.toFixed(2)}</span>`;
+  }
+  if (isLastPlace) {
+    return `<span class="mono" style="color:var(--ice); font-size:11px;">🎟️ Free entry</span>`;
+  }
+  return '<span class="mono" style="color:var(--text-dim)">—</span>';
 }
 
 function rankMovementHtml(e) {
@@ -258,6 +272,8 @@ function renderHomeStandingsPreview() {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     return;
   }
+  const approvedRanks = sorted.filter(e => e.approved && e.rank != null).map(e => e.rank);
+  const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
   el.innerHTML = `
     <div class="players-table-scroll" style="max-height:50vh;">
       <table>
@@ -270,7 +286,7 @@ function renderHomeStandingsPreview() {
               <td class="pts">${e.pts.toFixed(2)}</td>
               <td>${ptsDeltaHtml(e)}</td>
               <td>${rankMovementHtml(e)}</td>
-              <td>${payoutHtml(e.rank)}</td>
+              <td>${payoutHtml(e.rank, e.rank === lastRank)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -296,6 +312,8 @@ function renderStandingsTable() {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     return;
   }
+  const approvedRanks = sorted.filter(e => e.approved && e.rank != null).map(e => e.rank);
+  const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
   el.innerHTML = `
     <table>
       <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>±Pts (24h)</th><th>Move</th><th>Payout</th></tr></thead>
@@ -307,7 +325,7 @@ function renderStandingsTable() {
             <td class="pts">${e.pts.toFixed(2)}</td>
             <td>${ptsDeltaHtml(e)}</td>
             <td>${rankMovementHtml(e)}</td>
-            <td>${payoutHtml(e.rank)}</td>
+            <td>${payoutHtml(e.rank, e.rank === lastRank)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -592,32 +610,96 @@ document.getElementById('player-search').addEventListener('input', (e) => {
 function renderRulesPage() {
   const el = document.getElementById('rules-content');
   const c = currentConfig;
+  const pot = totalPot();
+  const potTierNote = pot < 1000
+    ? `Current pot is <strong>$${pot.toFixed(0)}</strong> — under $1,000 tier applies (40% / 10% split).`
+    : `Current pot is <strong>$${pot.toFixed(0)}</strong> — $1,000+ tier applies (25% / 20% / 5% split).`;
 
   el.innerHTML = `
-    <h3 class="group-title" style="margin-top:0;">Format</h3>
-    <p style="margin-bottom:8px;">24-box pick'em pool: 16 Forward boxes, 5 Defense boxes, 3 Goalie boxes. Pick exactly one player per box — 24 picks total. Also pick a projected winner for each of the 4 NHL divisions (Atlantic, Metropolitan, Central, Pacific).</p>
-    <p style="margin-bottom:16px; color:var(--text-dim);">No limit on entries per email address — submit as many teams as you'd like, each fully paid.</p>
+    <p style="margin-bottom:20px; color:var(--amber); font-weight:700; font-size:16px;">🏒 2026–2027 Wedding Fundraiser NHL Box Pool 🏒</p>
+    <p style="margin-bottom:20px;">Help support Mackenzie and Dan (the bride and groom) with their wedding costs while competing for cash!</p>
 
-    <h3 class="group-title">Entry</h3>
-    <p style="margin-bottom:16px;">Entry fee is <strong>$${c.entryFee ?? 10}</strong> per team, sent to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong> with your team name and your name included in the payment note. Entries are marked Pending until payment is confirmed and approved by the commissioner.</p>
+    <h3 class="group-title" style="margin-top:0;">💰 Entry &amp; Payments</h3>
+    <p style="margin-bottom:6px;">Entry fee: <strong>$${c.entryFee ?? 10}</strong> per entry (unlimited entries allowed).</p>
+    <p style="margin-bottom:6px;">Payment: E-transfer to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong>. Please include your first and last name in the transfer notes.</p>
+    <p style="margin-bottom:20px;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
 
-    <h3 class="group-title">Picks Lock</h3>
-    <p style="margin-bottom:16px;">All picks lock permanently at <strong>${formatDeadline(c.deadline)}</strong>. No new entries and no roster changes are accepted after this point.</p>
+    <h3 class="group-title">📋 How to Play</h3>
+    <p style="margin-bottom:6px;">Make 28 total picks: 1 choice from each of the 24 player boxes, plus 4 division winners.</p>
+    <p style="margin-bottom:20px;">Standings update regularly all season via this live tracking site once games begin.</p>
 
-    <h3 class="group-title">Scoring</h3>
-    <p style="margin-bottom:8px;">Points accrue all season from your 24 picked players' real NHL stats, plus the live division bonus from your 4 division picks. Full scoring breakdown is on the <a href="#" data-view="scoring" class="rules-inline-link">Scoring page</a>.</p>
-    <p style="margin-bottom:16px; color:var(--text-dim);">Division winner picks are worth +10 pts each, and are <strong>live and fluid</strong> — awarded to whoever's currently in 1st place in that division, recalculated every night. If the lead changes, the bonus moves with it.</p>
+    <h3 class="group-title">📊 Point System</h3>
+    <div class="scoring-grid" style="margin-bottom:20px;">
+      <div class="scoring-card">
+        <div class="scoring-card-title">Skaters</div>
+        <table class="scoring-table">
+          <tbody>
+            <tr><td>Goal</td><td class="pts scoring-value">1</td></tr>
+            <tr><td>Assist</td><td class="pts scoring-value">1</td></tr>
+            <tr><td>Shots on Goal</td><td class="pts scoring-value">0.11</td></tr>
+            <tr><td>Hat Trick</td><td class="pts scoring-value hat-trick">+3</td></tr>
+            <tr><td>PIM (D only)</td><td class="pts scoring-value">0.25</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="scoring-card">
+        <div class="scoring-card-title">Goalies</div>
+        <table class="scoring-table">
+          <tbody>
+            <tr><td>Win</td><td class="pts scoring-value">3</td></tr>
+            <tr><td>OT / SO Loss</td><td class="pts scoring-value">1.5</td></tr>
+            <tr><td>Loss</td><td class="pts scoring-value">1</td></tr>
+            <tr><td>Shutout</td><td class="pts scoring-value">2</td></tr>
+            <tr><td>Saves</td><td class="pts scoring-value">0.02</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="scoring-card">
+        <div class="scoring-card-title">Division Winners</div>
+        <table class="scoring-table">
+          <tbody>
+            <tr><td>Correct 1st-place pick</td><td class="pts scoring-value hat-trick">+25</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-    <h3 class="group-title">Tiebreakers</h3>
-    <p style="margin-bottom:8px;">If two or more entries are tied on total points, the tie is broken in this order:</p>
-    <p style="margin-bottom:4px;">1. Highest combined goals + assists across all picks.</p>
-    <p style="margin-bottom:16px;">2. If still tied, that same total plus all your goalies' combined saves.</p>
+    <h3 class="group-title">🏆 Payouts (50/50 Split)</h3>
+    <p style="margin-bottom:8px;">50% of the total pot goes to the bride &amp; groom; 50% goes to the participant prize pool.</p>
+    <p style="margin-bottom:12px; color:var(--amber);">${potTierNote}</p>
 
-    <h3 class="group-title">Payout</h3>
-    <p style="margin-bottom:16px;">Prize pool is split: <strong>${((c.payout1st ?? 0.5) * 100).toFixed(0)}%</strong> to 1st place, <strong>${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%</strong> to 2nd, <strong>${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%</strong> to 3rd. Current prize pool: <strong>$${(c.prizePool ?? 0).toFixed(0)}</strong>.</p>
+    <div class="scoring-grid" style="margin-bottom:12px;">
+      <div class="scoring-card">
+        <div class="scoring-card-title">Pot under $1,000</div>
+        <table class="scoring-table">
+          <tbody>
+            <tr><td>🥇 1st Place</td><td class="pts scoring-value">40% of pot</td></tr>
+            <tr><td>🥈 2nd Place</td><td class="pts scoring-value">10% of pot</td></tr>
+            <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="scoring-card">
+        <div class="scoring-card-title">Pot $1,000 or more</div>
+        <table class="scoring-table">
+          <tbody>
+            <tr><td>🥇 1st Place</td><td class="pts scoring-value">25% of pot</td></tr>
+            <tr><td>🥈 2nd Place</td><td class="pts scoring-value">20% of pot</td></tr>
+            <tr><td>🥉 3rd Place</td><td class="pts scoring-value">5% of pot</td></tr>
+            <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p style="margin-bottom:20px; color:var(--text-dim); font-size:13px;">Live payout amounts based on the current pot are shown on the <a href="#" data-view="standings" class="rules-inline-link">Standings page</a>.</p>
+
+    <h3 class="group-title">Tiebreaker</h3>
+    <p style="margin-bottom:4px;">1. Highest combined goals + assists across your roster.</p>
+    <p style="margin-bottom:20px;">2. If still tied: total goalie saves.</p>
 
     <h3 class="group-title">Roster Reference</h3>
-    <p style="margin-bottom:16px;">The players available in each box, along with their current-season stats, are shown on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
+    <p style="margin-bottom:16px;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
 
     <h3 class="group-title">Viewing Other Teams' Picks</h3>
     <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick. Before lock, picks stay private to keep strategy fair.</p>
@@ -634,6 +716,8 @@ function renderRulesPage() {
 function renderScoringSummary() {
   const el = document.getElementById('scoring-summary');
   const c = currentConfig;
+  const pot = totalPot();
+  const under1000 = pot < 1000;
 
   const cards = [
     { title: 'Forwards & Defense', rows: [
@@ -651,12 +735,17 @@ function renderScoringSummary() {
     ]},
     { title: 'Bonuses', rows: [
       ['Hat Trick', `+${c.hatTrickBonus ?? 3}`, true],
-      ['Division winner (season end)', '+10', true]
+      ['Division winner (live)', '+25', true]
     ]},
-    { title: 'Payout', rows: [
-      ['1st place', `${((c.payout1st ?? 0.5) * 100).toFixed(0)}%`],
-      ['2nd place', `${((c.payout2nd ?? 0.3) * 100).toFixed(0)}%`],
-      ['3rd place', `${((c.payout3rd ?? 0.2) * 100).toFixed(0)}%`]
+    { title: `Payout (${under1000 ? 'pot < $1,000' : 'pot $1,000+'})`, rows: under1000 ? [
+      ['1st place', '40% of pot'],
+      ['2nd place', '10% of pot'],
+      ['Last place', 'Free entry next yr']
+    ] : [
+      ['1st place', '25% of pot'],
+      ['2nd place', '20% of pot'],
+      ['3rd place', '5% of pot'],
+      ['Last place', 'Free entry next yr']
     ]},
     { title: 'Season', rows: [
       ['Entry Fee', `$${c.entryFee ?? 10}`],
@@ -665,8 +754,9 @@ function renderScoringSummary() {
   ];
 
   el.innerHTML = `
+    <p style="color:var(--amber); margin-bottom:4px; font-size:14px; font-weight:700;">🏒 Wedding Fundraiser for Mackenzie &amp; Dan 🏒</p>
     <p style="color:var(--text-dim); margin-bottom:16px; font-size:14px;">
-      24-box pick'em (16 Forward, 5 Defense, 3 Goalie) + 4 division winner picks. Points scored on real NHL stats all season, plus the division bonus.
+      24-box pick'em (16 Forward, 5 Defense, 3 Goalie) + 4 division winner picks. 50% of the pot goes to the couple, 50% to the participant prize pool.
     </p>
     <div class="scoring-grid">
       ${cards.map(card => `
