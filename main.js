@@ -1315,7 +1315,7 @@ function renderAdminPanel() {
       }
     });
 
-    document.getElementById('admin-login-btn').addEventListener('click', async () => {
+    async function doAdminLogin() {
       const pw = document.getElementById('admin-pw-input').value;
       const statusEl = document.getElementById('admin-login-status');
       statusEl.textContent = 'Checking...';
@@ -1329,6 +1329,11 @@ function renderAdminPanel() {
         statusEl.textContent = result.error || 'Invalid password';
         statusEl.className = 'status-msg error';
       }
+    }
+
+    document.getElementById('admin-login-btn').addEventListener('click', doAdminLogin);
+    document.getElementById('admin-pw-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doAdminLogin();
     });
     return;
   }
