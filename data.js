@@ -92,6 +92,26 @@ async function adminResendEmail(password, entryId) {
   return apiPost('adminResendEmail', { password, entryId });
 }
 
+async function findEntryForMoves(entryId, email) {
+  return apiGet('findEntryForMoves', { entryId, email });
+}
+
+async function submitRosterMoveRequest(entryId, email, boxId, newPlayerId) {
+  return apiPost('requestRosterMove', { entryId, email, boxId, newPlayerId });
+}
+
+async function adminGetPendingMoves(password) {
+  return apiPost('adminGetPendingMoves', { password });
+}
+
+async function adminApproveMove(password, moveId) {
+  return apiPost('adminApproveMove', { password, moveId });
+}
+
+async function adminRejectMove(password, moveId) {
+  return apiPost('adminRejectMove', { password, moveId });
+}
+
 async function adminUpdateConfig(password, updates) {
   return apiPost('adminUpdateConfig', { password, updates });
 }
