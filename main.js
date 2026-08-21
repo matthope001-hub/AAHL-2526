@@ -1356,7 +1356,10 @@ function renderAdminEntries(entries) {
   const toggleHtml = `
     <div class="panel" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
       <span>Sign Up button on Home page</span>
-      <button id="admin-toggle-cta" class="admin-btn">${ctaVisible ? 'Hide Button' : 'Show Button'}</button>
+      <label class="toggle-switch">
+        <input type="checkbox" id="admin-toggle-cta" ${ctaVisible ? 'checked' : ''}>
+        <span class="toggle-slider"></span>
+      </label>
     </div>
   `;
 
@@ -1440,15 +1443,16 @@ function renderAdminEntries(entries) {
 }
 
 function wireAdminCtaToggle_() {
-  const btn = document.getElementById('admin-toggle-cta');
-  if (!btn) return;
-  btn.addEventListener('click', async () => {
-    const currentlyVisible = currentConfig.showSignupCta !== false;
-    const result = await adminUpdateConfig(adminPassword, { showSignupCta: !currentlyVisible });
+  const checkbox = document.getElementById('admin-toggle-cta');
+  if (!checkbox) return;
+  checkbox.addEventListener('change', async () => {
+    const newVisible = checkbox.checked;
+    const result = await adminUpdateConfig(adminPassword, { showSignupCta: newVisible });
     if (result.success) {
-      currentConfig.showSignupCta = !currentlyVisible;
+      currentConfig.showSignupCta = newVisible;
       applySignupCtaVisibility();
-      loadAdminEntries();
+    } else {
+      checkbox.checked = !newVisible; // revert on failure
     }
   });
 }
