@@ -1384,6 +1384,7 @@ function renderAdminEntries(entries) {
               ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
               <button class="admin-btn admin-view-picks" data-id="${e.id}">View Picks</button>
               <button class="admin-btn admin-edit-picks" data-id="${e.id}">Edit</button>
+              <button class="admin-btn admin-resend-email" data-id="${e.id}">Resend Email</button>
               <button class="admin-btn admin-toggle-paid" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}">${e.paymentReceived ? 'Mark Unpaid' : 'Mark Paid'}</button>
               <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
               <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
@@ -1411,6 +1412,17 @@ function renderAdminEntries(entries) {
     btn.addEventListener('click', () => {
       const entry = adminEntriesCache.find(e => e.id === btn.dataset.id);
       if (entry) startEditingEntry(entry);
+    });
+  });
+
+  el.querySelectorAll('.admin-resend-email').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const originalText = btn.textContent;
+      btn.textContent = 'Sending...';
+      btn.disabled = true;
+      const result = await adminResendEmail(adminPassword, btn.dataset.id);
+      btn.textContent = result.success ? 'Sent!' : 'Failed';
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
     });
   });
 
