@@ -702,6 +702,95 @@ button:hover { opacity: 0.85; }
   .star-date { padding-top: 4px; }
 }
 
+.hero-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.hero-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--amber);
+  margin-bottom: 4px;
+}
+.hero-title-new {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 40px;
+  line-height: 1.0;
+}
+.hero-em { font-style: italic; color: var(--ice); }
+
+.hero-badges-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top-width: 3px;
+  padding: 10px 20px;
+  min-width: 90px;
+  text-decoration: none;
+  cursor: default;
+}
+a.hero-badge { cursor: pointer; }
+.hero-badge-blue { border-top-color: var(--ice); }
+.hero-badge-amber { border-top-color: var(--amber); }
+.hero-badge-gold { border-top-color: #d4a017; }
+.hero-badge-value { font-size: 20px; font-weight: 700; color: var(--text); }
+.hero-badge-blue .hero-badge-value { color: var(--ice); }
+.hero-badge-amber .hero-badge-value { color: var(--amber); }
+.hero-badge-gold .hero-badge-value { color: #d4a017; }
+.hero-badge-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.division-leader-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bg-panel-alt);
+}
+.division-leader-row:last-child { border-bottom: none; }
+.division-leader-name-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.division-leader-team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  margin: 2px 0;
+}
+.division-leader-record { font-size: 11px; color: var(--text-dim); }
+.division-leader-earning { text-align: right; }
+.division-leader-count {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--amber);
+}
+.division-leader-count-label { font-size: 10px; color: var(--text-dim); }
+
 .rules-inline-link { color: var(--ice); text-decoration: underline; cursor: pointer; }
 
 .hat-trick { color: var(--amber); font-weight: 700; }
