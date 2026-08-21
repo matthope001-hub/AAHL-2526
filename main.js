@@ -278,7 +278,7 @@ function renderHomeStandingsPreview() {
   el.innerHTML = `
     <div class="players-table-scroll" style="max-height:50vh;">
       <table>
-        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>±Pts</th><th>Move</th><th>Payout</th></tr></thead>
+        <thead><tr><th>Rank</th><th>Team</th><th>Pts</th><th>±Pts</th><th>Payout</th></tr></thead>
         <tbody>
           ${sorted.map(e => `
             <tr>
@@ -286,8 +286,7 @@ function renderHomeStandingsPreview() {
               <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
               <td class="pts">${e.pts.toFixed(2)}</td>
               <td>${ptsDeltaHtml(e)}</td>
-              <td>${rankMovementHtml(e)}</td>
-              <td>${payoutHtml(e.rank, e.rank === lastRank)}</td>
+              <td>${payoutHtml(e.rank, lastRank != null && e.rank === lastRank)}</td>
             </tr>`).join('')}
         </tbody>
       </table>
@@ -317,7 +316,7 @@ function renderStandingsTable() {
   const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
   el.innerHTML = `
     <table>
-      <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>±Pts (24h)</th><th>Move</th><th>Payout</th></tr></thead>
+      <thead><tr><th>Rank</th><th>Team</th><th>Points</th><th>±Pts (24h)</th><th>Payout</th></tr></thead>
       <tbody>
         ${sorted.map(e => `
           <tr>
@@ -325,8 +324,7 @@ function renderStandingsTable() {
             <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
             <td class="pts">${e.pts.toFixed(2)}</td>
             <td>${ptsDeltaHtml(e)}</td>
-            <td>${rankMovementHtml(e)}</td>
-            <td>${payoutHtml(e.rank, e.rank === lastRank)}</td>
+            <td>${payoutHtml(e.rank, lastRank != null && e.rank === lastRank)}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
