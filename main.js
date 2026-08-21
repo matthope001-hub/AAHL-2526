@@ -22,7 +22,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'home') refreshAndRenderHome();
     if (view === 'standings') refreshAndRenderStandings();
     if (view === 'players') { await ensurePlayersLoaded(); renderPlayersTable(); }
-    if (view === 'scoring') renderScoringSummary();
+    if (view === 'lastnight') { await ensurePlayersLoaded(); renderLastNightStats(); }
     if (view === 'rules') renderRulesPage();
     if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
@@ -711,6 +711,66 @@ function renderRulesPage() {
       document.querySelector(`.nav-link[data-view="${link.dataset.view}"]`).click();
     });
   });
+}
+
+// ---------- Last Night's Stats ----------
+async function renderLastNightStats() {
+  const el = document.getElementById('lastnight-content');
+  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+
+  try {
+    const stars = await fetchStarsOfNight();
+    const performers = (stars && stars.allPerformers || []).filter(p => poolPlayerIds.has(p.playerId));
+
+    if (!stars || performers.length === 0) {
+      el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
+      return;
+    }
+
+    const grouped = { F: [], D: [], G: [] };
+    performers.forEach(p => {
+      const group = p.isGoalie ? 'G' : (p.position === 'D' ? 'D' : 'F');
+      grouped[group].push(p);
+    });
+    Object.keys(grouped).forEach(g => grouped[g].sort((a, b) => b.pts - a.pts));
+
+    const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+    const dateFormatted = new Date(stars.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+    el.innerHTML = `
+      <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)}</p>
+      ${Object.keys(groupTitles).map(g => {
+        if (grouped[g].length === 0) return '';
+        return `
+        <h3 class="group-title">${groupTitles[g]}</h3>
+        <div class="panel" style="margin-bottom:16px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Player</th><th>NHL</th>
+                ${g === 'G' ? '<th>Dec</th><th>SO</th><th>SV</th>' : `<th>G</th><th>A</th><th>SOG</th>${g === 'D' ? '<th>PIM</th>' : ''}`}
+                <th>Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grouped[g].map(p => `
+                <tr>
+                  <td>${escapeHtml(p.fullName)}</td>
+                  <td>${escapeHtml(p.team)}</td>
+                  ${g === 'G'
+                    ? `<td>${p.decision || '-'}</td><td>${p.shutout ? 'Y' : '-'}</td><td>${p.saves}</td>`
+                    : `<td>${p.goals}</td><td>${p.assists}</td><td>${p.sog || 0}</td>${g === 'D' ? `<td>${p.pim || 0}</td>` : ''}`}
+                  <td class="pts">${p.pts.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;}).join('')}
+    `;
+  } catch (e) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
+  }
 }
 
 function renderScoringSummary() {
