@@ -97,6 +97,10 @@ async function findEntryForMoves(entryId, email) {
   return apiGet('findEntryForMoves', { entryId, email });
 }
 
+async function submitDivisionPickChange(entryId, email, division, newTeamAbbrev) {
+  return apiPost('updateDivisionPick', { entryId, email, division, newTeamAbbrev });
+}
+
 async function submitRosterMoveRequest(entryId, email, boxId, newPlayerId) {
   return apiPost('requestRosterMove', { entryId, email, boxId, newPlayerId });
 }
