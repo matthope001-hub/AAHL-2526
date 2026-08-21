@@ -361,6 +361,15 @@ button:hover { opacity: 0.85; }
 @media (max-width: 600px) {
   .modal-pick-list { grid-template-columns: 1fr; }
 }
+.modal-pick-wrap { margin-bottom: 6px; }
+.move-history-line {
+  color: var(--amber);
+  font-size: 10px;
+  padding: 3px 8px;
+  background: var(--bg-panel-alt);
+  border-left: 2px solid var(--amber);
+  margin-bottom: 2px;
+}
 .modal-pick-row {
   display: flex;
   align-items: center;
