@@ -218,6 +218,7 @@ button:hover { opacity: 0.85; }
 }
 .box-option:last-child { border-bottom: none; }
 .box-option:hover { background: var(--bg-panel-alt); }
+.box-option-current { background: rgba(76, 143, 196, 0.1); }
 .box-option input[type="radio"] { accent-color: var(--ice); flex-shrink: 0; }
 .box-option-photo-wrap {
   position: relative;
