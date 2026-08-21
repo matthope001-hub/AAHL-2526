@@ -1229,7 +1229,7 @@ function renderManageMoves() {
   const el = document.getElementById('managemoves-content');
   el.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
-      <p style="color:var(--text-dim); font-size:14px; margin-bottom:14px;">Look up your team using the Entry ID and email from your confirmation email. You get 2 roster moves total for the season, and all moves must be requested before the NHL trade deadline (March 1, 2027). Every move needs commissioner approval before it counts.</p>
+      <p style="color:var(--text-dim); font-size:14px; margin-bottom:14px;">Look up your team using the Entry ID and email from your confirmation email. Before the season starts, you can change your picks freely at no cost. Once the season begins, you get 2 roster moves total, each needing commissioner approval before it counts, and all moves must be requested before the NHL trade deadline (March 1, 2027).</p>
       <label>Entry ID</label>
       <input type="text" id="moves-entryid-input" placeholder="From your confirmation email">
       <label>Email</label>
@@ -1337,7 +1337,12 @@ function renderMyTeamBoxPicker() {
 }
 
 async function requestMoveFromUI_(boxId, newPlayerId) {
-  if (!confirm('Request this roster move? This will use 1 of your remaining moves once approved by the commissioner.')) {
+  const seasonStarted = currentConfig.seasonStartDate && new Date() >= new Date(currentConfig.seasonStartDate);
+  const confirmMsg = seasonStarted
+    ? 'Request this roster move? This will use 1 of your remaining moves once approved by the commissioner.'
+    : 'Change this pick? The season hasn\'t started yet, so this swaps instantly and doesn\'t use one of your season moves.';
+
+  if (!confirm(confirmMsg)) {
     renderMyTeamMovesPanel();
     return;
   }
@@ -1350,7 +1355,7 @@ async function requestMoveFromUI_(boxId, newPlayerId) {
     const refreshed = await findEntryForMoves(entryId, email);
     if (refreshed.success) myTeamEntry = refreshed.data;
     renderMyTeamMovesPanel();
-    alert('Move requested! It will be applied once the commissioner approves it.');
+    alert(result.preSeason ? 'Pick updated!' : 'Move requested! It will be applied once the commissioner approves it.');
   } else {
     alert('Error: ' + result.error);
     renderMyTeamMovesPanel();
