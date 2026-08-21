@@ -88,6 +88,10 @@ async function submitRosterMove(entryId, boxId, newPlayerId) {
   return apiPost('requestRosterMove', { entryId, boxId, newPlayerId });
 }
 
+async function adminResendEmail(password, entryId) {
+  return apiPost('adminResendEmail', { password, entryId });
+}
+
 async function adminUpdateConfig(password, updates) {
   return apiPost('adminUpdateConfig', { password, updates });
 }
