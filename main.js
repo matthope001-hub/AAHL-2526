@@ -48,6 +48,15 @@ async function init() {
   renderRecentActivity();
   renderStatTicker();
   renderDivisionLeadersPanel();
+  applySignupCtaVisibility();
+}
+
+function applySignupCtaVisibility() {
+  const btn = document.getElementById('hero-signup-cta');
+  if (!btn) return;
+  const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
+  const locked = currentConfig.picksLocked || deadlinePassed;
+  btn.classList.toggle('hero-cta-hidden', !!locked);
 }
 
 function formatDeadlineShort(isoString) {
@@ -171,6 +180,7 @@ async function refreshAndRenderHome() {
   renderStarsOfNight();
   renderRecentActivity();
   renderDivisionLeadersPanel();
+  applySignupCtaVisibility();
 }
 
 async function renderDivisionLeadersPanel() {
@@ -1191,12 +1201,21 @@ function renderAdminEntries(entries) {
   const el = document.getElementById('admin-panel');
   adminEntriesCache = entries;
 
+  const ctaVisible = currentConfig.showSignupCta !== false;
+  const toggleHtml = `
+    <div class="panel" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
+      <span>Sign Up button on Home page</span>
+      <button id="admin-toggle-cta" class="admin-btn">${ctaVisible ? 'Hide Button' : 'Show Button'}</button>
+    </div>
+  `;
+
   if (entries.length === 0) {
-    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
+    el.innerHTML = toggleHtml + `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
+    wireAdminCtaToggle_();
     return;
   }
 
-  el.innerHTML = `
+  el.innerHTML = toggleHtml + `
     <table>
       <thead><tr><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
       <tbody>
@@ -1264,6 +1283,22 @@ function renderAdminEntries(entries) {
       await adminUpdateEntry(adminPassword, btn.dataset.id, { teamName: newName });
       loadAdminEntries();
     });
+  });
+
+  wireAdminCtaToggle_();
+}
+
+function wireAdminCtaToggle_() {
+  const btn = document.getElementById('admin-toggle-cta');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const currentlyVisible = currentConfig.showSignupCta !== false;
+    const result = await adminUpdateConfig(adminPassword, { showSignupCta: !currentlyVisible });
+    if (result.success) {
+      currentConfig.showSignupCta = !currentlyVisible;
+      applySignupCtaVisibility();
+      loadAdminEntries();
+    }
   });
 }
 
