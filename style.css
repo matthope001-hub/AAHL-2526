@@ -275,27 +275,34 @@ button:hover { opacity: 0.85; }
 
 .pw-field-wrap {
   display: flex;
-  align-items: stretch;
   max-width: 300px;
-  gap: 0;
 }
 .pw-field-wrap input {
   border-right: none;
   max-width: none;
   flex: 1;
+  height: 44px;
+  box-sizing: border-box;
 }
 .pw-toggle-btn {
+  height: 44px;
+  margin: 0;
+  padding: 0 14px;
   background: var(--bg-panel-alt);
   color: var(--text-dim);
   border: 1px solid var(--border);
   border-left: none;
-  padding: 0 14px;
   font-family: var(--font-mono);
+  font-weight: 400;
   font-size: 12px;
-  text-transform: uppercase;
+  text-transform: none;
+  letter-spacing: normal;
   cursor: pointer;
-  margin-top: 0;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 .pw-toggle-btn:hover { color: var(--ice); }
 
