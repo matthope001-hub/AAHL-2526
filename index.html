@@ -39,34 +39,46 @@
 <main id="app">
 
   <section id="view-home" class="view active">
-    <div style="margin-bottom:20px; margin-top:24px;">
+    <div class="hero-header-row">
+      <div>
+        <div class="hero-eyebrow mono">NHL 2026-27 Regular Season</div>
+        <h1 class="hero-title-new">AAHL Box Pick<span class="hero-em">'Em</span></h1>
+      </div>
+      <div class="hero-badges-row">
+        <a href="#" data-view="signup" class="nav-link hero-badge hero-badge-blue">
+          <span class="hero-badge-value mono" id="hero-entries">—</span>
+          <span class="hero-badge-label">Entries</span>
+        </a>
+        <div class="hero-badge hero-badge-amber">
+          <span class="hero-badge-value mono" id="hero-prizepool">—</span>
+          <span class="hero-badge-label">Prize Pool</span>
+        </div>
+        <div class="hero-badge hero-badge-gold">
+          <span class="hero-badge-value mono" id="deadline-display">—</span>
+          <span class="hero-badge-label">Deadline</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
       <h3 class="mini-title">⭐ Stars of the Night</h3>
       <div id="stars-of-night" class="panel"></div>
     </div>
-    <div class="hero">
-      <div class="hero-clock">
-        <span class="hero-label">Picks Lock</span>
-        <span id="deadline-display" class="hero-value mono">—</span>
-      </div>
-      <h1 class="hero-title">Angry Alpaca<br>Hockey League</h1>
-      <p class="hero-sub">24-box pick'em + 4 division picks. Winner take glory.</p>
-    </div>
-    <div class="hero" style="padding-top:0;">
-      <a href="#" data-view="signup" class="nav-link hero-cta-btn">🏒 Sign Up Now</a>
-      <div class="hero-stats-row">
-        <div class="hero-stat"><span class="hero-stat-label">Entries</span><span class="hero-stat-value mono" id="hero-entries">—</span></div>
-        <div class="hero-stat"><span class="hero-stat-label">Prize Pool</span><span class="hero-stat-value mono" id="hero-prizepool">—</span></div>
-      </div>
-    </div>
+
     <div class="home-grid">
       <div>
         <h3 class="mini-title">Current Standings</h3>
         <div id="home-standings-preview" class="panel"></div>
       </div>
       <div>
-        <h3 class="mini-title">Recent Activity</h3>
-        <div id="recent-activity" class="panel"></div>
+        <h3 class="mini-title">Division Leaders <span class="mono" style="color:var(--amber); font-weight:400; font-size:12px;">+10 pts bonus</span></h3>
+        <div id="division-leaders-panel" class="panel"></div>
       </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h3 class="mini-title">Recent Activity</h3>
+      <div id="recent-activity" class="panel"></div>
     </div>
   </section>
 
