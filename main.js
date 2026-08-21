@@ -1295,6 +1295,7 @@ function renderMyTeamMovesPanel() {
 
     ${myTeamEntry.movesRemaining > 0 ? `
       <h4 class="group-title">Request a Move</h4>
+      <div id="move-confirm-panel"></div>
       <div class="box-grid" id="my-team-box-grid"></div>
     ` : `<p class="mono" style="color:var(--text-dim);">No moves remaining.</p>`}
   `;
@@ -1313,40 +1314,72 @@ function renderMyTeamBoxPicker() {
     const box = boxById[boxId];
     if (!box) return '';
     const currentPlayerId = myTeamEntry.picks[boxId];
-    const currentPlayer = allPlayers.find(p => p.id === currentPlayerId);
 
     return `
       <div class="box-picker">
-        <div class="box-picker-label">${escapeHtml(box.boxLabel)} — currently: ${escapeHtml(currentPlayer ? currentPlayer.fullName : 'Unknown')}</div>
+        <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
         <div class="box-picker-options">
-          ${box.players.filter(p => p.playerId !== currentPlayerId).map(p => `
-            <label class="box-option">
-              <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}">
-              <span class="box-option-name">${escapeHtml(p.name)}</span>
+          ${box.players.map(p => {
+            const isCurrent = p.playerId === currentPlayerId;
+            return `
+            <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
+              <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}" ${isCurrent ? 'checked' : ''}>
+              <span class="box-option-name">${escapeHtml(p.name)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
               <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
             </label>
-          `).join('')}
+          `;}).join('')}
         </div>
       </div>
     `;
   }).join('');
 
   grid.querySelectorAll('input[type="radio"]').forEach(radio => {
-    radio.addEventListener('change', () => requestMoveFromUI_(radio.dataset.box, radio.value));
+    radio.addEventListener('change', () => {
+      const boxId = radio.dataset.box;
+      const currentPlayerId = myTeamEntry.picks[boxId];
+      if (radio.value === currentPlayerId) return; // selected their own current pick, nothing to confirm
+      showMoveConfirmation_(boxId, currentPlayerId, radio.value, radio);
+    });
+  });
+}
+
+function showMoveConfirmation_(boxId, oldPlayerId, newPlayerId, radioEl) {
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+  const box = boxById[boxId];
+
+  const oldOption = (box.players || []).find(p => p.playerId === oldPlayerId);
+  const newOption = (box.players || []).find(p => p.playerId === newPlayerId);
+  const oldName = oldOption ? oldOption.name : oldPlayerId;
+  const newName = newOption ? newOption.name : newPlayerId;
+
+  const confirmEl = document.getElementById('move-confirm-panel');
+  confirmEl.innerHTML = `
+    <div class="panel" style="border-color:var(--amber); margin-bottom:16px;">
+      <h4 style="margin-bottom:8px; color:var(--amber);">Confirm this move?</h4>
+      <p style="margin-bottom:14px; font-size:15px;">
+        <strong>${escapeHtml(box.boxLabel)}:</strong><br>
+        ${escapeHtml(oldName)} <span style="color:var(--text-dim);">→</span> ${escapeHtml(newName)}
+      </p>
+      <button id="move-confirm-yes">Confirm Move</button>
+      <button id="move-confirm-no" style="background:var(--bg-panel-alt); color:var(--text); margin-left:8px;">Cancel</button>
+    </div>
+  `;
+  confirmEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  document.getElementById('move-confirm-yes').addEventListener('click', () => {
+    confirmEl.innerHTML = '';
+    requestMoveFromUI_(boxId, newPlayerId);
+  });
+  document.getElementById('move-confirm-no').addEventListener('click', () => {
+    confirmEl.innerHTML = '';
+    radioEl.checked = false;
+    const currentRadio = document.querySelector(`input[name="move-target-${boxId}"][value="${oldPlayerId}"]`);
+    if (currentRadio) currentRadio.checked = true;
   });
 }
 
 async function requestMoveFromUI_(boxId, newPlayerId) {
-  const seasonStarted = currentConfig.seasonStartDate && new Date() >= new Date(currentConfig.seasonStartDate);
-  const confirmMsg = seasonStarted
-    ? 'Request this roster move? This will use 1 of your remaining moves once approved by the commissioner.'
-    : 'Change this pick? The season hasn\'t started yet, so this swaps instantly and doesn\'t use one of your season moves.';
-
-  if (!confirm(confirmMsg)) {
-    renderMyTeamMovesPanel();
-    return;
-  }
-
   const entryId = document.getElementById('moves-entryid-input').value.trim();
   const email = document.getElementById('moves-email-input').value.trim();
 
