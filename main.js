@@ -1624,4 +1624,26 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+async function handleDeepLink_() {
+  const params = new URLSearchParams(window.location.search);
+  const entryId = params.get('entryId');
+  const email = params.get('email');
+  if (!entryId || !email) return;
+
+  const myTeamLink = document.querySelector('.nav-link[data-view="managemoves"]');
+  if (myTeamLink) myTeamLink.click();
+
+  // Wait a tick for renderManageMoves() to build the form, then fill it in.
+  setTimeout(async () => {
+    const idInput = document.getElementById('moves-entryid-input');
+    const emailInput = document.getElementById('moves-email-input');
+    if (idInput && emailInput) {
+      idInput.value = entryId;
+      emailInput.value = email;
+      document.getElementById('moves-lookup-btn').click();
+    }
+  }, 100);
+}
+
 init();
+handleDeepLink_();
