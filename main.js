@@ -150,27 +150,72 @@ async function renderStarsOfNight() {
   }
 }
 
+let allActivity = [];
+let activityTypeFilter = 'all';
+let activityTeamFilter = 'all';
+
 async function renderRecentActivity() {
   const el = document.getElementById('recent-activity');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
 
   try {
-    const activity = await fetchRecentActivity();
-
-    if (activity.length === 0) {
-      el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
-      return;
-    }
-
-    el.innerHTML = activity.map(a => `
-      <div class="activity-row">
-        <span>🆕 <strong>${escapeHtml(a.teamName)}</strong> joined the pool</span>
-        <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.createdAt || '').slice(0,10))}</span>
-      </div>
-    `).join('');
+    allActivity = await fetchRecentActivity();
+    activityTypeFilter = 'all';
+    activityTeamFilter = 'all';
+    renderActivityList_();
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
   }
+}
+
+function renderActivityList_() {
+  const el = document.getElementById('recent-activity');
+
+  if (allActivity.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
+    return;
+  }
+
+  const teamNames = [...new Set(allActivity.map(a => a.teamName))].sort();
+  const typeIcons = { join: '🆕', move: '🔄' };
+
+  let filtered = allActivity;
+  if (activityTypeFilter !== 'all') filtered = filtered.filter(a => a.type === activityTypeFilter);
+  if (activityTeamFilter !== 'all') filtered = filtered.filter(a => a.teamName === activityTeamFilter);
+
+  el.innerHTML = `
+    <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+      <select id="activity-type-filter" style="max-width:140px; margin:0;">
+        <option value="all">All Activity</option>
+        <option value="join">Joins Only</option>
+        <option value="move">Moves Only</option>
+      </select>
+      <select id="activity-team-filter" style="max-width:180px; margin:0;">
+        <option value="all">All Teams</option>
+        ${teamNames.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+      </select>
+    </div>
+    ${filtered.length === 0
+      ? `<p class="mono" style="color:var(--text-dim); font-size:13px;">No matching activity.</p>`
+      : filtered.map(a => `
+        <div class="activity-row">
+          <span>${typeIcons[a.type] || '•'} ${escapeHtml(a.description)}</span>
+          <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.date || '').slice(0,10))}</span>
+        </div>
+      `).join('')}
+  `;
+
+  document.getElementById('activity-type-filter').value = activityTypeFilter;
+  document.getElementById('activity-team-filter').value = activityTeamFilter;
+
+  document.getElementById('activity-type-filter').addEventListener('change', (e) => {
+    activityTypeFilter = e.target.value;
+    renderActivityList_();
+  });
+  document.getElementById('activity-team-filter').addEventListener('change', (e) => {
+    activityTeamFilter = e.target.value;
+    renderActivityList_();
+  });
 }
 
 async function refreshAndRenderHome() {
