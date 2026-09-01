@@ -653,6 +653,20 @@ function renderRulesPage() {
 
     <p style="margin-bottom:20px; color:var(--text-dim); font-size:13px;">Live payout amounts based on the current pot are shown on the <a href="#" data-view="standings" class="rules-inline-link">Standings page</a>.</p>
 
+    <h3 class="group-title">Roster Moves</h3>
+    <p style="margin-bottom:6px;"><strong>Before the season starts</strong> (before puck drop, Sep 29, 2026, 5:00 PM):</p>
+    <p style="margin-bottom:4px;">• Unlimited changes to your player picks and division picks</p>
+    <p style="margin-bottom:4px;">• Instant — no approval needed, applies immediately</p>
+    <p style="margin-bottom:16px;">• Doesn't use up any of your season moves</p>
+
+    <p style="margin-bottom:6px;"><strong>Once the season starts:</strong></p>
+    <p style="margin-bottom:4px;">• You get exactly 2 roster moves total for the rest of the season (player boxes only — division picks lock permanently once the season begins)</p>
+    <p style="margin-bottom:4px;">• Every move needs commissioner approval before it counts — you'll get a confirmation email once it's finalized</p>
+    <p style="margin-bottom:4px;">• Scored fairly regardless of approval speed: the swap takes effect at the moment you request it, not when it's approved</p>
+    <p style="margin-bottom:16px;">• Hard deadline: no move requests accepted after the NHL trade deadline — <strong>Monday, March 1, 2027</strong></p>
+
+    <p style="margin-bottom:20px; color:var(--text-dim); font-size:13px;">Manage your picks and request moves on the <a href="#" data-view="managemoves" class="rules-inline-link">My Team page</a>, using the Entry ID from your confirmation email.</p>
+
     <h3 class="group-title">Tiebreaker</h3>
     <p style="margin-bottom:4px;">1. Highest combined goals + assists across your roster.</p>
     <p style="margin-bottom:20px;">2. If still tied: total goalie saves.</p>
@@ -661,7 +675,7 @@ function renderRulesPage() {
     <p style="margin-bottom:16px;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
 
     <h3 class="group-title">Viewing Other Teams' Picks</h3>
-    <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick. Before lock, picks stay private to keep strategy fair.</p>
+    <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick, including full move history and points banked from any swaps. Before lock, picks stay private to keep strategy fair.</p>
   `;
 
   el.querySelectorAll('.rules-inline-link').forEach(link => {
@@ -1426,10 +1440,21 @@ async function submitAllStagedMoves_() {
   btn.textContent = 'Submitting...';
 
   const errors = [];
+  const preSeasonMoveIds = [];
   for (const boxId of boxIds) {
     const move = stagedMoves[boxId];
     const result = await submitRosterMoveRequest(entryId, email, boxId, move.newPlayerId);
-    if (!result.success) errors.push(`${boxId}: ${result.error}`);
+    if (!result.success) {
+      errors.push(`${boxId}: ${result.error}`);
+    } else if (result.preSeason && result.moveId) {
+      preSeasonMoveIds.push(result.moveId);
+    }
+  }
+
+  // One consolidated email for however many pre-season swaps just applied,
+  // instead of a separate email per swap.
+  if (preSeasonMoveIds.length > 0) {
+    await sendBatchMoveEmail(entryId, email, preSeasonMoveIds);
   }
 
   const refreshed = await findEntryForMoves(entryId, email);
@@ -1537,10 +1562,29 @@ async function submitAllStagedDivisionChanges_() {
   btn.textContent = 'Submitting...';
 
   const errors = [];
+  const successfulChanges = [];
   for (const division of divisions) {
     const change = stagedDivisionChanges[division];
     const result = await submitDivisionPickChange(entryId, email, division, change.newTeam);
-    if (!result.success) errors.push(`${division}: ${result.error}`);
+    if (!result.success) {
+      errors.push(`${division}: ${result.error}`);
+    } else {
+      const oldTeam = DIVISION_TEAMS[division].find(t => t[0] === change.oldTeam);
+      const newTeam = DIVISION_TEAMS[division].find(t => t[0] === change.newTeam);
+      successfulChanges.push({
+        division,
+        oldTeam: change.oldTeam,
+        newTeam: change.newTeam,
+        oldTeamName: oldTeam ? oldTeam[1] : change.oldTeam,
+        newTeamName: newTeam ? newTeam[1] : change.newTeam
+      });
+    }
+  }
+
+  // One consolidated email covering all division changes just made,
+  // instead of a separate email per division.
+  if (successfulChanges.length > 0) {
+    await sendBatchDivisionEmail(entryId, email, successfulChanges);
   }
 
   const refreshed = await findEntryForMoves(entryId, email);
