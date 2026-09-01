@@ -1314,26 +1314,26 @@ function renderMyTeamMovesPanel() {
 
     ${!myTeamEntry.seasonStarted ? `
       <h4 class="group-title">Division Winner Picks <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(free to change until the season starts, then these lock permanently)</span></h4>
-      <div id="staged-division-summary"></div>
       <div class="box-grid" id="my-team-division-grid"></div>
     ` : ''}
 
     ${myTeamEntry.movesRemaining > 0 ? `
-      <h4 class="group-title">Request Moves <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(pick as many box changes as you want, then submit together)</span></h4>
-      <div id="staged-moves-summary"></div>
+      <h4 class="group-title">Request Moves <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(pick as many box changes as you want, then submit together at the bottom)</span></h4>
       <div class="box-grid" id="my-team-box-grid"></div>
     ` : `<p class="mono" style="color:var(--text-dim);">No moves remaining.</p>`}
+
+    <div id="unified-changes-summary" style="margin-top:24px;"></div>
   `;
 
   if (!myTeamEntry.seasonStarted) {
     renderMyTeamDivisionPicker();
-    renderStagedDivisionSummary_();
   }
 
   if (myTeamEntry.movesRemaining > 0) {
     renderMyTeamBoxPicker();
-    renderStagedMovesSummary_();
   }
+
+  renderUnifiedChangesSummary_();
 }
 
 function renderMyTeamBoxPicker() {
@@ -1375,97 +1375,9 @@ function renderMyTeamBoxPicker() {
       } else {
         stagedMoves[boxId] = { oldPlayerId: currentPlayerId, newPlayerId: radio.value };
       }
-      renderStagedMovesSummary_();
+      renderUnifiedChangesSummary_();
     });
   });
-}
-
-function renderStagedMovesSummary_() {
-  const el = document.getElementById('staged-moves-summary');
-  const boxById = {};
-  allBoxes.forEach(b => { boxById[b.id] = b; });
-
-  const staged = Object.keys(stagedMoves);
-  if (staged.length === 0) {
-    el.innerHTML = '';
-    return;
-  }
-
-  const seasonStarted = currentConfig.seasonStartDate && new Date() >= new Date(currentConfig.seasonStartDate);
-  const overLimit = seasonStarted && staged.length > myTeamEntry.movesRemaining;
-
-  el.innerHTML = `
-    <div class="panel" style="border-color:var(--amber); margin-bottom:16px;">
-      <h4 style="margin-bottom:10px; color:var(--amber);">Review Your Changes (${staged.length})</h4>
-      ${staged.map(boxId => {
-        const box = boxById[boxId];
-        const move = stagedMoves[boxId];
-        const oldOption = (box.players || []).find(p => p.playerId === move.oldPlayerId);
-        const newOption = (box.players || []).find(p => p.playerId === move.newPlayerId);
-        return `
-          <div class="activity-row">
-            <span><strong>${escapeHtml(box.boxLabel)}:</strong> ${escapeHtml(oldOption ? oldOption.name : move.oldPlayerId)} → ${escapeHtml(newOption ? newOption.name : move.newPlayerId)}</span>
-            <button class="admin-btn" data-remove-box="${boxId}">Remove</button>
-          </div>
-        `;
-      }).join('')}
-      ${overLimit ? `<p class="status-msg error" style="margin-top:10px;">You only have ${myTeamEntry.movesRemaining} move${myTeamEntry.movesRemaining === 1 ? '' : 's'} remaining - remove ${staged.length - myTeamEntry.movesRemaining} change${staged.length - myTeamEntry.movesRemaining === 1 ? '' : 's'} before submitting.</p>` : ''}
-      <button id="submit-all-moves-btn" ${overLimit ? 'disabled' : ''} style="margin-top:12px;">Submit ${staged.length} Change${staged.length === 1 ? '' : 's'}</button>
-    </div>
-  `;
-
-  el.querySelectorAll('[data-remove-box]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const boxId = btn.dataset.removeBox;
-      delete stagedMoves[boxId];
-      const currentPlayerId = myTeamEntry.picks[boxId];
-      const radio = document.querySelector(`input[name="move-target-${boxId}"][value="${currentPlayerId}"]`);
-      if (radio) radio.checked = true;
-      renderStagedMovesSummary_();
-    });
-  });
-
-  if (!overLimit) {
-    document.getElementById('submit-all-moves-btn').addEventListener('click', submitAllStagedMoves_);
-  }
-}
-
-async function submitAllStagedMoves_() {
-  const entryId = document.getElementById('moves-entryid-input').value.trim();
-  const email = document.getElementById('moves-email-input').value.trim();
-  const boxIds = Object.keys(stagedMoves);
-
-  const btn = document.getElementById('submit-all-moves-btn');
-  btn.disabled = true;
-  btn.textContent = 'Submitting...';
-
-  const errors = [];
-  const preSeasonMoveIds = [];
-  for (const boxId of boxIds) {
-    const move = stagedMoves[boxId];
-    const result = await submitRosterMoveRequest(entryId, email, boxId, move.newPlayerId);
-    if (!result.success) {
-      errors.push(`${boxId}: ${result.error}`);
-    } else if (result.preSeason && result.moveId) {
-      preSeasonMoveIds.push(result.moveId);
-    }
-  }
-
-  // One consolidated email for however many pre-season swaps just applied,
-  // instead of a separate email per swap.
-  if (preSeasonMoveIds.length > 0) {
-    await sendBatchMoveEmail(entryId, email, preSeasonMoveIds);
-  }
-
-  const refreshed = await findEntryForMoves(entryId, email);
-  if (refreshed.success) myTeamEntry = refreshed.data;
-  renderMyTeamMovesPanel();
-
-  if (errors.length > 0) {
-    alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
-  } else {
-    alert('Changes submitted!');
-  }
 }
 
 function renderMyTeamDivisionPicker() {
@@ -1505,25 +1417,51 @@ function renderMyTeamDivisionPicker() {
       } else {
         stagedDivisionChanges[division] = { oldTeam: currentAbbrev, newTeam: radio.value };
       }
-      renderStagedDivisionSummary_();
+      renderUnifiedChangesSummary_();
     });
   });
 }
 
-function renderStagedDivisionSummary_() {
-  const el = document.getElementById('staged-division-summary');
+/**
+ * ONE combined summary of every staged change (box moves + division picks
+ * together) with a single submit button, placed at the bottom of the page
+ * so it reads naturally as "review everything, then submit."
+ */
+function renderUnifiedChangesSummary_() {
+  const el = document.getElementById('unified-changes-summary');
   if (!el) return;
 
-  const staged = Object.keys(stagedDivisionChanges);
-  if (staged.length === 0) {
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+
+  const stagedBoxIds = Object.keys(stagedMoves);
+  const stagedDivisions = Object.keys(stagedDivisionChanges);
+  const totalStaged = stagedBoxIds.length + stagedDivisions.length;
+
+  if (totalStaged === 0) {
     el.innerHTML = '';
     return;
   }
 
+  const seasonStarted = currentConfig.seasonStartDate && new Date() >= new Date(currentConfig.seasonStartDate);
+  const overLimit = seasonStarted && stagedBoxIds.length > myTeamEntry.movesRemaining;
+
   el.innerHTML = `
-    <div class="panel" style="border-color:var(--amber); margin-bottom:16px;">
-      <h4 style="margin-bottom:10px; color:var(--amber);">Review Division Changes (${staged.length})</h4>
-      ${staged.map(division => {
+    <div class="panel" style="border-color:var(--amber);">
+      <h4 style="margin-bottom:10px; color:var(--amber);">Review Your Changes (${totalStaged})</h4>
+      ${stagedBoxIds.map(boxId => {
+        const box = boxById[boxId];
+        const move = stagedMoves[boxId];
+        const oldOption = (box.players || []).find(p => p.playerId === move.oldPlayerId);
+        const newOption = (box.players || []).find(p => p.playerId === move.newPlayerId);
+        return `
+          <div class="activity-row">
+            <span><strong>${escapeHtml(box.boxLabel)}:</strong> ${escapeHtml(oldOption ? oldOption.name : move.oldPlayerId)} → ${escapeHtml(newOption ? newOption.name : move.newPlayerId)}</span>
+            <button class="admin-btn" data-remove-box="${boxId}">Remove</button>
+          </div>
+        `;
+      }).join('')}
+      ${stagedDivisions.map(division => {
         const change = stagedDivisionChanges[division];
         const oldTeam = DIVISION_TEAMS[division].find(t => t[0] === change.oldTeam);
         const newTeam = DIVISION_TEAMS[division].find(t => t[0] === change.newTeam);
@@ -1534,9 +1472,22 @@ function renderStagedDivisionSummary_() {
           </div>
         `;
       }).join('')}
-      <button id="submit-division-changes-btn" style="margin-top:12px;">Submit ${staged.length} Change${staged.length === 1 ? '' : 's'}</button>
+      ${overLimit ? `<p class="status-msg error" style="margin-top:10px;">You only have ${myTeamEntry.movesRemaining} move${myTeamEntry.movesRemaining === 1 ? '' : 's'} remaining - remove ${stagedBoxIds.length - myTeamEntry.movesRemaining} player change${stagedBoxIds.length - myTeamEntry.movesRemaining === 1 ? '' : 's'} before submitting.</p>` : ''}
+      <button id="submit-all-changes-btn" ${overLimit ? 'disabled' : ''} style="margin-top:12px;">Submit ${totalStaged} Change${totalStaged === 1 ? '' : 's'}</button>
+      <div id="unified-changes-status" class="status-msg"></div>
     </div>
   `;
+
+  el.querySelectorAll('[data-remove-box]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const boxId = btn.dataset.removeBox;
+      delete stagedMoves[boxId];
+      const currentPlayerId = myTeamEntry.picks[boxId];
+      const radio = document.querySelector(`input[name="move-target-${boxId}"][value="${currentPlayerId}"]`);
+      if (radio) radio.checked = true;
+      renderUnifiedChangesSummary_();
+    });
+  });
 
   el.querySelectorAll('[data-remove-division]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1545,56 +1496,97 @@ function renderStagedDivisionSummary_() {
       const currentAbbrev = myTeamEntry.divisionPicks[division];
       const radio = document.querySelector(`input[name="division-target-${division}"][value="${currentAbbrev}"]`);
       if (radio) radio.checked = true;
-      renderStagedDivisionSummary_();
+      renderUnifiedChangesSummary_();
     });
   });
 
-  document.getElementById('submit-division-changes-btn').addEventListener('click', submitAllStagedDivisionChanges_);
+  if (!overLimit) {
+    document.getElementById('submit-all-changes-btn').addEventListener('click', submitAllUnifiedChanges_);
+  }
+
+  el.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
-async function submitAllStagedDivisionChanges_() {
+async function submitAllUnifiedChanges_() {
   const entryId = document.getElementById('moves-entryid-input').value.trim();
   const email = document.getElementById('moves-email-input').value.trim();
+  const boxIds = Object.keys(stagedMoves);
   const divisions = Object.keys(stagedDivisionChanges);
+  const totalStaged = boxIds.length + divisions.length;
 
-  const btn = document.getElementById('submit-division-changes-btn');
+  const btn = document.getElementById('submit-all-changes-btn');
+  const statusEl = document.getElementById('unified-changes-status');
   btn.disabled = true;
-  btn.textContent = 'Submitting...';
 
-  const errors = [];
-  const successfulChanges = [];
-  for (const division of divisions) {
-    const change = stagedDivisionChanges[division];
-    const result = await submitDivisionPickChange(entryId, email, division, change.newTeam);
-    if (!result.success) {
-      errors.push(`${division}: ${result.error}`);
-    } else {
-      const oldTeam = DIVISION_TEAMS[division].find(t => t[0] === change.oldTeam);
-      const newTeam = DIVISION_TEAMS[division].find(t => t[0] === change.newTeam);
-      successfulChanges.push({
-        division,
-        oldTeam: change.oldTeam,
-        newTeam: change.newTeam,
-        oldTeamName: oldTeam ? oldTeam[1] : change.oldTeam,
-        newTeamName: newTeam ? newTeam[1] : change.newTeam
-      });
+  try {
+    const errors = [];
+    const preSeasonMoveIds = [];
+    const successfulDivisionChanges = [];
+    let step = 0;
+
+    for (const boxId of boxIds) {
+      step++;
+      btn.textContent = `Submitting ${step} of ${totalStaged}...`;
+      if (statusEl) statusEl.textContent = `Submitting change ${step} of ${totalStaged}...`;
+
+      const move = stagedMoves[boxId];
+      const result = await submitRosterMoveRequest(entryId, email, boxId, move.newPlayerId);
+      if (!result.success) {
+        errors.push(`${boxId}: ${result.error}`);
+      } else if (result.preSeason && result.moveId) {
+        preSeasonMoveIds.push(result.moveId);
+      }
     }
-  }
 
-  // One consolidated email covering all division changes just made,
-  // instead of a separate email per division.
-  if (successfulChanges.length > 0) {
-    await sendBatchDivisionEmail(entryId, email, successfulChanges);
-  }
+    for (const division of divisions) {
+      step++;
+      btn.textContent = `Submitting ${step} of ${totalStaged}...`;
+      if (statusEl) statusEl.textContent = `Submitting change ${step} of ${totalStaged}...`;
 
-  const refreshed = await findEntryForMoves(entryId, email);
-  if (refreshed.success) myTeamEntry = refreshed.data;
-  renderMyTeamMovesPanel();
+      const change = stagedDivisionChanges[division];
+      const result = await submitDivisionPickChange(entryId, email, division, change.newTeam);
+      if (!result.success) {
+        errors.push(`${division}: ${result.error}`);
+      } else {
+        const oldTeam = DIVISION_TEAMS[division].find(t => t[0] === change.oldTeam);
+        const newTeam = DIVISION_TEAMS[division].find(t => t[0] === change.newTeam);
+        successfulDivisionChanges.push({
+          division,
+          oldTeam: change.oldTeam,
+          newTeam: change.newTeam,
+          oldTeamName: oldTeam ? oldTeam[1] : change.oldTeam,
+          newTeamName: newTeam ? newTeam[1] : change.newTeam
+        });
+      }
+    }
 
-  if (errors.length > 0) {
-    alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
-  } else {
-    alert('Division picks updated!');
+    // One combined email covering everything just changed, regardless of
+    // whether it was player picks, division picks, or both together.
+    if (preSeasonMoveIds.length > 0 || successfulDivisionChanges.length > 0) {
+      if (statusEl) statusEl.textContent = 'Sending confirmation email...';
+      try {
+        await sendCombinedChangeEmail(entryId, email, preSeasonMoveIds, successfulDivisionChanges);
+      } catch (emailErr) {
+        console.error('Combined change email failed:', emailErr);
+      }
+    }
+
+    if (statusEl) statusEl.textContent = 'Refreshing your team...';
+    const refreshed = await findEntryForMoves(entryId, email);
+    if (refreshed.success) myTeamEntry = refreshed.data;
+    renderMyTeamMovesPanel();
+
+    if (errors.length > 0) {
+      alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
+    } else {
+      alert('Changes submitted!');
+    }
+  } catch (err) {
+    console.error('submitAllUnifiedChanges_ failed:', err);
+    if (statusEl) { statusEl.textContent = 'Something went wrong: ' + err.message; statusEl.className = 'status-msg error'; }
+    btn.disabled = false;
+    btn.textContent = `Submit ${totalStaged} Change${totalStaged === 1 ? '' : 's'}`;
+    alert('Something went wrong submitting your changes. Please try again.\n\n' + err.message);
   }
 }
 
