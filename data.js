@@ -113,6 +113,10 @@ async function submitDivisionPickChange(entryId, email, division, newTeamAbbrev)
   return apiPost('updateDivisionPick', { entryId, email, division, newTeamAbbrev });
 }
 
+async function submitBatchTeamChanges(entryId, email, boxChanges, divisionChanges) {
+  return apiPost('submitBatchTeamChanges', { entryId, email, boxChanges, divisionChanges });
+}
+
 async function submitRosterMoveRequest(entryId, email, boxId, newPlayerId) {
   return apiPost('requestRosterMove', { entryId, email, boxId, newPlayerId });
 }
