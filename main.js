@@ -1573,67 +1573,27 @@ async function submitAllUnifiedChanges_() {
   const btn = document.getElementById('submit-all-changes-btn');
   const statusEl = document.getElementById('unified-changes-status');
   btn.disabled = true;
+  btn.textContent = 'Submitting...';
+  if (statusEl) statusEl.textContent = `Submitting ${totalStaged} change${totalStaged === 1 ? '' : 's'}...`;
 
   try {
-    const errors = [];
-    const preSeasonMoveIds = [];
-    const successfulDivisionChanges = [];
-    let step = 0;
+    const boxChanges = boxIds.map(boxId => ({ boxId, newPlayerId: stagedMoves[boxId].newPlayerId }));
+    const divisionChanges = divisions.map(division => ({ division, newTeamAbbrev: stagedDivisionChanges[division].newTeam }));
 
-    for (const boxId of boxIds) {
-      step++;
-      btn.textContent = `Submitting ${step} of ${totalStaged}...`;
-      if (statusEl) statusEl.textContent = `Submitting change ${step} of ${totalStaged}...`;
-
-      const move = stagedMoves[boxId];
-      const result = await submitRosterMoveRequest(entryId, email, boxId, move.newPlayerId);
-      if (!result.success) {
-        errors.push(`${boxId}: ${result.error}`);
-      } else if (result.preSeason && result.moveId) {
-        preSeasonMoveIds.push(result.moveId);
-      }
-    }
-
-    for (const division of divisions) {
-      step++;
-      btn.textContent = `Submitting ${step} of ${totalStaged}...`;
-      if (statusEl) statusEl.textContent = `Submitting change ${step} of ${totalStaged}...`;
-
-      const change = stagedDivisionChanges[division];
-      const result = await submitDivisionPickChange(entryId, email, division, change.newTeam);
-      if (!result.success) {
-        errors.push(`${division}: ${result.error}`);
-      } else {
-        const oldTeam = DIVISION_TEAMS[division].find(t => t[0] === change.oldTeam);
-        const newTeam = DIVISION_TEAMS[division].find(t => t[0] === change.newTeam);
-        successfulDivisionChanges.push({
-          division,
-          oldTeam: change.oldTeam,
-          newTeam: change.newTeam,
-          oldTeamName: oldTeam ? oldTeam[1] : change.oldTeam,
-          newTeamName: newTeam ? newTeam[1] : change.newTeam
-        });
-      }
-    }
-
-    // One combined email covering everything just changed, regardless of
-    // whether it was player picks, division picks, or both together.
-    if (preSeasonMoveIds.length > 0 || successfulDivisionChanges.length > 0) {
-      if (statusEl) statusEl.textContent = 'Sending confirmation email...';
-      try {
-        await sendCombinedChangeEmail(entryId, email, preSeasonMoveIds, successfulDivisionChanges);
-      } catch (emailErr) {
-        console.error('Combined change email failed:', emailErr);
-      }
-    }
+    // One round trip does everything: applies all changes, writes the entry
+    // once, recomputes standings once, and sends one confirmation email -
+    // instead of a separate round trip (and full recompute) per change.
+    const result = await submitBatchTeamChanges(entryId, email, boxChanges, divisionChanges);
 
     if (statusEl) statusEl.textContent = 'Refreshing your team...';
     const refreshed = await findEntryForMoves(entryId, email);
     if (refreshed.success) myTeamEntry = refreshed.data;
     renderMyTeamMovesPanel();
 
-    if (errors.length > 0) {
-      alert('Some changes could not be submitted:\n\n' + errors.join('\n'));
+    if (!result.success && result.errors && result.errors.length > 0) {
+      alert('Some changes could not be submitted:\n\n' + result.errors.join('\n'));
+    } else if (result.error) {
+      alert('Error: ' + result.error);
     } else {
       alert('Changes submitted!');
     }
