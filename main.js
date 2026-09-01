@@ -23,6 +23,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'standings') refreshAndRenderStandings();
     if (view === 'players') { await ensurePlayersLoaded(); renderPlayersTable(); }
     if (view === 'lastnight') { await ensurePlayersLoaded(); renderLastNightStats(); }
+    if (view === 'activity') renderActivityList_();
     if (view === 'rules') renderRulesPage();
     if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
@@ -155,21 +156,39 @@ let activityTypeFilter = 'all';
 let activityTeamFilter = 'all';
 
 async function renderRecentActivity() {
-  const el = document.getElementById('recent-activity');
-  el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
-
   try {
     allActivity = await fetchRecentActivity();
     activityTypeFilter = 'all';
     activityTeamFilter = 'all';
+    renderHomeActivityTeaser_();
     renderActivityList_();
   } catch (e) {
-    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
+    const teaserEl = document.getElementById('home-activity-teaser');
+    if (teaserEl) teaserEl.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
   }
+}
+
+function renderHomeActivityTeaser_() {
+  const el = document.getElementById('home-activity-teaser');
+  if (!el) return;
+
+  if (allActivity.length === 0) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
+    return;
+  }
+
+  const typeIcons = { join: '🆕', move: '🔄' };
+  el.innerHTML = allActivity.slice(0, 3).map(a => `
+    <div class="activity-row">
+      <span>${typeIcons[a.type] || '•'} ${escapeHtml(a.description)}</span>
+      <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.date || '').slice(0,10))}</span>
+    </div>
+  `).join('');
 }
 
 function renderActivityList_() {
   const el = document.getElementById('recent-activity');
+  if (!el) return;
 
   if (allActivity.length === 0) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">No activity yet.</p>`;
@@ -195,14 +214,16 @@ function renderActivityList_() {
         ${teamNames.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
       </select>
     </div>
-    ${filtered.length === 0
-      ? `<p class="mono" style="color:var(--text-dim); font-size:13px;">No matching activity.</p>`
-      : filtered.map(a => `
-        <div class="activity-row">
-          <span>${typeIcons[a.type] || '•'} ${escapeHtml(a.description)}</span>
-          <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.date || '').slice(0,10))}</span>
-        </div>
-      `).join('')}
+    <div style="max-height:420px; overflow-y:auto;">
+      ${filtered.length === 0
+        ? `<p class="mono" style="color:var(--text-dim); font-size:13px;">No matching activity.</p>`
+        : filtered.map(a => `
+          <div class="activity-row">
+            <span>${typeIcons[a.type] || '•'} ${escapeHtml(a.description)}</span>
+            <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.date || '').slice(0,10))}</span>
+          </div>
+        `).join('')}
+    </div>
   `;
 
   document.getElementById('activity-type-filter').value = activityTypeFilter;
