@@ -876,6 +876,7 @@ async function renderSignupFormBody() {
   el.innerHTML = `
     <label>Team Name</label>
     <input type="text" id="f-teamName" value="${escapeHtml(signupFields.teamName)}">
+    <div id="team-name-warning" class="status-msg" style="display:none; color:var(--amber);"></div>
     <label>Owner Name</label>
     <input type="text" id="f-ownerName" value="${escapeHtml(signupFields.ownerName)}">
     <label>Email</label>
@@ -985,6 +986,18 @@ async function renderSignupFormBody() {
   });
 
   document.getElementById('submit-entry-btn').addEventListener('click', handleSubmitEntry);
+
+  document.getElementById('f-teamName').addEventListener('input', (e) => {
+    const warningEl = document.getElementById('team-name-warning');
+    const typed = e.target.value.trim().toLowerCase();
+    const isDuplicate = typed.length > 0 && allStandings.some(s => (s.teamName || '').trim().toLowerCase() === typed);
+    if (isDuplicate) {
+      warningEl.textContent = `⚠️ "${e.target.value.trim()}" is already taken by another team. You can still use it, but consider something unique so it's easy to tell apart on Standings.`;
+      warningEl.style.display = 'block';
+    } else {
+      warningEl.style.display = 'none';
+    }
+  });
 }
 
 function updatePicksCount() {
