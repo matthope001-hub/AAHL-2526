@@ -97,6 +97,18 @@ async function findEntryForMoves(entryId, email) {
   return apiGet('findEntryForMoves', { entryId, email });
 }
 
+async function sendCombinedChangeEmail(entryId, email, moveIds, divisionChanges) {
+  return apiPost('sendCombinedChangeEmail', { entryId, email, moveIds, divisionChanges });
+}
+
+async function sendBatchMoveEmail(entryId, email, moveIds) {
+  return apiPost('sendBatchMoveEmail', { entryId, email, moveIds });
+}
+
+async function sendBatchDivisionEmail(entryId, email, changes) {
+  return apiPost('sendBatchDivisionEmail', { entryId, email, changes });
+}
+
 async function submitDivisionPickChange(entryId, email, division, newTeamAbbrev) {
   return apiPost('updateDivisionPick', { entryId, email, division, newTeamAbbrev });
 }
