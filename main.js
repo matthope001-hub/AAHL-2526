@@ -1503,8 +1503,6 @@ function renderUnifiedChangesSummary_() {
   if (!overLimit) {
     document.getElementById('submit-all-changes-btn').addEventListener('click', submitAllUnifiedChanges_);
   }
-
-  el.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
 async function submitAllUnifiedChanges_() {
