@@ -1866,19 +1866,23 @@ async function handleDeepLink_() {
   const email = params.get('email');
   if (!entryId || !email) return;
 
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   const myTeamLink = document.querySelector('.nav-link[data-view="managemoves"]');
-  if (myTeamLink) myTeamLink.click();
+  if (myTeamLink) myTeamLink.classList.add('active');
+  const viewEl = document.getElementById('view-managemoves');
+  if (viewEl) viewEl.classList.add('active');
 
-  // Wait a tick for renderManageMoves() to build the form, then fill it in.
-  setTimeout(async () => {
-    const idInput = document.getElementById('moves-entryid-input');
-    const emailInput = document.getElementById('moves-email-input');
-    if (idInput && emailInput) {
-      idInput.value = entryId;
-      emailInput.value = email;
-      document.getElementById('moves-lookup-btn').click();
-    }
-  }, 100);
+  await ensurePlayersLoaded();
+  renderManageMoves();
+
+  const idInput = document.getElementById('moves-entryid-input');
+  const emailInput = document.getElementById('moves-email-input');
+  if (idInput && emailInput) {
+    idInput.value = entryId;
+    emailInput.value = email;
+    document.getElementById('moves-lookup-btn').click();
+  }
 }
 
 init();
