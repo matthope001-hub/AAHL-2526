@@ -1774,8 +1774,7 @@ function renderAdminEntries(entries) {
 
   el.querySelectorAll('.admin-view-picks').forEach(btn => {
     btn.addEventListener('click', () => {
-      const entry = adminEntriesCache.find(e => e.id === btn.dataset.id);
-      if (entry) openAdminPicksModal(entry);
+      openAdminPicksModal(btn.dataset.id);
     });
   });
 
