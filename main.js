@@ -212,7 +212,7 @@ function renderActivityList_() {
 
   el.innerHTML = `
     <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
-      <select id="activity-type-filter" style="max-width:140px; margin:0;">
+      <select id="activity-type-filter" style="max-width:160px; margin:0;">
         <option value="all">All Activity</option>
         <option value="join">Joins Only</option>
         <option value="move">Moves Only</option>
