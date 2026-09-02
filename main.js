@@ -76,12 +76,18 @@ async function ensurePlayersLoaded() {
   }
 }
 
+let starsOfNightPromise = null;
+function getStarsOfNightData() {
+  if (!starsOfNightPromise) starsOfNightPromise = fetchStarsOfNight();
+  return starsOfNightPromise;
+}
+
 async function renderStatTicker() {
   const wrap = document.getElementById('stat-ticker');
   const track = document.getElementById('stat-ticker-track');
 
   try {
-    const stars = await fetchStarsOfNight();
+    const stars = await getStarsOfNightData();
     const performers = (stars && stars.allPerformers || []).filter(p => poolPlayerIds.has(p.playerId) && p.pts > 0);
 
     if (!stars || performers.length === 0) {
@@ -109,7 +115,7 @@ async function renderStarsOfNight() {
   el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
 
   try {
-    const stars = await fetchStarsOfNight();
+    const stars = await getStarsOfNightData();
     const performers = (stars && stars.topPerformers || []).filter(p => poolPlayerIds.has(p.playerId)).slice(0, 3);
 
     if (!stars || performers.length === 0) {
@@ -242,6 +248,7 @@ function renderActivityList_() {
 }
 
 async function refreshAndRenderHome() {
+  starsOfNightPromise = null;
   [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
   document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
