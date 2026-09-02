@@ -513,9 +513,6 @@ button:hover { opacity: 0.85; }
   0%, 100% { box-shadow: 0 0 0 0 rgba(161, 63, 92, 0.6); }
   50% { box-shadow: 0 0 0 12px rgba(161, 63, 92, 0); }
 }
-  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 63, 92, 0.5); }
-  50% { box-shadow: 0 0 0 8px rgba(161, 63, 92, 0); }
-}
 
 .hero-stats-row { display: flex; gap: 10px; margin-top: 0; }
 .hero-stat {
@@ -927,17 +924,13 @@ a.hero-badge { cursor: pointer; }
 
   .main-nav {
     width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    gap: 16px;
-    padding-bottom: 2px;
-    scrollbar-width: none;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    row-gap: 8px;
   }
-  .main-nav::-webkit-scrollbar { display: none; }
   .nav-link {
     font-size: 13px;
     white-space: nowrap;
-    flex-shrink: 0;
   }
 
   /* Any table gets a horizontal scroll safety net inside its panel
@@ -982,7 +975,8 @@ a.hero-badge { cursor: pointer; }
     font-size: 16px; /* prevents iOS auto-zoom on focus */
     padding: 12px;
   }
-  button { width: 100%; padding: 14px; font-size: 15px; }
+  button:not(.pw-toggle-btn):not(.admin-btn):not(.toggle-switch *) { width: 100%; padding: 14px; font-size: 15px; }
+  .pw-field-wrap { max-width: none; }
 
   .hero-title { font-size: 32px; }
   .hero-sub { font-size: 15px; }
