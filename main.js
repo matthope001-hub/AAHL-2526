@@ -35,12 +35,10 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
 // ---------- Init ----------
 async function init() {
-  allBoxes = await fetchBoxes();
-  allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
-
-  [allStandings, currentConfig] = await Promise.all([
-    fetchStandings(), fetchConfig()
+  [allBoxes, allStandings, currentConfig] = await Promise.all([
+    fetchBoxes(), fetchStandings(), fetchConfig()
   ]);
+  allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
 
   document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
