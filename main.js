@@ -54,12 +54,16 @@ async function init() {
 }
 
 function applySignupCtaVisibility() {
-  const btn = document.getElementById('hero-signup-cta');
-  if (!btn) return;
   const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
   const autoLocked = currentConfig.picksLocked || deadlinePassed;
   const manuallyHidden = currentConfig.showSignupCta === false;
-  btn.classList.toggle('hero-cta-hidden', !!autoLocked || manuallyHidden);
+  const shouldHide = !!autoLocked || manuallyHidden;
+
+  const btn = document.getElementById('hero-signup-cta');
+  if (btn) btn.classList.toggle('hero-cta-hidden', shouldHide);
+
+  const navLink = document.querySelector('.nav-link[data-view="signup"]');
+  if (navLink) navLink.style.display = shouldHide ? 'none' : '';
 }
 
 function formatDeadlineShort(isoString) {
@@ -916,6 +920,16 @@ async function renderSignupForm() {
       <div class="panel" style="text-align:center; padding:32px;">
         <h2 style="color:var(--amber); margin-bottom:12px;">Picks Are Locked</h2>
         <p style="color:var(--text-dim); font-size:14px;">The season has started and new entries are no longer being accepted.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (currentConfig.showSignupCta === false) {
+    document.getElementById('signup-form').innerHTML = `
+      <div class="panel" style="text-align:center; padding:32px;">
+        <h2 style="color:var(--amber); margin-bottom:12px;">Sign Ups Are Currently Closed</h2>
+        <p style="color:var(--text-dim); font-size:14px;">The commissioner has temporarily closed new entries. Check back soon.</p>
       </div>
     `;
     return;
