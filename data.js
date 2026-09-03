@@ -7,8 +7,8 @@
 
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzJA2dDY7N2IY9xrwMpr-XYybw2Z8ZWybXTH8Sm7eYn1tR1qBaEAzc8N9Vp2jmM_bYVdA/exec';
 
-const TOTAL_BOXES = 24;
-const REQUIRED_BOX_IDS = Array.from({length: 24}, (_, i) => String(i + 1));
+const TOTAL_BOXES = 27;
+const REQUIRED_BOX_IDS = Array.from({length: 27}, (_, i) => String(i + 1));
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 
 async function apiGet(action, params) {
