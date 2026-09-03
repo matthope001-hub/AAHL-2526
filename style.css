@@ -275,38 +275,35 @@ button:hover { opacity: 0.85; }
 }
 
 .pw-field-wrap {
-  display: flex;
+  position: relative;
   max-width: 300px;
   margin-bottom: 14px;
 }
 .pw-field-wrap input {
-  border-right: none;
   max-width: none;
-  flex: 1;
-  height: 44px;
+  width: 100%;
+  padding-right: 40px;
   box-sizing: border-box;
 }
-.pw-toggle-btn {
-  height: 44px;
+.pw-eye-btn {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  bottom: 2px;
+  width: 36px;
   margin: 0;
-  padding: 0 14px;
-  background: var(--bg-panel-alt);
+  padding: 0;
+  background: transparent;
   color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-left: none;
-  font-family: var(--font-mono);
-  font-weight: 400;
-  font-size: 12px;
-  text-transform: none;
-  letter-spacing: normal;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
-  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-sizing: border-box;
 }
-.pw-toggle-btn:hover { color: var(--ice); }
+.pw-eye-btn:hover, .pw-eye-btn-active { color: var(--ice); opacity: 1; }
 
 .team-link {
   cursor: pointer;
@@ -976,7 +973,7 @@ a.hero-badge { cursor: pointer; }
     font-size: 16px; /* prevents iOS auto-zoom on focus */
     padding: 12px;
   }
-  button:not(.pw-toggle-btn):not(.admin-btn):not(.toggle-switch *) { width: 100%; padding: 14px; font-size: 15px; }
+  button:not(.pw-eye-btn):not(.admin-btn):not(.toggle-switch *) { width: 100%; padding: 14px; font-size: 15px; }
   .pw-field-wrap { max-width: none; }
 
   .hero-title { font-size: 32px; }
