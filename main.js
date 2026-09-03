@@ -659,7 +659,7 @@ function renderRulesPage() {
     <p style="margin-bottom:20px;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
 
     <h3 class="group-title">📋 How to Play</h3>
-    <p style="margin-bottom:6px;">Make 28 total picks: 1 choice from each of the 24 player boxes, plus 4 division winners.</p>
+    <p style="margin-bottom:6px;">Make 28 total picks: 1 choice from each of the 27 player boxes, plus 4 division winners.</p>
     <p style="margin-bottom:20px;">Standings update regularly all season via this live tracking site once games begin.</p>
 
     <h3 class="group-title">📊 Point System</h3>
@@ -864,7 +864,7 @@ function renderScoringSummary() {
   el.innerHTML = `
     <p style="color:var(--amber); margin-bottom:4px; font-size:14px; font-weight:700;">🏒 Wedding Fundraiser for Mackenzie &amp; Dan 🏒</p>
     <p style="color:var(--text-dim); margin-bottom:16px; font-size:14px;">
-      24-box pick'em (16 Forward, 5 Defense, 3 Goalie) + 4 division winner picks. 50% of the pot goes to the couple, 50% to the participant prize pool.
+      27-box pick'em (16 Forward, 5 Defense, 3 Goalie) + 4 division winner picks. 50% of the pot goes to the couple, 50% to the participant prize pool.
     </p>
     <div class="scoring-grid">
       ${cards.map(card => `
