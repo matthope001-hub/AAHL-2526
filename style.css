@@ -277,6 +277,7 @@ button:hover { opacity: 0.85; }
 .pw-field-wrap {
   display: flex;
   max-width: 300px;
+  margin-bottom: 14px;
 }
 .pw-field-wrap input {
   border-right: none;
