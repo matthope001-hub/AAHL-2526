@@ -659,7 +659,7 @@ function renderRulesPage() {
     <p style="margin-bottom:20px;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
 
     <h3 class="group-title">📋 How to Play</h3>
-    <p style="margin-bottom:6px;">Make 28 total picks: 1 choice from each of the 27 player boxes, plus 4 division winners.</p>
+    <p style="margin-bottom:6px;">Make 31 total picks: 1 choice from each of the 27 player boxes (16 Forwards, 5 Defense, 6 Goalies), plus 4 division winners.</p>
     <p style="margin-bottom:20px;">Standings update regularly all season via this live tracking site once games begin.</p>
 
     <h3 class="group-title">📊 Point System</h3>
@@ -864,7 +864,7 @@ function renderScoringSummary() {
   el.innerHTML = `
     <p style="color:var(--amber); margin-bottom:4px; font-size:14px; font-weight:700;">🏒 Wedding Fundraiser for Mackenzie &amp; Dan 🏒</p>
     <p style="color:var(--text-dim); margin-bottom:16px; font-size:14px;">
-      27-box pick'em (16 Forward, 5 Defense, 3 Goalie) + 4 division winner picks. 50% of the pot goes to the couple, 50% to the participant prize pool.
+      27-box pick'em (16 Forward, 5 Defense, 6 Goalie) + 4 division winner picks. 50% of the pot goes to the couple, 50% to the participant prize pool.
     </p>
     <div class="scoring-grid">
       ${cards.map(card => `
@@ -966,7 +966,7 @@ async function renderSignupFormBody() {
     <input type="text" id="f-ownerName" value="${escapeHtml(signupFields.ownerName)}">
     <label>Email</label>
     <input type="email" id="f-email" value="${escapeHtml(signupFields.email)}">
-    <div class="picks-count mono" id="picks-count">${Object.keys(signupPicks).length} / ${TOTAL_BOXES} picked</div>
+    <div class="picks-count mono" id="picks-count">${Object.keys(signupPicks).length + Object.keys(divisionPicks).length} / ${TOTAL_PICKS} picked</div>
 
     ${Object.keys(groupTitles).map(type => `
       <h3 class="group-title">${groupTitles[type]}</h3>
@@ -1063,6 +1063,7 @@ async function renderSignupFormBody() {
   el.querySelectorAll('input[type="radio"][name^="division-"]').forEach(radio => {
     radio.addEventListener('change', () => {
       divisionPicks[radio.dataset.division] = radio.value;
+      updatePicksCount();
     });
   });
 
@@ -1087,9 +1088,9 @@ async function renderSignupFormBody() {
 
 function updatePicksCount() {
   const countEl = document.getElementById('picks-count');
-  const count = Object.keys(signupPicks).length;
-  countEl.textContent = `${count} / ${TOTAL_BOXES} picked`;
-  countEl.style.color = count === TOTAL_BOXES ? 'var(--ice)' : 'var(--text-dim)';
+  const count = Object.keys(signupPicks).length + Object.keys(divisionPicks).length;
+  countEl.textContent = `${count} / ${TOTAL_PICKS} picked`;
+  countEl.style.color = count === TOTAL_PICKS ? 'var(--ice)' : 'var(--text-dim)';
 }
 
 async function handleSubmitEntry() {
