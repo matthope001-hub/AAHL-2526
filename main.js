@@ -1679,8 +1679,8 @@ function renderAdminPanel() {
     el.innerHTML = `
       <label>Admin Password</label>
       <div class="pw-field-wrap">
-        <input type="password" id="admin-pw-input" style="max-width:300px;">
-        <button type="button" id="admin-pw-toggle" class="pw-toggle-btn">Show</button>
+        <input type="password" id="admin-pw-input">
+        <button type="button" id="admin-pw-toggle" class="pw-eye-btn" aria-label="Show password">👁</button>
       </div>
       <button id="admin-login-btn">Log In</button>
       <div id="admin-login-status" class="status-msg"></div>
@@ -1690,10 +1690,12 @@ function renderAdminPanel() {
       const btn = document.getElementById('admin-pw-toggle');
       if (input.type === 'password') {
         input.type = 'text';
-        btn.textContent = 'Hide';
+        btn.setAttribute('aria-label', 'Hide password');
+        btn.classList.add('pw-eye-btn-active');
       } else {
         input.type = 'password';
-        btn.textContent = 'Show';
+        btn.setAttribute('aria-label', 'Show password');
+        btn.classList.remove('pw-eye-btn-active');
       }
     });
 
