@@ -1774,13 +1774,15 @@ function renderAdminEntries(entries) {
             <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
             <td>${e.paymentReceived ? '<span style="color:var(--ice)">✓ Paid</span>' : '<span style="color:var(--text-dim)">Unpaid</span>'}</td>
             <td>
-              ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
-              <button class="admin-btn admin-view-picks" data-id="${e.id}">View Picks</button>
-              <button class="admin-btn admin-edit-picks" data-id="${e.id}">Edit</button>
-              <button class="admin-btn admin-resend-email" data-id="${e.id}">Resend Email</button>
-              <button class="admin-btn admin-toggle-paid" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}">${e.paymentReceived ? 'Mark Unpaid' : 'Mark Paid'}</button>
-              <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
-              <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
+              <div class="admin-actions">
+                ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
+                <button class="admin-btn admin-view-picks" data-id="${e.id}">View Picks</button>
+                <button class="admin-btn admin-edit-picks" data-id="${e.id}">Edit</button>
+                <button class="admin-btn admin-resend-email" data-id="${e.id}">Resend Email</button>
+                <button class="admin-btn admin-toggle-paid" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}">${e.paymentReceived ? 'Mark Unpaid' : 'Mark Paid'}</button>
+                <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
+                <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
+              </div>
             </td>
           </tr>`).join('')}
       </tbody>
