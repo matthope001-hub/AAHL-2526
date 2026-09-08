@@ -428,6 +428,11 @@ button:hover { opacity: 0.85; }
   background: #ffffff;
 }
 
+.admin-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(100px, 1fr));
+  gap: 4px;
+}
 .admin-btn {
   background: var(--bg-panel-alt);
   color: var(--text);
@@ -437,8 +442,11 @@ button:hover { opacity: 0.85; }
   font-size: 12px;
   text-transform: none;
   letter-spacing: 0;
-  margin: 0 4px 0 0;
+  margin: 0;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .admin-btn:hover { border-color: var(--ice); }
 .admin-delete:hover { border-color: #ff5c5c; color: #ff5c5c; }
@@ -975,6 +983,7 @@ a.hero-badge { cursor: pointer; }
   }
   button:not(.pw-eye-btn):not(.admin-btn):not(.toggle-switch *) { width: 100%; padding: 14px; font-size: 15px; }
   .pw-field-wrap { max-width: none; }
+  .admin-actions { grid-template-columns: repeat(2, 1fr); }
 
   .hero-title { font-size: 32px; }
   .hero-sub { font-size: 15px; }
