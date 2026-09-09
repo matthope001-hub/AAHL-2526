@@ -27,7 +27,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'rules') renderRulesPage();
     if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
-    if (view === 'signup') { await ensureSignupDataLoaded_(); renderSignupForm(); }
+    if (view === 'signup') { await Promise.all([ensurePlayersLoaded(), ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]); renderSignupForm(); }
     if (view === 'managemoves') { await ensurePlayersLoaded(); renderManageMoves(); }
     if (view === 'admin') renderAdminPanel();
   });
@@ -35,33 +35,19 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
 // ---------- Init ----------
 async function init() {
-  const [boxes, bundle] = await Promise.all([fetchBoxes(), fetchHomeBundle_()]);
-  allBoxes = boxes;
-  allStandings = bundle.standings;
-  currentConfig = bundle.config;
+  [allBoxes, allStandings, currentConfig] = await Promise.all([
+    fetchBoxes(), fetchStandings(), fetchConfig()
+  ]);
   allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
 
   document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
-
-  // Prime the shared stars-of-night cache so renderStarsOfNight() and
-  // renderStatTicker() (both call getStarsOfNightData() internally) reuse
-  // the bundle's copy instead of each firing their own fetch.
-  starsOfNightPromise = Promise.resolve(bundle.starsOfNight);
   renderStarsOfNight();
+  renderRecentActivity();
   renderStatTicker();
-
-  // Same idea for recent activity - skip renderRecentActivity()'s fetch
-  // since the bundle already has it.
-  allActivity = bundle.recentActivity;
-  activityTypeFilter = 'all';
-  activityTeamFilter = 'all';
-  renderHomeActivityTeaser_();
-  renderActivityList_();
-
-  renderDivisionLeadersPanel(bundle.divisionLeaders);
+  renderDivisionLeadersPanel();
   applySignupCtaVisibility();
 }
 
@@ -100,24 +86,6 @@ async function ensureLastSeasonStandingsLoaded_() {
   if (Object.keys(lastSeasonStandings).length === 0) {
     lastSeasonStandings = await fetchLastSeasonStandings();
   }
-}
-
-/**
- * Loads everything Sign Up needs (players, boxes, last-season standings)
- * via one combined call instead of up to three separate ones. Boxes are
- * usually already loaded by init() by the time someone visits Sign Up, so
- * in practice this collapses 2 remaining calls into 1.
- */
-async function ensureSignupDataLoaded_() {
-  const needsPlayers = allPlayers.length === 0;
-  const needsBoxes = allBoxes.length === 0;
-  const needsStandings = Object.keys(lastSeasonStandings).length === 0;
-  if (!needsPlayers && !needsBoxes && !needsStandings) return;
-
-  const bundle = await fetchSignupBundle_();
-  if (needsPlayers) allPlayers = bundle.players;
-  if (needsBoxes) allBoxes = bundle.boxes;
-  if (needsStandings) lastSeasonStandings = bundle.lastSeasonStandings;
 }
 
 let starsOfNightPromise = null;
@@ -292,24 +260,15 @@ function renderActivityList_() {
 }
 
 async function refreshAndRenderHome() {
-  const bundle = await fetchHomeBundle_();
-  allStandings = bundle.standings;
-  currentConfig = bundle.config;
+  starsOfNightPromise = null;
+  [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
   document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
-
-  starsOfNightPromise = Promise.resolve(bundle.starsOfNight);
   renderStarsOfNight();
-
-  allActivity = bundle.recentActivity;
-  activityTypeFilter = 'all';
-  activityTeamFilter = 'all';
-  renderHomeActivityTeaser_();
-  renderActivityList_();
-
-  renderDivisionLeadersPanel(bundle.divisionLeaders);
+  renderRecentActivity();
+  renderDivisionLeadersPanel();
   applySignupCtaVisibility();
 }
 
