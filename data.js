@@ -32,43 +32,6 @@ async function apiPost(action, payload) {
   return res.json();
 }
 
-/**
- * Fetches everything the Home page needs in ONE Apps Script call instead of
- * five. Each Apps Script call pays a flat ~1-1.3s dispatch overhead
- * regardless of payload size, so five separate calls cost roughly 5x what
- * one combined call costs. Not day-cached - this is all live data that can
- * change anytime (new entries, admin actions), unlike players/boxes.
- * Returns already-unwrapped shapes matching the individual fetch* functions.
- */
-async function fetchHomeBundle_() {
-  const result = await apiGet('homeBundle');
-  const data = (result.success && result.data) || {};
-  return {
-    standings: (data.standings && data.standings.entries) || [],
-    config: data.config || {},
-    starsOfNight: data.starsOfNight || null,
-    recentActivity: data.recentActivity || [],
-    divisionLeaders: data.divisionLeaders || []
-  };
-}
-
-/**
- * Fetches everything the Sign Up page needs in ONE Apps Script call instead
- * of three. Day-cached as a single unit, same rationale as fetchPlayers/
- * fetchBoxes/fetchLastSeasonStandings below.
- */
-async function fetchSignupBundle_() {
-  return cachedForToday_('aahl_cache_signupBundle', async () => {
-    const result = await apiGet('signupBundle');
-    const data = (result.success && result.data) || {};
-    return {
-      players: data.players || [],
-      boxes: data.boxes || [],
-      lastSeasonStandings: (data.lastSeasonStandings && data.lastSeasonStandings.teams) || {}
-    };
-  });
-}
-
 async function fetchStarsOfNight() {
   const result = await apiGet('starsOfNight');
   return result.success ? result.data : null;
