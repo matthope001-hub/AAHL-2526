@@ -27,7 +27,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'rules') renderRulesPage();
     if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
-    if (view === 'signup') { await ensurePlayersLoaded(); renderSignupForm(); }
+    if (view === 'signup') { await Promise.all([ensurePlayersLoaded(), ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]); renderSignupForm(); }
     if (view === 'managemoves') { await ensurePlayersLoaded(); renderManageMoves(); }
     if (view === 'admin') renderAdminPanel();
   });
@@ -73,6 +73,18 @@ function formatDeadlineShort(isoString) {
 async function ensurePlayersLoaded() {
   if (allPlayers.length === 0) {
     allPlayers = await fetchPlayers();
+  }
+}
+
+async function ensureBoxesLoaded_() {
+  if (allBoxes.length === 0) {
+    allBoxes = await fetchBoxes();
+  }
+}
+
+async function ensureLastSeasonStandingsLoaded_() {
+  if (Object.keys(lastSeasonStandings).length === 0) {
+    lastSeasonStandings = await fetchLastSeasonStandings();
   }
 }
 
@@ -947,12 +959,7 @@ async function renderSignupFormBody() {
   const el = document.getElementById('signup-form');
   el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading boxes...</p>`;
 
-  if (allBoxes.length === 0) {
-    allBoxes = await fetchBoxes();
-  }
-  if (Object.keys(lastSeasonStandings).length === 0) {
-    lastSeasonStandings = await fetchLastSeasonStandings();
-  }
+  await Promise.all([ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]);
 
   const grouped = { F: [], D: [], G: [] };
   allBoxes.forEach(b => grouped[b.boxType].push(b));
