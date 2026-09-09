@@ -52,19 +52,50 @@ async function fetchDivisionLeadersDisplay() {
   return (result.success && result.data) || [];
 }
 
+/**
+ * Caches data that only changes via the nightly pipeline (player stats,
+ * boxes, last-season standings) for the rest of the calendar day. Avoids
+ * re-hitting Firestore on every browser reload when nothing's actually
+ * changed since last night's run - cuts read volume across every visitor,
+ * not just within one session. Falls back to a normal fetch if
+ * localStorage is unavailable or the entry is stale/missing.
+ */
+async function cachedForToday_(key, fetchFn) {
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached && cached.date === today) return cached.data;
+    }
+  } catch (e) { /* localStorage unavailable - just fetch fresh */ }
+
+  const data = await fetchFn();
+  try {
+    localStorage.setItem(key, JSON.stringify({ date: today, data }));
+  } catch (e) { /* storage full/unavailable - fine, just won't cache */ }
+  return data;
+}
+
 async function fetchLastSeasonStandings() {
-  const result = await apiGet('lastSeasonStandings');
-  return (result.success && result.data && result.data.teams) || {};
+  return cachedForToday_('aahl_cache_lastSeasonStandings', async () => {
+    const result = await apiGet('lastSeasonStandings');
+    return (result.success && result.data && result.data.teams) || {};
+  });
 }
 
 async function fetchBoxes() {
-  const result = await apiGet('boxes');
-  return result.success ? result.data : [];
+  return cachedForToday_('aahl_cache_boxes', async () => {
+    const result = await apiGet('boxes');
+    return result.success ? result.data : [];
+  });
 }
 
 async function fetchPlayers() {
-  const result = await apiGet('players');
-  return result.success ? result.data : [];
+  return cachedForToday_('aahl_cache_players', async () => {
+    const result = await apiGet('players');
+    return result.success ? result.data : [];
+  });
 }
 
 async function fetchStandings() {
