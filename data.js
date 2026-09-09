@@ -12,6 +12,31 @@ const TOTAL_PICKS = 31; // 27 player boxes + 4 division winner picks
 const REQUIRED_BOX_IDS = Array.from({length: 27}, (_, i) => String(i + 1));
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 
+/**
+ * Fetches a URL and parses JSON, retrying once after a short delay if the
+ * first attempt fails or returns non-JSON. Apps Script Web Apps redirect
+ * through a googleusercontent.com/macros/echo?... URL, and that redirect
+ * target occasionally 404s on the very first hit from a script-driven
+ * fetch() (a timing race on Google's end) even though the same URL works
+ * fine on direct browser navigation a moment later. A single retry clears
+ * this almost every time.
+ */
+async function fetchJsonWithRetry_(url, options) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) { /* network error - fall through to retry/throw below */ }
+
+    if (attempt === 1) {
+      await new Promise(resolve => setTimeout(resolve, 400));
+    }
+  }
+  throw new Error('Request failed after retry: ' + url);
+}
+
 async function apiGet(action, params) {
   let url = `${WEBAPP_URL}?action=${action}`;
   if (params) {
@@ -19,17 +44,24 @@ async function apiGet(action, params) {
       url += `&${key}=${encodeURIComponent(params[key])}`;
     }
   }
-  const res = await fetch(url);
-  return res.json();
+  try {
+    return await fetchJsonWithRetry_(url);
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 async function apiPost(action, payload) {
-  const res = await fetch(WEBAPP_URL, {
+  const options = {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action }, payload))
-  });
-  return res.json();
+  };
+  try {
+    return await fetchJsonWithRetry_(WEBAPP_URL, options);
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 async function fetchStarsOfNight() {
