@@ -1006,7 +1006,7 @@ async function renderSignupFormBody() {
                     ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                     ${headshot ? `
                     <div class="player-hover-card">
-                      <img class="player-hover-photo" src="${headshot}" alt="">
+                      <img class="player-hover-photo" src="${headshot}" alt="" loading="lazy">
                       <div class="player-hover-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ' <span class="ir-badge">🩹</span>' : ''}</div>
                       <div class="player-hover-team mono">${escapeHtml(currentTeam)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
                       ${fullPlayer && fullPlayer.injuryStatus ? `<div class="mono" style="color:#ff5c5c; font-size:12px; margin-bottom:6px;">Injured: ${escapeHtml(fullPlayer.injuryStatus)}</div>` : ''}
