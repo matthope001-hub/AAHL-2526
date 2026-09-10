@@ -1772,7 +1772,7 @@ function renderAdminEntries(entries) {
   el.innerHTML = toggleHtml + `
     <div id="admin-bulk-bar" style="display:none; margin-bottom:10px; padding:8px 12px; background:var(--bg-panel-alt); align-items:center; justify-content:space-between; gap:10px;">
       <span class="mono" id="admin-bulk-count" style="color:var(--amber);"></span>
-      <button class="admin-btn admin-delete" id="admin-bulk-delete-btn" style="margin:0;">Delete Selected</button>
+      <button class="admin-btn" id="admin-bulk-delete-btn" style="margin:0; border-color:#ff5c5c; color:#ff5c5c;">Delete Selected</button>
     </div>
     <table>
       <thead><tr><th><input type="checkbox" id="admin-select-all"></th><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
