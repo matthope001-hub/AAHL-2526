@@ -100,11 +100,27 @@ async function apiGet(action, params) {
   }
 }
 
+/**
+ * Generates a unique key per logical write attempt. Critical for safety
+ * with retries: if the first attempt actually succeeds server-side but
+ * the response is lost before reaching the browser (the known Apps
+ * Script echo-redirect race), the retry would otherwise resend an
+ * identical "create entry" request and create a duplicate. Attaching the
+ * same key across both attempts of one logical submission lets the
+ * backend recognize "I already did this" and return the original result
+ * instead of processing it again.
+ */
+function generateIdempotencyKey_() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now() + '-' + Math.random().toString(36).slice(2);
+}
+
 async function apiPost(action, payload) {
+  const idempotencyKey = generateIdempotencyKey_();
   const options = {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ action }, payload))
+    body: JSON.stringify(Object.assign({ action, idempotencyKey }, payload))
   };
   try {
     return await fetchJsonWithRetry_(WEBAPP_URL, options);
