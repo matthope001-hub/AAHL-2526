@@ -121,6 +121,8 @@ async function fetchStarsOfNight() {
 }
 
 async function fetchRecentActivity() {
+  const direct = await supabaseDirectGet_('config', 'recentActivityCache');
+  if (direct !== undefined) return (direct && direct.items) || [];
   const result = await apiGet('recentActivity');
   return result.success ? result.data : [];
 }
@@ -131,6 +133,8 @@ async function fetchEntryPicks(entryId) {
 }
 
 async function fetchDivisionLeadersDisplay() {
+  const direct = await supabaseDirectGet_('config', 'divisionLeadersDisplayCache');
+  if (direct !== undefined) return (direct && direct.items) || [];
   const result = await apiGet('divisionLeadersDisplay');
   return (result.success && result.data) || [];
 }
