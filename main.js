@@ -1770,11 +1770,16 @@ function renderAdminEntries(entries) {
   }
 
   el.innerHTML = toggleHtml + `
+    <div id="admin-bulk-bar" style="display:none; margin-bottom:10px; padding:8px 12px; background:var(--bg-panel-alt); align-items:center; justify-content:space-between; gap:10px;">
+      <span class="mono" id="admin-bulk-count" style="color:var(--amber);"></span>
+      <button class="admin-btn admin-delete" id="admin-bulk-delete-btn" style="margin:0;">Delete Selected</button>
+    </div>
     <table>
-      <thead><tr><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
+      <thead><tr><th><input type="checkbox" id="admin-select-all"></th><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
       <tbody>
         ${entries.map(e => `
           <tr data-entry-id="${e.id}">
+            <td><input type="checkbox" class="admin-row-select" data-id="${e.id}"></td>
             <td>${escapeHtml(e.teamName)}</td>
             <td>${escapeHtml(e.ownerName)}</td>
             <td class="mono">${escapeHtml(e.email)}</td>
@@ -1795,6 +1800,30 @@ function renderAdminEntries(entries) {
       </tbody>
     </table>
   `;
+
+  function updateBulkBar_() {
+    const checked = el.querySelectorAll('.admin-row-select:checked');
+    const bar = document.getElementById('admin-bulk-bar');
+    bar.style.display = checked.length > 0 ? 'flex' : 'none';
+    document.getElementById('admin-bulk-count').textContent = `${checked.length} selected`;
+  }
+
+  document.getElementById('admin-select-all').addEventListener('change', (e) => {
+    el.querySelectorAll('.admin-row-select').forEach(cb => { cb.checked = e.target.checked; });
+    updateBulkBar_();
+  });
+
+  el.querySelectorAll('.admin-row-select').forEach(cb => {
+    cb.addEventListener('change', updateBulkBar_);
+  });
+
+  document.getElementById('admin-bulk-delete-btn').addEventListener('click', async () => {
+    const ids = Array.from(el.querySelectorAll('.admin-row-select:checked')).map(cb => cb.dataset.id);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} entries permanently? This can't be undone.`)) return;
+    await adminBatchRejectEntries(adminPassword, ids);
+    loadAdminEntries();
+  });
 
   el.querySelectorAll('.admin-approve').forEach(btn => {
     btn.addEventListener('click', async () => {
