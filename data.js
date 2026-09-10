@@ -284,6 +284,10 @@ async function adminRejectEntry(password, entryId) {
   return apiPost('adminRejectEntry', { password, entryId });
 }
 
+async function adminBatchRejectEntries(password, entryIds) {
+  return apiPost('adminBatchRejectEntries', { password, entryIds });
+}
+
 async function adminSetPayment(password, entryId, received) {
   return apiPost('adminSetPayment', { password, entryId, received });
 }
