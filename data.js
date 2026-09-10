@@ -16,7 +16,7 @@ const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzJA2dDY7N2IY9xrwMpr
 // goes through Apps Script below, since moving those would mean
 // duplicating business logic, not just changing which URL gets called.
 const SUPABASE_DIRECT_URL = 'https://tetgrmgurobacdohhiby.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_UXip_ki4qp23vHFtS3FCEg_ROxHNT5T';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRldGdybWd1cm9iYWNkb2hoaWJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg5Njc4MTYsImV4cCI6MjEwNDU0MzgxNn0.Jn0MdAdYslGv7znS0DFiSUjlZ6rpw0qsvQwiNq63vWk';
 
 const TOTAL_BOXES = 27;
 const TOTAL_PICKS = 31; // 27 player boxes + 4 division winner picks
