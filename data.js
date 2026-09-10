@@ -1,6 +1,6 @@
 /**
  * data.js
- * All fetch calls to the AAHL 2526 Apps Script Web App.
+ * All fetch calls to the AAHL 2627 Apps Script Web App.
  * CRITICAL: POST requests must use Content-Type: text/plain;charset=utf-8
  * to avoid CORS preflight (Apps Script can't handle OPTIONS requests).
  */
@@ -67,8 +67,12 @@ async function supabaseDirectList_(table) {
 }
 
 /**
- * Reads a single row's data directly from Supabase by id. Same rationale
- * and fallback behavior as supabaseDirectList_.
+ * Reads a single row's data directly from Supabase by id. Returns:
+ * - the row's data if found
+ * - null if the request succeeded but no row exists (a valid answer -
+ *   e.g. starsOfNightCache genuinely doesn't exist pre-season)
+ * - undefined only on a real failure (network error, bad response) - this
+ *   is the signal callers use to fall back to the Apps Script path.
  */
 async function supabaseDirectGet_(table, id) {
   try {
@@ -78,7 +82,7 @@ async function supabaseDirectGet_(table, id) {
     });
     return (rows && rows.length > 0) ? rows[0].data : null;
   } catch (e) {
-    return null;
+    return undefined;
   }
 }
 
@@ -111,7 +115,7 @@ async function apiPost(action, payload) {
 
 async function fetchStarsOfNight() {
   const direct = await supabaseDirectGet_('config', 'starsOfNightCache');
-  if (direct !== null) return direct;
+  if (direct !== undefined) return direct;
   const result = await apiGet('starsOfNight');
   return result.success ? result.data : null;
 }
@@ -159,7 +163,7 @@ async function cachedForToday_(key, fetchFn) {
 async function fetchLastSeasonStandings() {
   return cachedForToday_('aahl_cache_lastSeasonStandings', async () => {
     const direct = await supabaseDirectGet_('config', 'lastSeasonStandings');
-    if (direct !== null) return direct.teams || {};
+    if (direct !== undefined) return (direct && direct.teams) || {};
     const result = await apiGet('lastSeasonStandings');
     return (result.success && result.data && result.data.teams) || {};
   });
@@ -185,14 +189,14 @@ async function fetchPlayers() {
 
 async function fetchStandings() {
   const direct = await supabaseDirectGet_('standings', 'current');
-  if (direct !== null) return direct.entries || [];
+  if (direct !== undefined) return (direct && direct.entries) || [];
   const result = await apiGet('standings');
   return (result.success && result.data && result.data.entries) || [];
 }
 
 async function fetchConfig() {
   const direct = await supabaseDirectGet_('config', 'season');
-  if (direct !== null) return direct;
+  if (direct !== undefined) return direct || {};
   const result = await apiGet('config');
   return result.success ? result.data : {};
 }
