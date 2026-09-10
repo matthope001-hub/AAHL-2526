@@ -184,6 +184,8 @@ async function fetchPlayers() {
 }
 
 async function fetchStandings() {
+  const direct = await supabaseDirectGet_('standings', 'current');
+  if (direct !== null) return direct.entries || [];
   const result = await apiGet('standings');
   return (result.success && result.data && result.data.entries) || [];
 }
