@@ -7,6 +7,17 @@
 
 const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzJA2dDY7N2IY9xrwMpr-XYybw2Z8ZWybXTH8Sm7eYn1tR1qBaEAzc8N9Vp2jmM_bYVdA/exec';
 
+// Direct Supabase read access for public, computation-free data only
+// (players, boxes, config, ir, cached stars-of-night/last-season docs).
+// The publishable key is SAFE to expose here by design - it can only do
+// what Row Level Security explicitly allows, which for these tables is
+// read-only (see setup_rls.sql). Anything involving real server-side
+// computation (standings ranking, activity feed, division leaders) still
+// goes through Apps Script below, since moving those would mean
+// duplicating business logic, not just changing which URL gets called.
+const SUPABASE_DIRECT_URL = 'https://tetgrmgurobacdohhiby.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_UXip_ki4qp23vHFtS3FCEg_ROxHNT5T';
+
 const TOTAL_BOXES = 27;
 const TOTAL_PICKS = 31; // 27 player boxes + 4 division winner picks
 const REQUIRED_BOX_IDS = Array.from({length: 27}, (_, i) => String(i + 1));
@@ -37,6 +48,40 @@ async function fetchJsonWithRetry_(url, options) {
   throw new Error('Request failed after retry: ' + url);
 }
 
+/**
+ * Reads an entire table directly from Supabase, bypassing Apps Script
+ * entirely. Only used for tables with public SELECT-only RLS policies -
+ * see setup_rls.sql. Falls back to null on any failure so callers can
+ * fall back to the Apps Script path.
+ */
+async function supabaseDirectList_(table) {
+  try {
+    const url = `${SUPABASE_DIRECT_URL}/rest/v1/${table}?select=id,data`;
+    const rows = await fetchJsonWithRetry_(url, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    return (rows || []).map(r => Object.assign({ id: r.id }, r.data));
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Reads a single row's data directly from Supabase by id. Same rationale
+ * and fallback behavior as supabaseDirectList_.
+ */
+async function supabaseDirectGet_(table, id) {
+  try {
+    const url = `${SUPABASE_DIRECT_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=data`;
+    const rows = await fetchJsonWithRetry_(url, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    return (rows && rows.length > 0) ? rows[0].data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function apiGet(action, params) {
   let url = `${WEBAPP_URL}?action=${action}`;
   if (params) {
@@ -65,6 +110,8 @@ async function apiPost(action, payload) {
 }
 
 async function fetchStarsOfNight() {
+  const direct = await supabaseDirectGet_('config', 'starsOfNightCache');
+  if (direct !== null) return direct;
   const result = await apiGet('starsOfNight');
   return result.success ? result.data : null;
 }
@@ -111,6 +158,8 @@ async function cachedForToday_(key, fetchFn) {
 
 async function fetchLastSeasonStandings() {
   return cachedForToday_('aahl_cache_lastSeasonStandings', async () => {
+    const direct = await supabaseDirectGet_('config', 'lastSeasonStandings');
+    if (direct !== null) return direct.teams || {};
     const result = await apiGet('lastSeasonStandings');
     return (result.success && result.data && result.data.teams) || {};
   });
@@ -118,6 +167,8 @@ async function fetchLastSeasonStandings() {
 
 async function fetchBoxes() {
   return cachedForToday_('aahl_cache_boxes', async () => {
+    const direct = await supabaseDirectList_('boxes');
+    if (direct !== null) return direct;
     const result = await apiGet('boxes');
     return result.success ? result.data : [];
   });
@@ -125,6 +176,8 @@ async function fetchBoxes() {
 
 async function fetchPlayers() {
   return cachedForToday_('aahl_cache_players', async () => {
+    const direct = await supabaseDirectList_('players');
+    if (direct !== null) return direct;
     const result = await apiGet('players');
     return result.success ? result.data : [];
   });
@@ -136,11 +189,15 @@ async function fetchStandings() {
 }
 
 async function fetchConfig() {
+  const direct = await supabaseDirectGet_('config', 'season');
+  if (direct !== null) return direct;
   const result = await apiGet('config');
   return result.success ? result.data : {};
 }
 
 async function fetchIRList() {
+  const direct = await supabaseDirectList_('ir');
+  if (direct !== null) return direct;
   const result = await apiGet('irList');
   return result.success ? result.data : [];
 }
