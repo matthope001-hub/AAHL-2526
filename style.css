@@ -969,6 +969,49 @@ a.hero-badge { cursor: pointer; }
   .modal-pick-list { grid-template-columns: 1fr; }
   .modal-pick-row { font-size: 13px; padding: 8px; }
 
+  /* Admin entries table: a 7-column table has no good narrow layout, so
+     turn each row into a stacked card instead of a horizontal scroll -
+     select/team/owner/etc each get their own labeled block, actions grid
+     spans full width at the bottom of the card. */
+  .admin-entries-table thead { display: none; }
+  .admin-entries-table, .admin-entries-table tbody, .admin-entries-table tr {
+    display: block;
+    width: 100%;
+  }
+  .admin-entries-table tr {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+  }
+  .admin-entries-table td {
+    display: block;
+    border-bottom: none;
+    padding: 4px 0;
+    white-space: normal;
+  }
+  .admin-entries-table td[data-label]::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 70px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-right: 8px;
+  }
+  .admin-entries-table td[data-label="Select"] {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+  }
+  .admin-entries-table td[data-label="Select"]::before { content: none; }
+  .admin-entries-table tr { position: relative; padding-right: 44px; }
+  .admin-entries-table td[data-label="Team"] { font-weight: 700; font-size: 15px; }
+  .admin-entries-table td[data-label="Actions"]::before { display: block; margin-bottom: 4px; }
+  .admin-entries-table td[data-label="Actions"] .admin-actions { margin-top: 4px; }
+
   /* Ticker: bigger text, since it's the main readability complaint */
   .ticker-chip { font-size: 15px; }
 
