@@ -1747,6 +1747,7 @@ async function loadAdminEntries() {
 
 function renderAdminEntries(entries) {
   const el = document.getElementById('admin-panel');
+  entries = [...entries].sort((a, b) => a.teamName.localeCompare(b.teamName));
   adminEntriesCache = entries;
 
   const ctaVisible = currentConfig.showSignupCta !== false;
