@@ -10,6 +10,12 @@ let currentConfig = {};
 let poolPlayerIds = new Set();
 
 // ---------- Navigation ----------
+const VIEW_TITLES = {
+  home: 'Home', standings: 'Standings', players: 'Players', lastnight: "Last Night",
+  activity: 'Activity', rules: 'Rules', boxes: 'Boxes', ir: 'IR List',
+  signup: 'Sign Up', managemoves: 'My Team', admin: 'Commissioner'
+};
+
 document.querySelectorAll('.nav-link').forEach(link => {
   link.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -18,6 +24,11 @@ document.querySelectorAll('.nav-link').forEach(link => {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     link.classList.add('active');
     document.getElementById(`view-${view}`).classList.add('active');
+    document.title = `${VIEW_TITLES[view] || 'AAHL'} — AAHL 26/27`;
+    if (view !== 'signup') {
+      const jumpBtn = document.getElementById('jump-to-missing-btn');
+      if (jumpBtn) jumpBtn.remove();
+    }
 
     if (view === 'home') refreshAndRenderHome();
     if (view === 'standings') refreshAndRenderStandings();
@@ -124,7 +135,7 @@ async function renderStatTicker() {
 
 async function renderStarsOfNight() {
   const el = document.getElementById('stars-of-night');
-  el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
+  el.innerHTML = `${skeletonLoader_()}`;
 
   try {
     const stars = await getStarsOfNightData();
@@ -274,12 +285,12 @@ async function refreshAndRenderHome() {
 
 async function renderDivisionLeadersPanel(preloadedLeaders) {
   const el = document.getElementById('division-leaders-panel');
-  el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading...</p>`;
+  el.innerHTML = `${skeletonLoader_()}`;
 
   try {
     const leaders = preloadedLeaders !== undefined ? preloadedLeaders : await fetchDivisionLeadersDisplay();
     if (!leaders || leaders.length === 0) {
-      el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not available yet.</p>`;
+      el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not available yet — check back once the season is underway.</p>`;
       return;
     }
 
@@ -300,7 +311,7 @@ async function renderDivisionLeadersPanel(preloadedLeaders) {
       </div>
     `).join('');
   } catch (e) {
-    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not available yet.</p>`;
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not available yet — check back once the season is underway.</p>`;
   }
 }
 
@@ -471,7 +482,7 @@ async function openAdminPicksModal(entryId) {
   const modal = document.getElementById('team-picks-modal');
   const body = document.getElementById('team-picks-body');
   modal.style.display = 'flex';
-  body.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  body.innerHTML = `${skeletonLoader_()}`;
   await ensurePlayersLoaded();
 
   const entry = adminEntriesCache.find(e => e.id === entryId);
@@ -510,7 +521,7 @@ async function openTeamPicksModal(entryId, teamName) {
   const modal = document.getElementById('team-picks-modal');
   const body = document.getElementById('team-picks-body');
   modal.style.display = 'flex';
-  body.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  body.innerHTML = `${skeletonLoader_()}`;
 
   const data = await fetchEntryPicks(entryId);
   if (!data || data.error) {
@@ -661,109 +672,125 @@ function renderRulesPage() {
     ? `Current pot is <strong>$${pot.toFixed(0)}</strong> — under $1,000 tier applies (40% / 10% split).`
     : `Current pot is <strong>$${pot.toFixed(0)}</strong> — $1,000+ tier applies (25% / 20% / 5% split).`;
 
+  const sections = [
+    { title: '💰 Entry & Payments', html: `
+      <p style="margin-bottom:6px;">Entry fee: <strong>$${c.entryFee ?? 10}</strong> per entry (unlimited entries allowed).</p>
+      <p style="margin-bottom:6px;">Payment: E-transfer to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong>. Please include your first and last name in the transfer notes.</p>
+      <p style="margin-bottom:0;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
+    ` },
+    { title: '📋 How to Play', html: `
+      <p style="margin-bottom:6px;">Make 31 total picks: 1 choice from each of the 27 player boxes (16 Forwards, 5 Defense, 6 Goalies), plus 4 division winners.</p>
+      <p style="margin-bottom:0;">Standings update regularly all season via this live tracking site once games begin.</p>
+    ` },
+    { title: '📊 Point System', html: `
+      <div class="scoring-grid" style="margin-bottom:0;">
+        <div class="scoring-card">
+          <div class="scoring-card-title">Skaters</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>Goal</td><td class="pts scoring-value">1</td></tr>
+              <tr><td>Assist</td><td class="pts scoring-value">1</td></tr>
+              <tr><td>Shots on Goal</td><td class="pts scoring-value">0.11</td></tr>
+              <tr><td>Hat Trick</td><td class="pts scoring-value hat-trick">+3</td></tr>
+              <tr><td>PIM (D only)</td><td class="pts scoring-value">0.25</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scoring-card">
+          <div class="scoring-card-title">Goalies</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>Win</td><td class="pts scoring-value">3</td></tr>
+              <tr><td>OT / SO Loss</td><td class="pts scoring-value">1.5</td></tr>
+              <tr><td>Loss</td><td class="pts scoring-value">1</td></tr>
+              <tr><td>Shutout</td><td class="pts scoring-value">2</td></tr>
+              <tr><td>Saves</td><td class="pts scoring-value">0.02</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scoring-card">
+          <div class="scoring-card-title">Division Winners</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>Correct 1st-place pick</td><td class="pts scoring-value hat-trick">+25</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ` },
+    { title: '🏆 Payouts (50/50 Split)', html: `
+      <p style="margin-bottom:8px;">50% of the total pot goes to the bride &amp; groom; 50% goes to the participant prize pool.</p>
+      <p style="margin-bottom:12px; color:var(--amber);">${potTierNote}</p>
+      <div class="scoring-grid" style="margin-bottom:12px;">
+        <div class="scoring-card">
+          <div class="scoring-card-title">Pot under $1,000</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>🥇 1st Place</td><td class="pts scoring-value">40% of pot</td></tr>
+              <tr><td>🥈 2nd Place</td><td class="pts scoring-value">10% of pot</td></tr>
+              <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scoring-card">
+          <div class="scoring-card-title">Pot $1,000 or more</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>🥇 1st Place</td><td class="pts scoring-value" style="line-height:1.3;">30% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(50% of player pool)</span></td></tr>
+              <tr><td>🥈 2nd Place</td><td class="pts scoring-value" style="line-height:1.3;">15% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(40% of player pool)</span></td></tr>
+              <tr><td>🥉 3rd Place</td><td class="pts scoring-value" style="line-height:1.3;">5% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(10% of player pool)</span></td></tr>
+              <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p style="margin-bottom:0; color:var(--text-dim); font-size:13px;">Live payout amounts based on the current pot are shown on the <a href="#" data-view="standings" class="rules-inline-link">Standings page</a>.</p>
+    ` },
+    { title: '🔄 Roster Moves', html: `
+      <p style="margin-bottom:6px;"><strong>Before the season starts</strong> (before puck drop, Sep 29, 2026, 5:00 PM):</p>
+      <p style="margin-bottom:4px;">• Unlimited changes to your player picks and division picks</p>
+      <p style="margin-bottom:4px;">• Instant — no approval needed, applies immediately</p>
+      <p style="margin-bottom:16px;">• Doesn't use up any of your season moves</p>
+      <p style="margin-bottom:6px;"><strong>Once the season starts:</strong></p>
+      <p style="margin-bottom:4px;">• You get exactly 2 roster moves total for the rest of the season (player boxes only — division picks lock permanently once the season begins)</p>
+      <p style="margin-bottom:4px;">• Every move needs commissioner approval before it counts — you'll get a confirmation email once it's finalized</p>
+      <p style="margin-bottom:4px;">• Scored fairly regardless of approval speed: the swap takes effect at the moment you request it, not when it's approved</p>
+      <p style="margin-bottom:16px;">• Hard deadline: no move requests accepted after the NHL trade deadline — <strong>Monday, March 1, 2027</strong></p>
+      <p style="margin-bottom:0; color:var(--text-dim); font-size:13px;">Manage your picks and request moves on the <a href="#" data-view="managemoves" class="rules-inline-link">My Team page</a>, using the Entry ID from your confirmation email.</p>
+    ` },
+    { title: '⚖️ Tiebreaker', html: `
+      <p style="margin-bottom:4px;">1. Highest combined goals + assists across your roster.</p>
+      <p style="margin-bottom:0;">2. If still tied: total goalie saves.</p>
+    ` },
+    { title: '📖 Roster Reference', html: `
+      <p style="margin-bottom:0;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
+    ` },
+    { title: "👀 Viewing Other Teams' Picks", html: `
+      <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick, including full move history and points banked from any swaps. Before lock, picks stay private to keep strategy fair.</p>
+    ` }
+  ];
+
   el.innerHTML = `
     <p style="margin-bottom:20px; color:var(--amber); font-weight:700; font-size:16px;">🏒 2026–2027 Wedding Fundraiser NHL Box Pool 🏒</p>
     <p style="margin-bottom:20px;">Help support Mackenzie and Dan (the bride and groom) with their wedding costs while competing for cash!</p>
-
-    <h3 class="group-title" style="margin-top:0;">💰 Entry &amp; Payments</h3>
-    <p style="margin-bottom:6px;">Entry fee: <strong>$${c.entryFee ?? 10}</strong> per entry (unlimited entries allowed).</p>
-    <p style="margin-bottom:6px;">Payment: E-transfer to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong>. Please include your first and last name in the transfer notes.</p>
-    <p style="margin-bottom:20px;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
-
-    <h3 class="group-title">📋 How to Play</h3>
-    <p style="margin-bottom:6px;">Make 31 total picks: 1 choice from each of the 27 player boxes (16 Forwards, 5 Defense, 6 Goalies), plus 4 division winners.</p>
-    <p style="margin-bottom:20px;">Standings update regularly all season via this live tracking site once games begin.</p>
-
-    <h3 class="group-title">📊 Point System</h3>
-    <div class="scoring-grid" style="margin-bottom:20px;">
-      <div class="scoring-card">
-        <div class="scoring-card-title">Skaters</div>
-        <table class="scoring-table">
-          <tbody>
-            <tr><td>Goal</td><td class="pts scoring-value">1</td></tr>
-            <tr><td>Assist</td><td class="pts scoring-value">1</td></tr>
-            <tr><td>Shots on Goal</td><td class="pts scoring-value">0.11</td></tr>
-            <tr><td>Hat Trick</td><td class="pts scoring-value hat-trick">+3</td></tr>
-            <tr><td>PIM (D only)</td><td class="pts scoring-value">0.25</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="scoring-card">
-        <div class="scoring-card-title">Goalies</div>
-        <table class="scoring-table">
-          <tbody>
-            <tr><td>Win</td><td class="pts scoring-value">3</td></tr>
-            <tr><td>OT / SO Loss</td><td class="pts scoring-value">1.5</td></tr>
-            <tr><td>Loss</td><td class="pts scoring-value">1</td></tr>
-            <tr><td>Shutout</td><td class="pts scoring-value">2</td></tr>
-            <tr><td>Saves</td><td class="pts scoring-value">0.02</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="scoring-card">
-        <div class="scoring-card-title">Division Winners</div>
-        <table class="scoring-table">
-          <tbody>
-            <tr><td>Correct 1st-place pick</td><td class="pts scoring-value hat-trick">+25</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="rules-accordion">
+      ${sections.map((s, i) => `
+        <div class="rules-accordion-item ${i === 0 ? 'open' : ''}">
+          <button class="rules-accordion-header" type="button">
+            <span>${s.title}</span>
+            <span class="rules-accordion-chevron">▾</span>
+          </button>
+          <div class="rules-accordion-body"><div class="rules-accordion-body-inner">${s.html}</div></div>
+        </div>
+      `).join('')}
     </div>
-
-    <h3 class="group-title">🏆 Payouts (50/50 Split)</h3>
-    <p style="margin-bottom:8px;">50% of the total pot goes to the bride &amp; groom; 50% goes to the participant prize pool.</p>
-    <p style="margin-bottom:12px; color:var(--amber);">${potTierNote}</p>
-
-    <div class="scoring-grid" style="margin-bottom:12px;">
-      <div class="scoring-card">
-        <div class="scoring-card-title">Pot under $1,000</div>
-        <table class="scoring-table">
-          <tbody>
-            <tr><td>🥇 1st Place</td><td class="pts scoring-value">40% of pot</td></tr>
-            <tr><td>🥈 2nd Place</td><td class="pts scoring-value">10% of pot</td></tr>
-            <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="scoring-card">
-        <div class="scoring-card-title">Pot $1,000 or more</div>
-        <table class="scoring-table">
-          <tbody>
-            <tr><td>🥇 1st Place</td><td class="pts scoring-value" style="line-height:1.3;">30% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(50% of player pool)</span></td></tr>
-            <tr><td>🥈 2nd Place</td><td class="pts scoring-value" style="line-height:1.3;">15% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(40% of player pool)</span></td></tr>
-            <tr><td>🥉 3rd Place</td><td class="pts scoring-value" style="line-height:1.3;">5% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(10% of player pool)</span></td></tr>
-            <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <p style="margin-bottom:20px; color:var(--text-dim); font-size:13px;">Live payout amounts based on the current pot are shown on the <a href="#" data-view="standings" class="rules-inline-link">Standings page</a>.</p>
-
-    <h3 class="group-title">Roster Moves</h3>
-    <p style="margin-bottom:6px;"><strong>Before the season starts</strong> (before puck drop, Sep 29, 2026, 5:00 PM):</p>
-    <p style="margin-bottom:4px;">• Unlimited changes to your player picks and division picks</p>
-    <p style="margin-bottom:4px;">• Instant — no approval needed, applies immediately</p>
-    <p style="margin-bottom:16px;">• Doesn't use up any of your season moves</p>
-
-    <p style="margin-bottom:6px;"><strong>Once the season starts:</strong></p>
-    <p style="margin-bottom:4px;">• You get exactly 2 roster moves total for the rest of the season (player boxes only — division picks lock permanently once the season begins)</p>
-    <p style="margin-bottom:4px;">• Every move needs commissioner approval before it counts — you'll get a confirmation email once it's finalized</p>
-    <p style="margin-bottom:4px;">• Scored fairly regardless of approval speed: the swap takes effect at the moment you request it, not when it's approved</p>
-    <p style="margin-bottom:16px;">• Hard deadline: no move requests accepted after the NHL trade deadline — <strong>Monday, March 1, 2027</strong></p>
-
-    <p style="margin-bottom:20px; color:var(--text-dim); font-size:13px;">Manage your picks and request moves on the <a href="#" data-view="managemoves" class="rules-inline-link">My Team page</a>, using the Entry ID from your confirmation email.</p>
-
-    <h3 class="group-title">Tiebreaker</h3>
-    <p style="margin-bottom:4px;">1. Highest combined goals + assists across your roster.</p>
-    <p style="margin-bottom:20px;">2. If still tied: total goalie saves.</p>
-
-    <h3 class="group-title">Roster Reference</h3>
-    <p style="margin-bottom:16px;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
-
-    <h3 class="group-title">Viewing Other Teams' Picks</h3>
-    <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick, including full move history and points banked from any swaps. Before lock, picks stay private to keep strategy fair.</p>
   `;
+
+  el.querySelectorAll('.rules-accordion-header').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.rules-accordion-item').classList.toggle('open');
+    });
+  });
 
   el.querySelectorAll('.rules-inline-link').forEach(link => {
     link.addEventListener('click', (e) => {
@@ -776,7 +803,7 @@ function renderRulesPage() {
 // ---------- Last Night's Stats ----------
 async function renderLastNightStats() {
   const el = document.getElementById('lastnight-content');
-  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  el.innerHTML = `${skeletonLoader_()}`;
 
   try {
     const stars = await fetchStarsOfNight();
@@ -1034,7 +1061,7 @@ async function renderSignupFormBody() {
           return ra - rb;
         });
         return `
-        <div class="box-picker">
+        <div class="box-picker" id="division-picker-${division}">
           <div class="box-picker-label">${escapeHtml(division)}</div>
           <div class="box-picker-options">
             ${teams.map(([abbrev, fullName]) => {
@@ -1095,6 +1122,8 @@ async function renderSignupFormBody() {
       warningEl.style.display = 'none';
     }
   });
+
+  updateJumpToMissingButton_(Object.keys(signupPicks).length + Object.keys(divisionPicks).length);
 }
 
 function updatePicksCount() {
@@ -1102,6 +1131,45 @@ function updatePicksCount() {
   const count = Object.keys(signupPicks).length + Object.keys(divisionPicks).length;
   countEl.textContent = `${count} / ${TOTAL_PICKS} picked`;
   countEl.style.color = count === TOTAL_PICKS ? 'var(--ice)' : 'var(--text-dim)';
+  updateJumpToMissingButton_(count);
+}
+
+/**
+ * Floating button, always visible while scrolling the long Sign Up page.
+ * Shows remaining pick count and scrolls to the first incomplete box or
+ * division on click - addresses the picks-count element scrolling out of
+ * view, and having to hunt for whichever box you skipped.
+ */
+function updateJumpToMissingButton_(count) {
+  let btn = document.getElementById('jump-to-missing-btn');
+  const remaining = TOTAL_PICKS - count;
+
+  if (remaining <= 0) {
+    if (btn) btn.remove();
+    return;
+  }
+
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'jump-to-missing-btn';
+    btn.className = 'jump-to-missing-btn';
+    btn.addEventListener('click', jumpToNextMissingPick_);
+    document.body.appendChild(btn);
+  }
+  btn.textContent = `${remaining} left — jump to next ↓`;
+}
+
+function jumpToNextMissingPick_() {
+  const missingBox = allBoxes.find(b => !signupPicks[b.id]);
+  if (missingBox) {
+    const target = document.getElementById(`box-picker-${missingBox.id}`);
+    if (target) { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  }
+  const missingDivision = DIVISIONS.find(d => !divisionPicks[d]);
+  if (missingDivision) {
+    const target = document.getElementById(`division-picker-${missingDivision}`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 async function handleSubmitEntry() {
@@ -1113,6 +1181,13 @@ async function handleSubmitEntry() {
   if (!teamName || !ownerName || !email) {
     statusEl.textContent = 'Fill in team name, owner name, and email.';
     statusEl.className = 'status-msg error';
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    statusEl.textContent = 'That email address doesn\'t look right — double check it so your confirmation actually arrives.';
+    statusEl.className = 'status-msg error';
+    document.getElementById('f-email').focus();
     return;
   }
 
@@ -1263,7 +1338,7 @@ async function doFinalSubmit() {
 // ---------- Boxes Reference (public, read-only) ----------
 async function renderBoxesReference() {
   const el = document.getElementById('boxes-reference');
-  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  el.innerHTML = `${skeletonLoader_()}`;
 
   if (allBoxes.length === 0) {
     allBoxes = await fetchBoxes();
@@ -1661,7 +1736,7 @@ async function submitAllUnifiedChanges_() {
 // ---------- IR List (public) ----------
 async function renderIRPanel() {
   const el = document.getElementById('ir-panel');
-  el.innerHTML = `<p class="mono" style="color:var(--text-dim)">Loading...</p>`;
+  el.innerHTML = `${skeletonLoader_()}`;
   const irList = await fetchIRList();
 
   if (irList.length === 0) {
@@ -1948,6 +2023,18 @@ function wireAdminCtaToggle_() {
 }
 
 // ---------- Utility ----------
+/**
+ * A few pulsing gray bars instead of a plain "Loading..." line - easier to
+ * notice at a glance, especially on a slow connection where "Loading..."
+ * text can blend into everything else on the page.
+ */
+function skeletonLoader_(count) {
+  count = count || 3;
+  const widths = ['92%', '68%', '84%', '76%', '90%'];
+  const bars = Array.from({ length: count }, (_, i) => `<div class="skeleton-bar" style="width:${widths[i % widths.length]}"></div>`).join('');
+  return `<div class="skeleton-wrap">${bars}</div>`;
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str == null ? '' : String(str);
