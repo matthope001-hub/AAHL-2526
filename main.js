@@ -1000,7 +1000,7 @@ async function renderSignupFormBody() {
     <input type="text" id="f-ownerName" value="${escapeHtml(signupFields.ownerName)}">
     <label>Email</label>
     <input type="email" id="f-email" value="${escapeHtml(signupFields.email)}">
-    <div id="email-validation-msg" class="status-msg" style="display:none; color:#ff5c5c; margin-top:-8px; margin-bottom:12px;"></div>
+    <div id="email-validation-msg" class="status-msg" style="display:none; color:#ff5c5c; margin-top:6px; margin-bottom:8px;"></div>
     <div class="picks-count mono" id="picks-count">${Object.keys(signupPicks).length + Object.keys(divisionPicks).length} / ${TOTAL_PICKS} picked</div>
 
     ${Object.keys(groupTitles).map(type => `
