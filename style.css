@@ -193,7 +193,9 @@ button:hover { opacity: 0.85; }
   .box-grid { grid-template-columns: 1fr; }
 }
 
-.box-picker { border: 1px solid var(--border); margin-bottom: 0; }
+.box-picker { border: 1px solid var(--border); margin-bottom: 0; transition: border-color 0.15s, box-shadow 0.15s; }
+.box-picker-selected { border-color: var(--ice); box-shadow: 0 0 0 1px var(--ice); }
+.box-picker-selected .box-picker-label { background: rgba(76, 143, 196, 0.15); color: var(--ice); }
 .box-picker-label {
   background: var(--bg-panel-alt);
   padding: 4px 8px;
