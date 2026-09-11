@@ -979,7 +979,7 @@ async function renderSignupFormBody() {
       <h3 class="group-title">${groupTitles[type]}</h3>
       <div class="box-grid">
         ${grouped[type].map(box => `
-          <div class="box-picker" id="box-picker-${box.id}">
+          <div class="box-picker ${signupPicks[box.id] ? 'box-picker-selected' : ''}" id="box-picker-${box.id}">
             <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
             <div class="box-picker-options">
               ${[...box.players].map(p => {
@@ -1063,7 +1063,7 @@ async function renderSignupFormBody() {
       signupPicks[radio.dataset.box] = radio.value;
       updatePicksCount();
       const boxEl = document.getElementById(`box-picker-${radio.dataset.box}`);
-      if (boxEl) boxEl.classList.remove('box-missing');
+      if (boxEl) { boxEl.classList.remove('box-missing'); boxEl.classList.add('box-picker-selected'); }
     });
   });
 
