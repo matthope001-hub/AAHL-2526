@@ -979,7 +979,7 @@ async function renderSignupFormBody() {
       <h3 class="group-title">${groupTitles[type]}</h3>
       <div class="box-grid">
         ${grouped[type].map(box => `
-          <div class="box-picker ${signupPicks[box.id] ? 'box-picker-selected' : ''}" id="box-picker-${box.id}">
+          <div class="box-picker" id="box-picker-${box.id}">
             <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
             <div class="box-picker-options">
               ${[...box.players].map(p => {
@@ -1000,7 +1000,7 @@ async function renderSignupFormBody() {
                   ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0} SO &middot; ${s.saves || 0} SV`
                   : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks} HT` : ''}`;
                 return `
-                <label class="box-option">
+                <label class="box-option ${signupPicks[box.id] === p.playerId ? 'box-option-current' : ''}">
                   <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}" ${signupPicks[box.id] === p.playerId ? 'checked' : ''}>
                   <span class="box-option-photo-wrap">
                     ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
@@ -1063,7 +1063,11 @@ async function renderSignupFormBody() {
       signupPicks[radio.dataset.box] = radio.value;
       updatePicksCount();
       const boxEl = document.getElementById(`box-picker-${radio.dataset.box}`);
-      if (boxEl) { boxEl.classList.remove('box-missing'); boxEl.classList.add('box-picker-selected'); }
+      if (boxEl) {
+        boxEl.classList.remove('box-missing');
+        boxEl.querySelectorAll('.box-option').forEach(label => label.classList.remove('box-option-current'));
+      }
+      radio.closest('.box-option').classList.add('box-option-current');
     });
   });
 
