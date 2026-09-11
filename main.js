@@ -1000,6 +1000,7 @@ async function renderSignupFormBody() {
     <input type="text" id="f-ownerName" value="${escapeHtml(signupFields.ownerName)}">
     <label>Email</label>
     <input type="email" id="f-email" value="${escapeHtml(signupFields.email)}">
+    <div id="email-validation-msg" class="status-msg" style="display:none; color:#ff5c5c; margin-top:-8px; margin-bottom:12px;"></div>
     <div class="picks-count mono" id="picks-count">${Object.keys(signupPicks).length + Object.keys(divisionPicks).length} / ${TOTAL_PICKS} picked</div>
 
     ${Object.keys(groupTitles).map(type => `
@@ -1123,7 +1124,39 @@ async function renderSignupFormBody() {
     }
   });
 
+  document.getElementById('f-email').addEventListener('input', (e) => {
+    validateEmailField_(e.target.value.trim());
+  });
+
   updateJumpToMissingButton_(Object.keys(signupPicks).length + Object.keys(divisionPicks).length);
+}
+
+/**
+ * Live email format check, shown right at the field itself. Returns true
+ * if valid (or empty - emptiness is caught separately by the required
+ * fields check on submit, not flagged as a format error here).
+ */
+function validateEmailField_(email) {
+  const msgEl = document.getElementById('email-validation-msg');
+  const inputEl = document.getElementById('f-email');
+  if (!msgEl || !inputEl) return true;
+
+  if (email.length === 0) {
+    msgEl.style.display = 'none';
+    inputEl.style.borderColor = '';
+    return true;
+  }
+
+  const isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (isValid) {
+    msgEl.style.display = 'none';
+    inputEl.style.borderColor = '';
+  } else {
+    msgEl.textContent = "That doesn't look like a valid email — double check it so your confirmation actually arrives.";
+    msgEl.style.display = 'block';
+    inputEl.style.borderColor = '#ff5c5c';
+  }
+  return isValid;
 }
 
 function updatePicksCount() {
@@ -1184,9 +1217,8 @@ async function handleSubmitEntry() {
     return;
   }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    statusEl.textContent = 'That email address doesn\'t look right — double check it so your confirmation actually arrives.';
-    statusEl.className = 'status-msg error';
+  if (!validateEmailField_(email)) {
+    document.getElementById('f-email').scrollIntoView({ behavior: 'smooth', block: 'center' });
     document.getElementById('f-email').focus();
     return;
   }
