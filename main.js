@@ -1775,18 +1775,18 @@ function renderAdminEntries(entries) {
       <span class="mono" id="admin-bulk-count" style="color:var(--amber);"></span>
       <button class="admin-btn" id="admin-bulk-delete-btn" style="margin:0; border-color:#ff5c5c; color:#ff5c5c;">Delete Selected</button>
     </div>
-    <table>
+    <table class="admin-entries-table">
       <thead><tr><th><input type="checkbox" id="admin-select-all"></th><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
       <tbody>
         ${entries.map(e => `
           <tr data-entry-id="${e.id}">
-            <td><input type="checkbox" class="admin-row-select" data-id="${e.id}"></td>
-            <td>${escapeHtml(e.teamName)}</td>
-            <td>${escapeHtml(e.ownerName)}</td>
-            <td class="mono">${escapeHtml(e.email)}</td>
-            <td>${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
-            <td>${e.paymentReceived ? '<span style="color:var(--ice)">✓ Paid</span>' : '<span style="color:var(--text-dim)">Unpaid</span>'}</td>
-            <td>
+            <td data-label="Select"><input type="checkbox" class="admin-row-select" data-id="${e.id}"></td>
+            <td data-label="Team">${escapeHtml(e.teamName)}</td>
+            <td data-label="Owner">${escapeHtml(e.ownerName)}</td>
+            <td class="mono" data-label="Email">${escapeHtml(e.email)}</td>
+            <td data-label="Status">${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
+            <td data-label="Paid">${e.paymentReceived ? '<span style="color:var(--ice)">✓ Paid</span>' : '<span style="color:var(--text-dim)">Unpaid</span>'}</td>
+            <td data-label="Actions">
               <div class="admin-actions">
                 ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
                 <button class="admin-btn admin-view-picks" data-id="${e.id}">View Picks</button>
@@ -1800,6 +1800,7 @@ function renderAdminEntries(entries) {
           </tr>`).join('')}
       </tbody>
     </table>
+    <div class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">${entries.length} team${entries.length === 1 ? '' : 's'}</div>
   `;
 
   function updateBulkBar_() {
