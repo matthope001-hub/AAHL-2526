@@ -232,6 +232,10 @@ async function submitEntry(entry) {
   return apiPost('createEntry', { entry });
 }
 
+async function adminCreateEntry(password, entry) {
+  return apiPost('adminCreateEntry', { password, entry });
+}
+
 async function submitRosterMove(entryId, boxId, newPlayerId) {
   return apiPost('requestRosterMove', { entryId, boxId, newPlayerId });
 }
