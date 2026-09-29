@@ -28,6 +28,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view !== 'signup') {
       const jumpBtn = document.getElementById('jump-to-missing-btn');
       if (jumpBtn) jumpBtn.remove();
+      isAdminCreatingEntry = false;
     }
 
     if (view === 'home') refreshAndRenderHome();
@@ -952,31 +953,40 @@ const DIVISION_TEAMS = {
   Pacific: [['ANA','Anaheim Ducks'],['CGY','Calgary Flames'],['EDM','Edmonton Oilers'],['LAK','Los Angeles Kings'],['SJS','San Jose Sharks'],['SEA','Seattle Kraken'],['VAN','Vancouver Canucks'],['VGK','Vegas Golden Knights']]
 };
 
+let isAdminCreatingEntry = false;
+
 async function renderSignupForm() {
   editingEntryId = null;
   signupPicks = {};
   divisionPicks = {};
   signupFields = { teamName: '', ownerName: '', email: '' };
 
-  const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
-  if (currentConfig.picksLocked || deadlinePassed) {
-    document.getElementById('signup-form').innerHTML = `
-      <div class="panel" style="text-align:center; padding:32px;">
-        <h2 style="color:var(--amber); margin-bottom:12px;">Picks Are Locked</h2>
-        <p style="color:var(--text-dim); font-size:14px;">The season has started and new entries are no longer being accepted.</p>
-      </div>
-    `;
-    return;
-  }
+  // Commissioner adding a late joiner after the public deadline: skip both
+  // gates below entirely and go straight to the picking form. The actual
+  // enforcement still happens server-side (adminCreateEntry requires the
+  // admin password), this is just so the form renders instead of showing
+  // the public "locked" screens.
+  if (!isAdminCreatingEntry) {
+    const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
+    if (currentConfig.picksLocked || deadlinePassed) {
+      document.getElementById('signup-form').innerHTML = `
+        <div class="panel" style="text-align:center; padding:32px;">
+          <h2 style="color:var(--amber); margin-bottom:12px;">Picks Are Locked</h2>
+          <p style="color:var(--text-dim); font-size:14px;">The season has started and new entries are no longer being accepted.</p>
+        </div>
+      `;
+      return;
+    }
 
-  if (currentConfig.showSignupCta === false) {
-    document.getElementById('signup-form').innerHTML = `
-      <div class="panel" style="text-align:center; padding:32px;">
-        <h2 style="color:var(--amber); margin-bottom:12px;">Sign Ups Are Currently Closed</h2>
-        <p style="color:var(--text-dim); font-size:14px;">The commissioner has temporarily closed new entries. Check back soon.</p>
-      </div>
-    `;
-    return;
+    if (currentConfig.showSignupCta === false) {
+      document.getElementById('signup-form').innerHTML = `
+        <div class="panel" style="text-align:center; padding:32px;">
+          <h2 style="color:var(--amber); margin-bottom:12px;">Sign Ups Are Currently Closed</h2>
+          <p style="color:var(--text-dim); font-size:14px;">The commissioner has temporarily closed new entries. Check back soon.</p>
+        </div>
+      `;
+      return;
+    }
   }
 
   await renderSignupFormBody();
@@ -993,6 +1003,12 @@ async function renderSignupFormBody() {
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
 
   el.innerHTML = `
+    ${isAdminCreatingEntry ? `
+      <div style="background:var(--amber); color:#1a1a2e; padding:10px 14px; margin-bottom:16px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <span>⚠️ Admin Mode: Creating a late entry (bypasses the public deadline)</span>
+        <button id="admin-cancel-late-entry-btn" style="margin:0; background:#1a1a2e; color:#fff; padding:6px 12px; font-size:12px;">Cancel</button>
+      </div>
+    ` : ''}
     <label>Team Name</label>
     <input type="text" id="f-teamName" value="${escapeHtml(signupFields.teamName)}">
     <div id="team-name-warning" class="status-msg" style="display:none; color:var(--amber);"></div>
@@ -1111,6 +1127,13 @@ async function renderSignupFormBody() {
   });
 
   document.getElementById('submit-entry-btn').addEventListener('click', handleSubmitEntry);
+
+  if (isAdminCreatingEntry) {
+    document.getElementById('admin-cancel-late-entry-btn').addEventListener('click', () => {
+      isAdminCreatingEntry = false;
+      document.querySelector('.nav-link[data-view="admin"]').click();
+    });
+  }
 
   document.getElementById('f-teamName').addEventListener('input', (e) => {
     const warningEl = document.getElementById('team-name-warning');
@@ -1344,23 +1367,42 @@ async function doFinalSubmit() {
     return;
   }
 
-  const result = await submitEntry({
+  const entryPayload = {
     teamName: signupFields.teamName,
     ownerName: signupFields.ownerName,
     email: signupFields.email,
     picks: signupPicks,
     divisionPicks: divisionPicks
-  });
+  };
+
+  const result = isAdminCreatingEntry
+    ? await adminCreateEntry(adminPassword, entryPayload)
+    : await submitEntry(entryPayload);
 
   if (result.success) {
-    document.getElementById('signup-form').innerHTML = `
-      <div class="panel" style="text-align:center; padding:32px;">
-        <h2 style="color:var(--ice); margin-bottom:12px;">You're in!</h2>
-        <p style="margin-bottom:8px;">Entry ID: <span class="mono">${escapeHtml(result.entryId)}</span></p>
-        <p style="color:var(--text-dim); font-size:14px;">A confirmation email with your picks and payment instructions is on its way to ${escapeHtml(signupFields.email)}.</p>
-        <p style="color:var(--text-dim); font-size:13px; margin-top:12px;">Don't see it in a few minutes? Check your spam/junk folder.</p>
-      </div>
-    `;
+    if (isAdminCreatingEntry) {
+      isAdminCreatingEntry = false;
+      document.getElementById('signup-form').innerHTML = `
+        <div class="panel" style="text-align:center; padding:32px;">
+          <h2 style="color:var(--ice); margin-bottom:12px;">Entry created</h2>
+          <p style="margin-bottom:8px;">Entry ID: <span class="mono">${escapeHtml(result.entryId)}</span></p>
+          <p style="color:var(--text-dim); font-size:14px;">Their confirmation email is on its way to ${escapeHtml(signupFields.email)}.</p>
+          <button id="admin-back-to-panel-btn" style="margin-top:16px;">Back to Admin</button>
+        </div>
+      `;
+      document.getElementById('admin-back-to-panel-btn').addEventListener('click', () => {
+        document.querySelector('.nav-link[data-view="admin"]').click();
+      });
+    } else {
+      document.getElementById('signup-form').innerHTML = `
+        <div class="panel" style="text-align:center; padding:32px;">
+          <h2 style="color:var(--ice); margin-bottom:12px;">You're in!</h2>
+          <p style="margin-bottom:8px;">Entry ID: <span class="mono">${escapeHtml(result.entryId)}</span></p>
+          <p style="color:var(--text-dim); font-size:14px;">A confirmation email with your picks and payment instructions is on its way to ${escapeHtml(signupFields.email)}.</p>
+          <p style="color:var(--text-dim); font-size:13px; margin-top:12px;">Don't see it in a few minutes? Check your spam/junk folder.</p>
+        </div>
+      `;
+    }
   } else {
     statusEl.textContent = 'Error: ' + result.error;
     statusEl.className = 'status-msg error';
@@ -1870,6 +1912,10 @@ function renderAdminEntries(entries) {
         <span class="toggle-slider"></span>
       </label>
     </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <button id="admin-add-late-entry-btn" style="margin:0;">+ Add Late Entry</button>
+      <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">For a late joiner after the public deadline has passed.</span>
+    </div>
     <div id="admin-pending-moves"></div>
   `;
 
@@ -1878,6 +1924,7 @@ function renderAdminEntries(entries) {
   if (entries.length === 0) {
     el.innerHTML = toggleHtml + `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     wireAdminCtaToggle_();
+    wireAdminAddLateEntryButton_();
     return;
   }
 
@@ -1995,6 +2042,7 @@ function renderAdminEntries(entries) {
   });
 
   wireAdminCtaToggle_();
+  wireAdminAddLateEntryButton_();
 }
 
 async function loadAdminPendingMoves() {
@@ -2051,6 +2099,20 @@ function wireAdminCtaToggle_() {
     } else {
       checkbox.checked = !newVisible; // revert on failure
     }
+  });
+}
+
+function wireAdminAddLateEntryButton_() {
+  const btn = document.getElementById('admin-add-late-entry-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    isAdminCreatingEntry = true;
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-signup').classList.add('active');
+    document.title = 'Sign Up — AAHL 26/27';
+    await Promise.all([ensurePlayersLoaded(), ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]);
+    renderSignupForm();
   });
 }
 
