@@ -100,6 +100,20 @@ async function ensureLastSeasonStandingsLoaded_() {
   }
 }
 
+/**
+ * Live current-season standings for every team (points, division rank),
+ * used on the Boxes page's Division Winner reference section once the
+ * season has real games played - replaces the historical last-season
+ * numbers there. Falls back to last-season data automatically wherever
+ * a team has no current-season entry yet (e.g. very start of season).
+ */
+let currentSeasonStandings = {};
+async function ensureCurrentSeasonStandingsLoaded_() {
+  if (Object.keys(currentSeasonStandings).length === 0) {
+    currentSeasonStandings = await fetchCurrentSeasonStandings();
+  }
+}
+
 let starsOfNightPromise = null;
 function getStarsOfNightData() {
   if (!starsOfNightPromise) starsOfNightPromise = fetchStarsOfNight();
@@ -1417,6 +1431,7 @@ async function renderBoxesReference() {
   if (allBoxes.length === 0) {
     allBoxes = await fetchBoxes();
   }
+  await ensureCurrentSeasonStandingsLoaded_();
   if (Object.keys(lastSeasonStandings).length === 0) {
     lastSeasonStandings = await fetchLastSeasonStandings();
   }
@@ -1462,22 +1477,31 @@ async function renderBoxesReference() {
     </div>
   `).join('');
 
+  // Division Winner reference: use LIVE current-season standings once a
+  // team has actually played games this season; fall back to last
+  // season's final numbers for any team current data doesn't have yet
+  // (e.g. very first night or a temporary API hiccup) so the section
+  // never looks empty.
   const divisionBoxesHtml = `
     <h3 class="group-title">Division Winner Boxes <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+10 pts bonus each, awarded live all season)</span></h3>
     <div class="box-grid">
       ${DIVISIONS.map(division => {
         const teams = [...DIVISION_TEAMS[division]].sort((a, b) => {
-          const ra = (lastSeasonStandings[a[0]] || {}).rank ?? 99;
-          const rb = (lastSeasonStandings[b[0]] || {}).rank ?? 99;
-          return ra - rb;
+          const recA = currentSeasonStandings[a[0]] || lastSeasonStandings[a[0]] || {};
+          const recB = currentSeasonStandings[b[0]] || lastSeasonStandings[b[0]] || {};
+          return (recA.rank ?? 99) - (recB.rank ?? 99);
         });
         return `
         <div class="box-picker">
           <div class="box-picker-label">${escapeHtml(division)}</div>
           <div class="box-picker-options">
             ${teams.map(([abbrev, fullName]) => {
-              const record = lastSeasonStandings[abbrev];
-              const refLabel = record ? `${record.points}pts (${ordinal(record.rank)}, 25-26)` : '';
+              const live = currentSeasonStandings[abbrev];
+              const prev = lastSeasonStandings[abbrev];
+              const record = live || prev;
+              const refLabel = live
+                ? `${live.points}pts (${ordinal(live.rank)} · ${live.gamesPlayed || 0}GP)`
+                : (prev ? `${prev.points}pts (${ordinal(prev.rank)}, 25-26)` : '');
               return `
               <div class="box-option box-option-readonly">
                 <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
