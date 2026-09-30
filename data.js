@@ -189,6 +189,22 @@ async function fetchLastSeasonStandings() {
   });
 }
 
+/**
+ * Live current-season standings for every team (points, division rank,
+ * games played), refreshed nightly by refreshCurrentSeasonStandings() in
+ * DivisionStandings.gs. Used on the Boxes page's Division Winner reference
+ * section once the season has real games played, in place of the
+ * historical last-season numbers from fetchLastSeasonStandings() above.
+ */
+async function fetchCurrentSeasonStandings() {
+  return cachedForToday_('aahl_cache_currentSeasonStandings', async () => {
+    const direct = await supabaseDirectGet_('config', 'currentSeasonStandings');
+    if (direct !== undefined) return (direct && direct.teams) || {};
+    const result = await apiGet('currentSeasonStandings');
+    return (result.success && result.data && result.data.teams) || {};
+  });
+}
+
 async function fetchBoxes() {
   return cachedForToday_('aahl_cache_boxes', async () => {
     let boxes = await supabaseDirectList_('boxes');
