@@ -191,10 +191,16 @@ async function fetchLastSeasonStandings() {
 
 async function fetchBoxes() {
   return cachedForToday_('aahl_cache_boxes', async () => {
-    const direct = await supabaseDirectList_('boxes');
-    if (direct !== null) return direct;
-    const result = await apiGet('boxes');
-    return result.success ? result.data : [];
+    let boxes = await supabaseDirectList_('boxes');
+    if (boxes === null) {
+      const result = await apiGet('boxes');
+      boxes = result.success ? result.data : [];
+    }
+    // Supabase's direct REST read has no ORDER BY, so it returns rows in
+    // text-id order ("1","10","11","12","2"...) instead of numeric order -
+    // sort here so box order is correct regardless of which path (direct
+    // Supabase or the Apps Script fallback) actually served the data.
+    return boxes.slice().sort((a, b) => Number(a.id) - Number(b.id));
   });
 }
 
