@@ -9,6 +9,9 @@ let allStandings = [];
 let currentConfig = {};
 let poolPlayerIds = new Set();
 
+// Fallback trade deadline if config/season has no tradeDeadline field.
+const DEFAULT_TRADE_DEADLINE = '2027-03-01T23:59:00-05:00';
+
 // ---------- Navigation ----------
 const VIEW_TITLES = {
   home: 'Home', standings: 'Standings', players: 'Players', lastnight: "Last Night",
@@ -52,7 +55,7 @@ async function init() {
   ]);
   allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
 
-  document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
+  renderHeroMilestone_();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
@@ -80,6 +83,61 @@ function formatDeadlineShort(isoString) {
   if (!isoString) return '—';
   const d = new Date(isoString);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Parses a config date. Date-only strings (YYYY-MM-DD) are treated as noon
+ * local time so they don't display as the previous day in ET.
+ */
+function parseMilestoneDate_(value) {
+  if (!value) return null;
+  const str = String(value);
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(str) ? new Date(str + 'T12:00:00') : new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Returns the next upcoming season milestone:
+ * Picks Lock -> Trade Deadline -> Season Ends -> Season Over.
+ */
+function getNextMilestone_() {
+  const c = currentConfig || {};
+  const now = new Date();
+  const milestones = [
+    { label: 'Picks Lock', date: parseMilestoneDate_(c.deadline) },
+    { label: 'Trade Deadline', date: parseMilestoneDate_(c.tradeDeadline || DEFAULT_TRADE_DEADLINE) },
+    { label: 'Season Ends', date: parseMilestoneDate_(c.seasonEndDate) }
+  ].filter(m => m.date);
+
+  const next = milestones.find(m => m.date > now);
+  return next || { label: 'Season Over', date: null };
+}
+
+/**
+ * Fills the hero milestone box (formerly the fixed "Deadline" box) with
+ * the next upcoming milestone, and relabels it to match.
+ */
+function renderHeroMilestone_() {
+  const valueEl = document.getElementById('deadline-display');
+  if (!valueEl) return;
+
+  const m = getNextMilestone_();
+  valueEl.textContent = m.date
+    ? m.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : '—';
+
+  // Relabel the box: find the sibling label element that says "Deadline"
+  // (or a previously set milestone label) and swap its text.
+  const box = valueEl.parentElement;
+  if (!box) return;
+  let labelEl = document.getElementById('deadline-label');
+  if (!labelEl) {
+    labelEl = Array.from(box.querySelectorAll('*')).find(n =>
+      n !== valueEl && !n.contains(valueEl) && n.children.length === 0 &&
+      /deadline|picks lock|season ends|season over/i.test(n.textContent || ''));
+    if (labelEl) labelEl.id = 'deadline-label';
+  }
+  if (labelEl) labelEl.textContent = m.label;
 }
 
 async function ensurePlayersLoaded() {
@@ -288,7 +346,7 @@ function renderActivityList_() {
 async function refreshAndRenderHome() {
   starsOfNightPromise = null;
   [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
-  document.getElementById('deadline-display').textContent = formatDeadlineShort(currentConfig.deadline);
+  renderHeroMilestone_();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
