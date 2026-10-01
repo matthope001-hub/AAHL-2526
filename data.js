@@ -156,26 +156,59 @@ async function fetchDivisionLeadersDisplay() {
 }
 
 /**
+ * Data version = standings/current.lastUpdated. It changes every time
+ * standings are recomputed - which happens at the end of every nightly
+ * stats run, and after any backfill/fix that recomputes standings. Only
+ * that one tiny field is fetched (not the whole standings doc), once per
+ * page load, and shared by every cached fetch below.
+ * Returns null if it can't be read (callers then fall back to by-date).
+ */
+let dataVersionPromise_ = null;
+function getDataVersion_() {
+  if (!dataVersionPromise_) {
+    dataVersionPromise_ = (async () => {
+      try {
+        const url = `${SUPABASE_DIRECT_URL}/rest/v1/standings?id=eq.current&select=v:data->>lastUpdated`;
+        const rows = await fetchJsonWithRetry_(url, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        return (rows && rows[0] && rows[0].v) || null;
+      } catch (e) {
+        return null;
+      }
+    })();
+  }
+  return dataVersionPromise_;
+}
+
+/**
  * Caches data that only changes via the nightly pipeline (player stats,
- * boxes, last-season standings) for the rest of the calendar day. Avoids
- * re-hitting Firestore on every browser reload when nothing's actually
- * changed since last night's run - cuts read volume across every visitor,
- * not just within one session. Falls back to a normal fetch if
- * localStorage is unavailable or the entry is stale/missing.
+ * boxes, last-season standings) until the data actually changes. Instead
+ * of "same calendar day = reuse", a cached copy is reused only while the
+ * data version (standings lastUpdated) is unchanged - so as soon as the
+ * nightly run (or any backfill + recompute) finishes, every visitor gets
+ * fresh data on their next load. Still avoids re-reading big tables on
+ * every reload when nothing has changed. If the version can't be read,
+ * falls back to the old once-per-day behaviour.
  */
 async function cachedForToday_(key, fetchFn) {
   const today = new Date().toISOString().slice(0, 10);
+  const version = await getDataVersion_();
+
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
       const cached = JSON.parse(raw);
-      if (cached && cached.date === today) return cached.data;
+      const fresh = version
+        ? (cached && cached.version === version)
+        : (cached && cached.date === today);
+      if (fresh) return cached.data;
     }
   } catch (e) { /* localStorage unavailable - just fetch fresh */ }
 
   const data = await fetchFn();
   try {
-    localStorage.setItem(key, JSON.stringify({ date: today, data }));
+    localStorage.setItem(key, JSON.stringify({ date: today, version: version, data }));
   } catch (e) { /* storage full/unavailable - fine, just won't cache */ }
   return data;
 }
