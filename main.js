@@ -538,8 +538,16 @@ function renderPicksModalBody_(data, ownerLine) {
     <h2 style="margin-bottom:4px;">${escapeHtml(data.teamName)}</h2>
     ${ownerLine ? `<p style="color:var(--text-dim); font-size:13px; margin-bottom:8px;">${ownerLine}</p>` : ''}
     ${data.pointBank ? `<p class="mono" style="color:var(--amber); font-size:13px; margin-bottom:12px;">Banked from moves: +${data.pointBank.toFixed(2)}pts</p>` : ''}
-    ${Object.keys(groupTitles).map(type => `
-      <h3 class="group-title">${groupTitles[type]}</h3>
+    ${Object.keys(groupTitles).map(type => {
+      // Group total = every pick's points since acquired + points banked
+      // from any players traded out of these boxes, so F + D + G always
+      // adds up to the team's total on Standings.
+      const groupTotal = grouped[type].reduce((sum, p) => {
+        const banked = (p.moves || []).reduce((b, m) => b + (m.bankedAmount || 0), 0);
+        return sum + (p.contributionSinceAcquired || 0) + banked;
+      }, 0);
+      return `
+      <h3 class="group-title">${groupTitles[type]} <span class="mono" style="color:var(--ice); font-size:14px; font-weight:400; text-transform:none; letter-spacing:0; margin-left:8px;">${groupTotal.toFixed(2)} pts</span></h3>
       <div class="modal-pick-list">
         ${grouped[type].map(p => {
           const s = allPlayers.find(ap => ap.id === p.playerId);
@@ -566,7 +574,7 @@ function renderPicksModalBody_(data, ownerLine) {
           </div>
         `;}).join('')}
       </div>
-    `).join('')}
+    `;}).join('')}
     <h3 class="group-title">Division Picks</h3>
     <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
   `;
