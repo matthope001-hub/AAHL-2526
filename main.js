@@ -140,6 +140,26 @@ function renderHeroMilestone_() {
   if (labelEl) labelEl.textContent = m.label;
 }
 
+/**
+ * Games played for a stats object. Current-season stats use gamesPlayed;
+ * prior-season stats may use gp. Returns null if neither is present, so
+ * callers can hide GP rather than show a misleading 0.
+ */
+function gamesPlayedOf_(s) {
+  if (!s) return null;
+  if (s.gamesPlayed != null) return s.gamesPlayed;
+  if (s.gp != null) return s.gp;
+  return null;
+}
+
+/**
+ * "12GP " prefix for stat lines, or '' when GP isn't known.
+ */
+function gpPrefix_(s, sep) {
+  const gp = gamesPlayedOf_(s);
+  return gp == null ? '' : `${gp}GP${sep == null ? ' ' : sep}`;
+}
+
 async function ensurePlayersLoaded() {
   if (allPlayers.length === 0) {
     allPlayers = await fetchPlayers();
@@ -524,9 +544,10 @@ function renderPicksModalBody_(data, ownerLine) {
         ${grouped[type].map(p => {
           const s = allPlayers.find(ap => ap.id === p.playerId);
           const stats = (s && s.stats) || {};
+          const gp = `${gamesPlayedOf_(stats) || 0}GP &middot; `;
           const statLine = p.boxType === 'G'
-            ? `${stats.wins || 0}W ${stats.losses || 0}L ${stats.otl || 0}OTL &middot; ${stats.shutouts || 0}SO &middot; ${stats.saves || 0}SV`
-            : `${stats.goals || 0}G ${stats.assists || 0}A ${stats.sog || 0}SOG${p.boxType === 'D' ? ` ${stats.pim || 0}PIM` : ''}${stats.hatTricks ? ` &middot; ${stats.hatTricks}HT` : ''}`;
+            ? `${gp}${stats.wins || 0}W ${stats.losses || 0}L ${stats.otl || 0}OTL &middot; ${stats.shutouts || 0}SO &middot; ${stats.saves || 0}SV`
+            : `${gp}${stats.goals || 0}G ${stats.assists || 0}A ${stats.sog || 0}SOG${p.boxType === 'D' ? ` ${stats.pim || 0}PIM` : ''}${stats.hatTricks ? ` &middot; ${stats.hatTricks}HT` : ''}`;
           const hasMoves = p.moves && p.moves.length > 0;
           return `
           <div class="modal-pick-wrap">
@@ -625,6 +646,7 @@ const PLAYER_COLUMNS = [
   { key: 'name', label: 'Player', title: 'Player Name', sortable: false, filters: ['all', 'F', 'D', 'G'] },
   { key: 'team', label: 'NHL', title: 'NHL Team', sortable: false, filters: ['all', 'F', 'D', 'G'] },
   { key: 'position', label: 'Pos', title: 'Position', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'gamesPlayed', label: 'GP', title: 'Games Played', sortable: true, filters: ['all', 'F', 'D', 'G'] },
   { key: 'goals', label: 'G', title: 'Goals', sortable: true, filters: ['all', 'F', 'D'] },
   { key: 'assists', label: 'A', title: 'Assists', sortable: true, filters: ['all', 'F', 'D'] },
   { key: 'sog', label: 'SOG', title: 'Shots on Goal', sortable: true, filters: ['all', 'F', 'D'] },
@@ -684,6 +706,7 @@ function renderPlayersTable(searchQuery) {
     name: (p) => `${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}`,
     team: (p) => escapeHtml(p.team || ''),
     position: (p) => escapeHtml(p.position || ''),
+    gamesPlayed: (p) => (p.stats && p.stats.gamesPlayed) || 0,
     goals: (p) => (p.stats && p.stats.goals) || 0,
     assists: (p) => (p.stats && p.stats.assists) || 0,
     sog: (p) => (p.stats && p.stats.sog) || 0,
@@ -1170,11 +1193,11 @@ async function renderSignupFormBody() {
                 const statSourceLabel = currentSeasonHasStats ? '' : ` <span class="stat-source">(25-26)</span>`;
                 const pts = ptsNum.toFixed(1);
                 const statLine = box.boxType === 'G'
-                  ? `${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts${statSourceLabel}`
-                  : `${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''} · ${pts}pts${statSourceLabel}`;
+                  ? `${gpPrefix_(s, ' · ')}${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts${statSourceLabel}`
+                  : `${gpPrefix_(s, ' · ')}${s.goals || 0}G · ${s.assists || 0}A${s.hatTricks ? ` · ${s.hatTricks}HT` : ''} · ${pts}pts${statSourceLabel}`;
                 const cardStats = box.boxType === 'G'
-                  ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0} SO &middot; ${s.saves || 0} SV`
-                  : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks} HT` : ''}`;
+                  ? `${gpPrefix_(s, ' &middot; ')}${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL &middot; ${s.shutouts || 0} SO &middot; ${s.saves || 0} SV`
+                  : `${gpPrefix_(s, ' &middot; ')}${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` &middot; ${s.hatTricks} HT` : ''}`;
                 return `
                 <label class="box-option ${signupPicks[box.id] === p.playerId ? 'box-option-current' : ''}">
                   <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}" ${signupPicks[box.id] === p.playerId ? 'checked' : ''}>
@@ -1576,9 +1599,10 @@ async function renderBoxesReference() {
             ${ranked.map(({ p, fullPlayer, s, ptsNum }) => {
               const currentTeam = fullPlayer ? fullPlayer.team : p.team;
               const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+              const gp = `${gamesPlayedOf_(s) || 0}GP · `;
               const statLine = box.boxType === 'G'
-                ? `${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL · ${s.shutouts || 0}SO · ${s.saves || 0}SV`
-                : `${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` · ${s.hatTricks}HT` : ''}`;
+                ? `${gp}${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL · ${s.shutouts || 0}SO · ${s.saves || 0}SV`
+                : `${gp}${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` · ${s.hatTricks}HT` : ''}`;
               return `
               <div class="box-option box-option-readonly">
                 <span class="box-option-photo-wrap">
