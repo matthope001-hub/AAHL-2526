@@ -321,7 +321,7 @@ async function renderDivisionLeadersPanel(preloadedLeaders) {
         </div>
         <div class="division-leader-earning">
           <span class="division-leader-count">${d.earningCount}</span>
-          <span class="mono division-leader-count-label">of ${d.totalEntries} earning</span>
+          <span class="mono division-leader-count-label">of ${d.totalEntries} picked</span>
         </div>
       </div>
     `).join('');
@@ -685,7 +685,7 @@ function renderRulesPage() {
   const pot = totalPot();
   const potTierNote = pot < 1000
     ? `Current pot is <strong>$${pot.toFixed(0)}</strong> — under $1,000 tier applies (40% / 10% split).`
-    : `Current pot is <strong>$${pot.toFixed(0)}</strong> — $1,000+ tier applies (25% / 20% / 5% split).`;
+    : `Current pot is <strong>$${pot.toFixed(0)}</strong> — $1,000+ tier applies (30% / 15% / 5% split).`;
 
   const sections = [
     { title: '💰 Entry & Payments', html: `
@@ -727,7 +727,7 @@ function renderRulesPage() {
           <div class="scoring-card-title">Division Winners</div>
           <table class="scoring-table">
             <tbody>
-              <tr><td>Correct 1st-place pick</td><td class="pts scoring-value hat-trick">+25</td></tr>
+              <tr><td>Correct 1st-place pick (season end)</td><td class="pts scoring-value hat-trick">+25</td></tr>
             </tbody>
           </table>
         </div>
@@ -820,12 +820,16 @@ async function renderLastNightStats() {
   const el = document.getElementById('lastnight-content');
   el.innerHTML = `${skeletonLoader_()}`;
 
+  // Season tally loads in parallel with last night's stats.
+  const tallyHtmlPromise = buildSeasonStarsTallyHtml_();
+
   try {
     const stars = await fetchStarsOfNight();
     const performers = (stars && stars.allPerformers || []).filter(p => poolPlayerIds.has(p.playerId));
 
     if (!stars || performers.length === 0) {
       el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
+      el.insertAdjacentHTML('beforeend', await tallyHtmlPromise);
       return;
     }
 
@@ -870,9 +874,65 @@ async function renderLastNightStats() {
         </div>
       `;}).join('')}
     `;
+    el.insertAdjacentHTML('beforeend', await tallyHtmlPromise);
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
   }
+}
+
+// ---------- Season 3 Stars Tally ----------
+/**
+ * Reads the precomputed season tally (config/starsTallyCache), built
+ * nightly by rebuildStarsTally() in Stats.gs.
+ */
+async function fetchStarsTally_() {
+  try {
+    let r = await supabaseDirectGet_('config', 'starsTallyCache');
+    if (r && r.data && !r.items) r = r.data;
+    return r || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function buildSeasonStarsTallyHtml_() {
+  const tally = await fetchStarsTally_();
+  const items = (tally && tally.items || []).filter(t => poolPlayerIds.size === 0 || poolPlayerIds.has(t.playerId));
+  if (items.length === 0) return '';
+
+  const nights = tally.nights || 0;
+
+  return `
+    <h3 class="group-title">Season 3 Stars Tally <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(${nights} night${nights === 1 ? '' : 's'} · 1st = 3, 2nd = 2, 3rd = 1)</span></h3>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="players-table-scroll" style="max-height:60vh;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Player</th><th>NHL</th><th>Pos</th>
+              <th title="1st Star">1st</th><th title="2nd Star">2nd</th><th title="3rd Star">3rd</th>
+              <th title="Total star selections">Total</th><th title="Weighted score">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((t, i) => `
+              <tr>
+                <td class="${i === 0 ? 'rank-1' : ''}">${i + 1}</td>
+                <td>${escapeHtml(t.fullName)}</td>
+                <td>${escapeHtml(t.team || '')}</td>
+                <td>${escapeHtml(t.position || '')}</td>
+                <td>${t.first || 0}</td>
+                <td>${t.second || 0}</td>
+                <td>${t.third || 0}</td>
+                <td>${t.total || 0}</td>
+                <td class="pts">${t.score || 0}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
 function renderScoringSummary() {
@@ -897,7 +957,7 @@ function renderScoringSummary() {
     ]},
     { title: 'Bonuses', rows: [
       ['Hat Trick', `+${c.hatTrickBonus ?? 3}`, true],
-      ['Division winner (live)', '+25', true]
+      ['Division winner (season end)', '+25', true]
     ]},
     { title: `Payout (${under1000 ? 'pot < $1,000' : 'pot $1,000+'})`, rows: under1000 ? [
       ['1st place', '40% of pot'],
@@ -1083,7 +1143,7 @@ async function renderSignupFormBody() {
       </div>
     `).join('')}
 
-    <h3 class="group-title">Division Winner Picks <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+10 pts bonus each, awarded at season end)</span></h3>
+    <h3 class="group-title">Division Winner Picks <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+25 pts bonus each, awarded at season end)</span></h3>
     <div class="box-grid">
       ${DIVISIONS.map(division => {
         const teams = [...DIVISION_TEAMS[division]].sort((a, b) => {
@@ -1483,7 +1543,7 @@ async function renderBoxesReference() {
   // (e.g. very first night or a temporary API hiccup) so the section
   // never looks empty.
   const divisionBoxesHtml = `
-    <h3 class="group-title">Division Winner Boxes <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+10 pts bonus each, awarded live all season)</span></h3>
+    <h3 class="group-title">Division Winner Boxes <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+25 pts bonus each, awarded at season end)</span></h3>
     <div class="box-grid">
       ${DIVISIONS.map(division => {
         const teams = [...DIVISION_TEAMS[division]].sort((a, b) => {
