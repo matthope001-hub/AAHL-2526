@@ -294,6 +294,8 @@ async function renderLastNightStats() {
 
     el.innerHTML = `
       <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)}</p>
+      <div id="lastnight-team"></div>
+      <h3 class="group-title" style="margin-top:28px;">All Pool Players</h3>
       ${Object.keys(groupTitles).map(g => {
         if (grouped[g].length === 0) return '';
         return `
@@ -323,10 +325,137 @@ async function renderLastNightStats() {
         </div>
       `;}).join('')}
     `;
+    renderLastNightTeamPanel_(stars);
     el.insertAdjacentHTML('beforeend', await tallyHtmlPromise);
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
   }
+}
+
+// ---------- Last Night: How Each Team Did ----------
+let lastNightTeamId = null;
+
+/**
+ * "How Did Your Team Do?" panel at the top of Last Night: pick a team and
+ * see which of its players played, what they did, and the team's total
+ * for the night. Also lists the night's top teams (click one to open it).
+ * The chosen team is remembered on this device.
+ */
+function renderLastNightTeamPanel_(stars) {
+  const wrap = document.getElementById('lastnight-team');
+  if (!wrap) return;
+
+  const teams = (allStandings || []).filter(e => e.entryId);
+  if (teams.length === 0) { wrap.innerHTML = ''; return; }
+
+  if (!lastNightTeamId) {
+    try { lastNightTeamId = localStorage.getItem('aahl_lastNightTeam'); } catch (e) { /* ignore */ }
+  }
+  if (!teams.some(t => t.entryId === lastNightTeamId)) lastNightTeamId = null;
+
+  const byName = [...teams].sort((a, b) => (a.teamName || '').localeCompare(b.teamName || ''));
+  const topNights = [...teams].filter(t => (t.ptsDelta || 0) > 0)
+    .sort((a, b) => b.ptsDelta - a.ptsDelta).slice(0, 5);
+
+  wrap.innerHTML = `
+    <h3 class="group-title">How Did Your Team Do?</h3>
+    <div class="panel" style="margin-bottom:16px;">
+      <select id="lastnight-team-select" style="max-width:320px; margin:0 0 4px 0;">
+        <option value="">Pick a team...</option>
+        ${byName.map(t => `<option value="${escapeHtml(t.entryId)}" ${t.entryId === lastNightTeamId ? 'selected' : ''}>${escapeHtml(t.teamName)}</option>`).join('')}
+      </select>
+      <div id="lastnight-team-detail"></div>
+    </div>
+    ${topNights.length ? `
+      <h3 class="group-title">Best Team Nights</h3>
+      <div class="panel" style="margin-bottom:16px;">
+        ${topNights.map((t, i) => `
+          <div class="activity-row">
+            <span><span class="mono" style="color:var(--text-dim); margin-right:8px;">${i + 1}</span><span class="team-link" data-night-team="${escapeHtml(t.entryId)}">${escapeHtml(t.teamName)}</span></span>
+            <span class="mono" style="color:#3ecf6a; font-weight:700;">+${t.ptsDelta.toFixed(2)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+  `;
+
+  const select = document.getElementById('lastnight-team-select');
+  const choose = (id) => {
+    lastNightTeamId = id || null;
+    try {
+      if (id) localStorage.setItem('aahl_lastNightTeam', id);
+      else localStorage.removeItem('aahl_lastNightTeam');
+    } catch (e) { /* ignore */ }
+    select.value = id || '';
+    renderLastNightTeamDetail_(stars);
+  };
+  select.addEventListener('change', () => choose(select.value));
+  wrap.querySelectorAll('[data-night-team]').forEach(link => {
+    link.addEventListener('click', () => {
+      choose(link.dataset.nightTeam);
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  renderLastNightTeamDetail_(stars);
+}
+
+async function renderLastNightTeamDetail_(stars) {
+  const el = document.getElementById('lastnight-team-detail');
+  if (!el) return;
+  if (!lastNightTeamId) { el.innerHTML = ''; return; }
+
+  const requestedId = lastNightTeamId;
+  el.innerHTML = skeletonLoader_();
+  const data = await fetchEntryPicks(requestedId);
+  if (requestedId !== lastNightTeamId) return; // a different team was picked meanwhile
+
+  if (!data || data.error) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px; margin-top:12px;">${escapeHtml((data && data.error) || "Couldn't load this team.")}</p>`;
+    return;
+  }
+
+  const perfById = {};
+  (stars.allPerformers || []).forEach(p => { perfById[p.playerId] = p; });
+
+  const picks = data.picks || [];
+  const played = picks.filter(p => perfById[p.playerId])
+    .map(p => ({ pick: p, perf: perfById[p.playerId] }))
+    .sort((a, b) => b.perf.pts - a.perf.pts);
+  const idle = picks.filter(p => !perfById[p.playerId]);
+  const total = played.reduce((sum, x) => sum + (x.perf.pts || 0), 0);
+
+  const chipsFor = (perf, boxType) => (perf.isGoalie
+    ? [perf.decision === 'W' ? 'W' : perf.decision === 'L' ? 'L' : (perf.decision ? 'OTL' : null), perf.shutout ? 'SO' : null, `${perf.saves || 0} SV`]
+    : [`${perf.goals || 0} G`, `${perf.assists || 0} A`, `${perf.sog || 0} SOG`, boxType === 'D' ? `${perf.pim || 0} PIM` : null]
+  ).filter(Boolean);
+
+  el.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:14px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border, rgba(255,255,255,0.1));">
+      <div>
+        <div style="font-size:22px; font-weight:700;">${escapeHtml(data.teamName)}</div>
+        <div class="mono" style="color:var(--text-dim); font-size:12px;">${played.length} of ${picks.length} players played</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="mono" style="color:var(--ice); font-size:28px; font-weight:700; line-height:1;">+${total.toFixed(2)}</div>
+        <div class="mono" style="color:var(--text-dim); font-size:11px;">pts last night</div>
+      </div>
+    </div>
+    ${played.length === 0
+      ? `<p class="mono" style="color:var(--text-dim); font-size:13px;">None of this team's players played last night.</p>`
+      : played.map(({ pick, perf }) => `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border, rgba(255,255,255,0.06));">
+          ${pick.headshotUrl ? `<img class="modal-pick-photo" style="width:36px; height:36px;" src="${pick.headshotUrl}" alt="" loading="lazy">` : `<div class="modal-pick-photo modal-pick-photo-empty" style="width:36px; height:36px;"></div>`}
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700;">${escapeHtml(pick.playerName)} <span class="mono" style="color:var(--text-dim); font-size:11px; font-weight:400;">${escapeHtml(perf.team || pick.team || '')} · ${escapeHtml(pick.boxType || '')}</span></div>
+            <div class="star-chips" style="margin-top:4px;">${chipsFor(perf, pick.boxType).map(c => `<span class="stat-chip">${escapeHtml(c)}</span>`).join('')}</div>
+          </div>
+          <div class="mono" style="color:var(--ice); font-weight:700; white-space:nowrap;">+${(perf.pts || 0).toFixed(2)}</div>
+        </div>`).join('')}
+    ${idle.length ? `
+      <details style="margin-top:12px;">
+        <summary class="mono" style="color:var(--text-dim); font-size:12px; cursor:pointer;">${idle.length} didn't play</summary>
+        <p class="mono" style="color:var(--text-dim); font-size:12px; line-height:1.7; margin-top:6px;">${idle.map(p => escapeHtml(p.playerName)).join(' · ')}</p>
+      </details>` : ''}
+  `;
 }
 
 // ---------- Season 3 Stars Tally ----------
