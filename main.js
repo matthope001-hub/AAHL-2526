@@ -77,8 +77,10 @@ function applySignupCtaVisibility() {
   const btn = document.getElementById('hero-signup-cta');
   if (btn) btn.classList.toggle('hero-cta-hidden', shouldHide);
 
+  // Someone holding a valid late-entry invite keeps the Sign Up tab, so
+  // they can get back to the form if they click away before submitting.
   const navLink = document.querySelector('.nav-link[data-view="signup"]');
-  if (navLink) navLink.style.display = shouldHide ? 'none' : '';
+  if (navLink) navLink.style.display = (shouldHide && !lateInviteToken) ? 'none' : '';
 }
 
 function formatDeadlineShort(isoString) {
@@ -690,8 +692,51 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+/**
+ * Late-entry invite link (?late=TOKEN): checks the link with the server,
+ * then opens the Sign Up form even though picks are locked. If the link
+ * is expired, already used or invalid, shows a clear message instead.
+ */
+async function handleLateInviteLink_(token) {
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const viewEl = document.getElementById('view-signup');
+  if (viewEl) viewEl.classList.add('active');
+  document.title = 'Sign Up — AAHL 26/27';
+
+  const formEl = document.getElementById('signup-form');
+  formEl.innerHTML = `<p class="mono" style="color:var(--text-dim)">Checking your invite link...</p>`;
+
+  const check = await checkLateInvite(token);
+  if (!check || !check.success) {
+    formEl.innerHTML = `
+      <div class="panel" style="text-align:center; padding:32px;">
+        <h2 style="color:var(--amber); margin-bottom:12px;">Invite Link Not Valid</h2>
+        <p style="color:var(--text-dim); font-size:14px;">${escapeHtml((check && check.error) || 'This late-entry link could not be verified.')}</p>
+        <p style="color:var(--text-dim); font-size:13px; margin-top:12px;">Contact the commissioner for a new link.</p>
+      </div>
+    `;
+    return;
+  }
+
+  lateInviteToken = token;
+  applySignupCtaVisibility();
+  const signupLink = document.querySelector('.nav-link[data-view="signup"]');
+  if (signupLink) signupLink.classList.add('active');
+
+  await Promise.all([ensurePlayersLoaded(), ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]);
+  renderSignupForm();
+}
+
 async function handleDeepLink_() {
   const params = new URLSearchParams(window.location.search);
+
+  const lateToken = params.get('late');
+  if (lateToken) {
+    await handleLateInviteLink_(lateToken);
+    return;
+  }
+
   const entryId = params.get('entryId');
   const email = params.get('email');
   if (!entryId || !email) return;
