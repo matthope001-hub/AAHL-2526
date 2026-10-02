@@ -22,6 +22,11 @@ const DIVISION_TEAMS = {
 
 let isAdminCreatingEntry = false;
 
+// Set when someone opens a valid late-entry invite link (?late=TOKEN).
+// While set, the Sign Up form opens even though picks are locked, and the
+// entry is submitted with this token (verified again server-side).
+let lateInviteToken = null;
+
 async function renderSignupForm() {
   editingEntryId = null;
   signupPicks = {};
@@ -33,7 +38,7 @@ async function renderSignupForm() {
   // enforcement still happens server-side (adminCreateEntry requires the
   // admin password), this is just so the form renders instead of showing
   // the public "locked" screens.
-  if (!isAdminCreatingEntry) {
+  if (!isAdminCreatingEntry && !lateInviteToken) {
     const deadlinePassed = currentConfig.deadline && new Date() >= new Date(currentConfig.deadline);
     if (currentConfig.picksLocked || deadlinePassed) {
       document.getElementById('signup-form').innerHTML = `
@@ -74,6 +79,11 @@ async function renderSignupFormBody() {
       <div style="background:var(--amber); color:#1a1a2e; padding:10px 14px; margin-bottom:16px; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
         <span>⚠️ Admin Mode: Creating a late entry (bypasses the public deadline)</span>
         <button id="admin-cancel-late-entry-btn" style="margin:0; background:#1a1a2e; color:#fff; padding:6px 12px; font-size:12px;">Cancel</button>
+      </div>
+    ` : ''}
+    ${(!isAdminCreatingEntry && lateInviteToken) ? `
+      <div style="background:var(--amber); color:#1a1a2e; padding:10px 14px; margin-bottom:16px; font-weight:700;">
+        🎟️ Late Entry Invite — you've been invited to join after the deadline. This link works for one entry only.
       </div>
     ` : ''}
     <label>Team Name</label>
@@ -442,11 +452,21 @@ async function doFinalSubmit() {
     divisionPicks: divisionPicks
   };
 
+  const usedLateInvite = !isAdminCreatingEntry && !!lateInviteToken;
   const result = isAdminCreatingEntry
     ? await adminCreateEntry(adminPassword, entryPayload)
-    : await submitEntry(entryPayload);
+    : (lateInviteToken
+        ? await submitLateEntry(entryPayload, lateInviteToken)
+        : await submitEntry(entryPayload));
 
   if (result.success) {
+    if (usedLateInvite) {
+      // One link = one entry. Clear it and tidy the address bar so a
+      // refresh doesn't try to reuse a link that's now spent.
+      lateInviteToken = null;
+      try { window.history.replaceState({}, '', window.location.pathname); } catch (e) { /* ignore */ }
+      applySignupCtaVisibility();
+    }
     if (isAdminCreatingEntry) {
       isAdminCreatingEntry = false;
       document.getElementById('signup-form').innerHTML = `
