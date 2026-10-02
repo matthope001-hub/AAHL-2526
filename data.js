@@ -291,6 +291,22 @@ async function adminCreateEntry(password, entry) {
   return apiPost('adminCreateEntry', { password, entry });
 }
 
+// ---------- Late entry invite links ----------
+// Commissioner generates a one-time link (admin password required).
+async function adminCreateLateInvite(password) {
+  return apiPost('adminCreateLateInvite', { password });
+}
+
+// Checks whether a late-entry link is still good (not expired, not used).
+async function checkLateInvite(token) {
+  return apiGet('checkLateInvite', { token });
+}
+
+// Submits an entry using a late-entry link (bypasses the public deadline).
+async function submitLateEntry(entry, token) {
+  return apiPost('createLateEntry', { entry, token });
+}
+
 async function submitRosterMove(entryId, boxId, newPlayerId) {
   return apiPost('requestRosterMove', { entryId, boxId, newPlayerId });
 }
