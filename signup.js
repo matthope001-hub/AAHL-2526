@@ -70,6 +70,7 @@ async function renderSignupFormBody() {
 
   await Promise.all([ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]);
 
+  const seasonHasStats = allPlayers.some(ap => ap.stats && Object.values(ap.stats).some(v => v > 0));
   const grouped = { F: [], D: [], G: [] };
   allBoxes.forEach(b => grouped[b.boxType].push(b));
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
@@ -105,14 +106,21 @@ async function renderSignupFormBody() {
             <div class="box-picker-options">
               ${[...box.players].map(p => {
                 const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
-                const currentSeasonHasStats = fullPlayer && fullPlayer.stats && Object.values(fullPlayer.stats).some(v => v > 0);
-                const s = fullPlayer ? (currentSeasonHasStats ? fullPlayer.stats : (fullPlayer.prevStats || {})) : {};
+                // One season for the whole form: once anyone has played this
+                // season, everyone shows this season's numbers (0s if their
+                // team hasn't played yet) - never a mix of the two seasons.
+                const currentSeasonHasStats = seasonHasStats;
+                const s = fullPlayer ? (seasonHasStats ? (fullPlayer.stats || {}) : (fullPlayer.prevStats || {})) : {};
+                const prevPts = (seasonHasStats && fullPlayer && fullPlayer.prevStats)
+                  ? computePlayerPoints({ position: fullPlayer.position, stats: fullPlayer.prevStats }, currentConfig) : 0;
                 const ptsNum = fullPlayer ? computePlayerPoints({ position: fullPlayer.position, stats: s }, currentConfig) : 0;
-                return { p, fullPlayer, currentSeasonHasStats, s, ptsNum };
-              }).sort((a, b) => b.ptsNum - a.ptsNum).map(({ p, fullPlayer, currentSeasonHasStats, s, ptsNum }) => {
+                return { p, fullPlayer, currentSeasonHasStats, s, ptsNum, prevPts };
+              }).sort((a, b) => (b.ptsNum - a.ptsNum) || (b.prevPts - a.prevPts)).map(({ p, fullPlayer, currentSeasonHasStats, s, ptsNum, prevPts }) => {
                 const currentTeam = fullPlayer ? fullPlayer.team : p.team;
                 const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
-                const statSourceLabel = currentSeasonHasStats ? '' : ` <span class="stat-source">(25-26)</span>`;
+                const statSourceLabel = currentSeasonHasStats
+                  ? (prevPts ? ` <span class="stat-source">(25-26: ${prevPts.toFixed(1)})</span>` : '')
+                  : ` <span class="stat-source">(25-26)</span>`;
                 const pts = ptsNum.toFixed(1);
                 const statLine = box.boxType === 'G'
                   ? `${gpPrefix_(s, ' · ')}${s.wins || 0}W · ${s.shutouts || 0}SO · ${pts}pts${statSourceLabel}`
