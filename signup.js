@@ -70,7 +70,9 @@ async function renderSignupFormBody() {
 
   await Promise.all([ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]);
 
-  const seasonHasStats = allPlayers.some(ap => ap.stats && Object.values(ap.stats).some(v => v > 0));
+  // Entry form always shows LAST season's stats for every player, so
+  // picks are compared on a full season - never this season's numbers.
+  const seasonHasStats = false;
   const grouped = { F: [], D: [], G: [] };
   allBoxes.forEach(b => grouped[b.boxType].push(b));
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
