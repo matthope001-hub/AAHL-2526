@@ -94,6 +94,11 @@ function renderAdminEntries(entries) {
       <button id="admin-add-late-entry-btn" style="margin:0;">+ Add Late Entry</button>
       <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">For a late joiner after the public deadline has passed.</span>
     </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <button id="admin-create-late-link-btn" style="margin:0;">🔗 Create Late Entry Link</button>
+      <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">Send someone a private link so they can fill in the form themselves. One entry per link, expires in 7 days.</span>
+      <div id="admin-late-link-result" style="margin-top:10px;"></div>
+    </div>
     <div id="admin-pending-moves"></div>
   `;
 
@@ -103,6 +108,7 @@ function renderAdminEntries(entries) {
     el.innerHTML = toggleHtml + `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     wireAdminCtaToggle_();
     wireAdminAddLateEntryButton_();
+    wireAdminCreateLateLinkButton_();
     return;
   }
 
@@ -221,6 +227,7 @@ function renderAdminEntries(entries) {
 
   wireAdminCtaToggle_();
   wireAdminAddLateEntryButton_();
+  wireAdminCreateLateLinkButton_();
 }
 
 async function loadAdminPendingMoves() {
@@ -291,5 +298,52 @@ function wireAdminAddLateEntryButton_() {
     document.title = 'Sign Up — AAHL 26/27';
     await Promise.all([ensurePlayersLoaded(), ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]);
     renderSignupForm();
+  });
+}
+
+/**
+ * "Create Late Entry Link" - asks the server for a one-time signed invite
+ * link, then shows it with a Copy button so it can be pasted into a text
+ * or email. Each click makes a fresh link (one entry per link).
+ */
+function wireAdminCreateLateLinkButton_() {
+  const btn = document.getElementById('admin-create-late-link-btn');
+  const out = document.getElementById('admin-late-link-result');
+  if (!btn || !out) return;
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    out.innerHTML = `<span class="mono" style="color:var(--text-dim); font-size:12px;">Creating link...</span>`;
+
+    const result = await adminCreateLateInvite(adminPassword);
+    btn.disabled = false;
+
+    if (!result || !result.success) {
+      out.innerHTML = `<span class="status-msg error">${escapeHtml((result && result.error) || 'Could not create link.')}</span>`;
+      return;
+    }
+
+    const expires = new Date(result.data.expiresAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    out.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="admin-late-link-input" readonly value="${escapeHtml(result.data.url)}" style="flex:1; min-width:240px; margin:0;">
+        <button id="admin-late-link-copy-btn" style="margin:0;">Copy</button>
+      </div>
+      <div class="mono" style="color:var(--text-dim); font-size:12px; margin-top:6px;">Good for one entry. Expires ${escapeHtml(expires)}. The entry will show as Pending until you approve it.</div>
+    `;
+
+    const input = document.getElementById('admin-late-link-input');
+    const copyBtn = document.getElementById('admin-late-link-copy-btn');
+    input.addEventListener('focus', () => input.select());
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(input.value);
+      } catch (e) {
+        input.select();
+        document.execCommand('copy');
+      }
+      copyBtn.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+    });
   });
 }
