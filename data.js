@@ -136,6 +136,13 @@ async function fetchStarsOfNight() {
   return result.success ? result.data : null;
 }
 
+// Today's NHL schedule with team records, saved each morning by
+// refreshTodaysGames() in TodaysGames.gs.
+async function fetchTodaysGames() {
+  const direct = await supabaseDirectGet_('config', 'todaysGamesCache');
+  return direct || null;
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
