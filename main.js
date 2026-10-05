@@ -58,6 +58,7 @@ async function init() {
   allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
 
   renderHeroMilestone_();
+  renderSeasonCountdown_();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
@@ -81,6 +82,43 @@ function applySignupCtaVisibility() {
   // they can get back to the form if they click away before submitting.
   const navLink = document.querySelector('.nav-link[data-view="signup"]');
   if (navLink) navLink.style.display = (shouldHide && !lateInviteToken) ? 'none' : '';
+}
+
+/**
+ * Hero countdown badges: NHL regular-season games still to be played
+ * (league-wide) and days left until the season ends.
+ * - Games: total = 32 teams x games per team / 2 (84-game schedule,
+ *   override with config gamesPerTeam). Played = sum of every team's
+ *   games played / 2, from the nightly current-season standings.
+ * - Days: counts down to config seasonEndDate; shows a dash if not set.
+ */
+async function renderSeasonCountdown_() {
+  const gamesEl = document.getElementById('hero-games-left');
+  const daysEl = document.getElementById('hero-days-left');
+
+  if (daysEl) {
+    const end = parseMilestoneDate_((currentConfig || {}).seasonEndDate);
+    if (end) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const endDay = new Date(end); endDay.setHours(0, 0, 0, 0);
+      daysEl.textContent = Math.max(0, Math.round((endDay - today) / 86400000));
+    } else {
+      daysEl.textContent = '—';
+    }
+  }
+
+  if (gamesEl) {
+    try {
+      await ensureCurrentSeasonStandingsLoaded_();
+      const teams = Object.values(currentSeasonStandings || {});
+      const perTeam = Number((currentConfig || {}).gamesPerTeam) || 84;
+      const total = 32 * perTeam / 2;
+      const played = teams.reduce((sum, t) => sum + (Number(t.gamesPlayed) || 0), 0) / 2;
+      gamesEl.textContent = Math.max(0, Math.round(total - played)).toLocaleString('en-US');
+    } catch (e) {
+      gamesEl.textContent = '—';
+    }
+  }
 }
 
 function formatDeadlineShort(isoString) {
@@ -371,6 +409,7 @@ async function refreshAndRenderHome() {
   starsOfNightPromise = null;
   [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
   renderHeroMilestone_();
+  renderSeasonCountdown_();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
