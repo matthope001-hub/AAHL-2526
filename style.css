@@ -871,7 +871,15 @@ button:hover { opacity: 0.85; }
 }
 .hero-em { font-style: italic; color: var(--ice); }
 
-.hero-badges-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-badges-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+@media (max-width: 900px) { .hero-badges-row { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .hero-badges-row { grid-template-columns: repeat(2, 1fr); } }
+.hero-badge-sub { font-size: 10px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; }
 .hero-badge {
   display: flex;
   flex-direction: column;
@@ -880,8 +888,9 @@ button:hover { opacity: 0.85; }
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-top-width: 3px;
-  padding: 10px 20px;
-  min-width: 90px;
+  padding: 12px 10px;
+  min-width: 0;
+  text-align: center;
   text-decoration: none;
   cursor: default;
 }
