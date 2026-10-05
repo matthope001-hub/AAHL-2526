@@ -1114,3 +1114,30 @@ a.hero-badge { cursor: pointer; }
     padding: 24px 16px;
   }
 }
+/* Today's Games strip (Home page) */
+.games-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+}
+@media (max-width: 640px) {
+  /* Phones: one swipeable row instead of a tall stack */
+  .games-strip {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .game-chip { flex: 0 0 auto; }
+}
+.game-chip {
+  min-width: 132px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--ice);
+  padding: 8px 12px;
+}
+.game-chip-time { font-size: 10px; color: var(--amber); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.game-chip-team { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.game-chip-abbrev { font-weight: 700; font-size: 15px; flex: 1; }
+.game-chip-record { font-size: 11px; color: var(--text-dim); }
