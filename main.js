@@ -100,8 +100,8 @@ async function renderSeasonCountdown_() {
   if (endEl) {
     const lastDay = parseMilestoneDate_((currentConfig || {}).seasonEndDate);
     endEl.textContent = lastDay
-      ? lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      : '—';
+      ? 'Ends ' + lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '';
   }
 
   if (daysEl) {
