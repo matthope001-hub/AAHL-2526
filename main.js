@@ -96,6 +96,14 @@ async function renderSeasonCountdown_() {
   const gamesEl = document.getElementById('hero-games-left');
   const daysEl = document.getElementById('hero-days-left');
 
+  const endEl = document.getElementById('hero-season-end');
+  if (endEl) {
+    const lastDay = parseMilestoneDate_((currentConfig || {}).seasonEndDate);
+    endEl.textContent = lastDay
+      ? lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—';
+  }
+
   if (daysEl) {
     const end = parseMilestoneDate_((currentConfig || {}).seasonEndDate);
     if (end) {
