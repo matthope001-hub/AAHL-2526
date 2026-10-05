@@ -1116,19 +1116,21 @@ a.hero-badge { cursor: pointer; }
 }
 /* Today's Games strip (Home page) */
 .games-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
+.games-strip .game-chip { flex: 0 0 142px; }
 @media (max-width: 640px) {
   /* Phones: one swipeable row instead of a tall stack */
   .games-strip {
-    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     overflow-x: auto;
     padding-bottom: 6px;
     -webkit-overflow-scrolling: touch;
   }
-  .game-chip { flex: 0 0 auto; }
 }
 .game-chip {
   min-width: 132px;
