@@ -59,6 +59,7 @@ async function init() {
 
   renderHeroMilestone_();
   renderSeasonCountdown_();
+  renderTodaysGames();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
@@ -325,6 +326,52 @@ async function renderStarsOfNight() {
   }
 }
 
+/**
+ * "Today's Games" strip under the hero: each NHL game on today's
+ * schedule with both teams' records and the start time (shown in the
+ * visitor's own time zone). Hidden if the saved schedule isn't today's.
+ */
+async function renderTodaysGames() {
+  const el = document.getElementById('todays-games');
+  if (!el) return;
+
+  try {
+    const data = await fetchTodaysGames();
+    const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    if (!data || data.date !== todayET) { el.style.display = 'none'; return; }
+
+    const games = data.games || [];
+    const logo = (abbrev) => `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">`;
+    const teamRow = (abbrev, record) => `
+      <div class="game-chip-team">
+        ${logo(abbrev)}
+        <span class="game-chip-abbrev">${escapeHtml(abbrev)}</span>
+        <span class="mono game-chip-record">${escapeHtml(record || '')}</span>
+      </div>`;
+
+    el.innerHTML = `
+      <h3 class="mini-title">🏒 Today's Games <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span></h3>
+      ${games.length === 0
+        ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
+        : `<div class="games-strip">
+            ${games.map(g => {
+              const start = new Date(g.startTimeUTC);
+              const time = isNaN(start.getTime()) ? '' : start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              return `
+              <div class="game-chip">
+                <div class="mono game-chip-time">${escapeHtml(time)}</div>
+                ${teamRow(g.away, g.awayRecord)}
+                ${teamRow(g.home, g.homeRecord)}
+              </div>`;
+            }).join('')}
+          </div>`}
+    `;
+    el.style.display = 'block';
+  } catch (e) {
+    el.style.display = 'none';
+  }
+}
+
 let allActivity = [];
 let activityTypeFilter = 'all';
 let activityTeamFilter = 'all';
@@ -418,6 +465,7 @@ async function refreshAndRenderHome() {
   [allStandings, currentConfig] = await Promise.all([fetchStandings(), fetchConfig()]);
   renderHeroMilestone_();
   renderSeasonCountdown_();
+  renderTodaysGames();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
