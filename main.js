@@ -296,9 +296,10 @@ async function renderStatTicker() {
       ? [chips.filter((_, i) => i % 2 === 0), chips.filter((_, i) => i % 2 === 1)]
       : [chips];
 
-    wrap.innerHTML = rows.map(() => `<div class="stat-ticker-row"><div class="stat-ticker-track"></div></div>`).join('');
+    const box = document.getElementById('stat-ticker-rows');
+    box.innerHTML = rows.map(() => `<div class="stat-ticker-row"><div class="stat-ticker-track"></div></div>`).join('');
     wrap.style.display = 'block'; // must be visible before widths are measured
-    wrap.querySelectorAll('.stat-ticker-track').forEach((track, i) => fillTickerRow_(track, rows[i]));
+    box.querySelectorAll('.stat-ticker-track').forEach((track, i) => fillTickerRow_(track, rows[i]));
   } catch (e) {
     wrap.style.display = 'none';
   }
