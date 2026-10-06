@@ -1139,6 +1139,10 @@ a.hero-badge { cursor: pointer; }
 .game-chip-team { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
 .game-chip-abbrev { font-weight: 700; font-size: 15px; flex: 1; }
 .game-chip-record { font-size: 11px; color: var(--text-dim); }
+.game-chip-score { font-size: 15px; font-weight: 700; color: var(--text); min-width: 14px; text-align: right; }
+.game-chip-loser .game-chip-abbrev, .game-chip-loser .game-chip-score { color: var(--text-dim); font-weight: 400; }
+.game-chip-live { color: #3ecf6a; font-weight: 700; }
+.game-chip-final { color: var(--text-dim); font-weight: 700; }
 
 /* Home page: Current Standings stretches to line up with the bottom of
    the right-hand column (Division Leaders + Top Performers Last Week).
