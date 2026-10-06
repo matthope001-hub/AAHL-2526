@@ -719,6 +719,7 @@ function renderHomeStandingsPreview() {
 async function refreshAndRenderStandings() {
   allStandings = await fetchStandings();
   renderStandingsTable();
+  renderPointsRace();
 }
 
 function renderStandingsTable() {
