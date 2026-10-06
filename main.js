@@ -356,27 +356,74 @@ async function renderStarsOfNight() {
 }
 
 /**
- * "Today's Games" strip under the hero: each NHL game on today's
- * schedule with both teams' records and the start time (shown in the
- * visitor's own time zone). Hidden if the saved schedule isn't today's.
+ * The inside of one Today's Games card: status line (start time, LIVE +
+ * period, or FINAL), then each team with logo, record and - once the
+ * game is on - the score. The loser is dimmed on a final.
  */
+function gameCardInner_(g) {
+  const logo = (abbrev) => `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">`;
+  const hasScore = g.state === 'live' || g.state === 'final';
+
+  let status;
+  if (g.state === 'final') {
+    status = `<span class="game-chip-final">FINAL${g.finalType ? '/' + escapeHtml(g.finalType) : ''}</span>`;
+  } else if (g.state === 'live') {
+    const where = g.period ? (g.intermission ? `${g.period} INT` : g.period) : '';
+    status = `<span class="game-chip-live">● LIVE</span>${where ? ' ' + escapeHtml(where) : ''}`;
+  } else {
+    const start = new Date(g.startTimeUTC);
+    status = isNaN(start.getTime()) ? '' : escapeHtml(start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+  }
+
+  const teamRow = (abbrev, record, score, otherScore) => `
+    <div class="game-chip-team${g.state === 'final' && score < otherScore ? ' game-chip-loser' : ''}">
+      ${logo(abbrev)}
+      <span class="game-chip-abbrev">${escapeHtml(abbrev)}</span>
+      <span class="mono game-chip-record">${escapeHtml(record || '')}</span>
+      ${hasScore ? `<span class="mono game-chip-score">${score == null ? 0 : score}</span>` : ''}
+    </div>`;
+
+  return `
+    <div class="mono game-chip-time">${status}</div>
+    ${teamRow(g.away, g.awayRecord, g.awayScore, g.homeScore)}
+    ${teamRow(g.home, g.homeRecord, g.homeScore, g.awayScore)}`;
+}
+
+/** The current "hockey day" (ET, rolling over at 5am) as YYYY-MM-DD. */
+function hockeyDay_() {
+  return new Date(Date.now() - 5 * 3600000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+/**
+ * "Today's Games" ticker under the hero: each NHL game on today's
+ * schedule with both teams' records, the start time (in the visitor's
+ * own time zone) and, once games begin, the live score and status.
+ * Hidden if the saved schedule isn't today's.
+ *
+ * When called again with the same set of games (the periodic refresh),
+ * it updates the cards in place so the ticker doesn't jump back to the
+ * start.
+ */
+let todaysGamesKey_ = null;
 async function renderTodaysGames() {
   const el = document.getElementById('todays-games');
   if (!el) return;
 
   try {
     const data = await fetchTodaysGames();
-    const todayET = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-    if (!data || data.date !== todayET) { el.style.display = 'none'; return; }
+    if (!data || data.date !== hockeyDay_()) { el.style.display = 'none'; todaysGamesKey_ = null; return; }
 
     const games = data.games || [];
-    const logo = (abbrev) => `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">`;
-    const teamRow = (abbrev, record) => `
-      <div class="game-chip-team">
-        ${logo(abbrev)}
-        <span class="game-chip-abbrev">${escapeHtml(abbrev)}</span>
-        <span class="mono game-chip-record">${escapeHtml(record || '')}</span>
-      </div>`;
+    const key = data.date + '|' + games.map(g => g.id).join(',');
+
+    // Same games as last time: just refresh scores/status in place.
+    if (key === todaysGamesKey_ && el.querySelector('.game-chip')) {
+      games.forEach(g => {
+        el.querySelectorAll(`.game-chip[data-game-id="${g.id}"]`).forEach(card => { card.innerHTML = gameCardInner_(g); });
+      });
+      return;
+    }
+    todaysGamesKey_ = key;
 
     // Continuous ticker: repeat the games until one set is wider than any
     // screen, then double it so the scroll loops with no gap or jump.
@@ -392,16 +439,7 @@ async function renderTodaysGames() {
       ${games.length === 0
         ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
         : `<div class="games-ticker"><div class="games-ticker-track" style="animation-duration:${tickerSeconds}s;">
-            ${loop.map(g => {
-              const start = new Date(g.startTimeUTC);
-              const time = isNaN(start.getTime()) ? '' : start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-              return `
-              <div class="game-chip">
-                <div class="mono game-chip-time">${escapeHtml(time)}</div>
-                ${teamRow(g.away, g.awayRecord)}
-                ${teamRow(g.home, g.homeRecord)}
-              </div>`;
-            }).join('')}
+            ${loop.map(g => `<div class="game-chip" data-game-id="${g.id}">${gameCardInner_(g)}</div>`).join('')}
           </div></div>`}
     `;
     el.style.display = 'block';
@@ -409,6 +447,14 @@ async function renderTodaysGames() {
     el.style.display = 'none';
   }
 }
+
+// Keep scores current on an open tab: re-check every 3 minutes while the
+// Home page is showing and the tab is visible.
+setInterval(() => {
+  const home = document.getElementById('view-home');
+  if (document.hidden || !home || !home.classList.contains('active')) return;
+  renderTodaysGames();
+}, 180000);
 
 /**
  * "Top Performers Last Week" under Division Leaders: the three pool
