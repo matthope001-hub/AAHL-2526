@@ -164,6 +164,31 @@ async function fetchPickCounts() {
   return direct || null;
 }
 
+// Injured / suspended / not-playing pool players, refreshed every few
+// hours by refreshInjuries() in Injuries.gs. { players: { playerId: {...} } }
+async function fetchInjuries() {
+  const direct = await supabaseDirectGet_('config', 'injuriesCache');
+  return direct || null;
+}
+
+// The commissioner's manual status overrides (Admin panel).
+async function fetchInjuryOverrides() {
+  const direct = await supabaseDirectGet_('config', 'injuryOverrides');
+  return (direct && direct.players) || {};
+}
+
+async function adminSetInjury(password, playerId, code, note, returnDate) {
+  return apiPost('adminSetInjury', { password, playerId, code, note, returnDate });
+}
+
+async function adminClearInjury(password, playerId) {
+  return apiPost('adminClearInjury', { password, playerId });
+}
+
+async function adminRefreshInjuries(password) {
+  return apiPost('adminRefreshInjuries', { password });
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
