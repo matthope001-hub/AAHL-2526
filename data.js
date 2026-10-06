@@ -143,6 +143,13 @@ async function fetchTodaysGames() {
   return direct || null;
 }
 
+// Last completed week's top pool players, saved every Monday by
+// rebuildWeeklyTopPerformers() in WeeklyStars.gs.
+async function fetchWeeklyTop() {
+  const direct = await supabaseDirectGet_('config', 'weeklyTopCache');
+  return direct || null;
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
