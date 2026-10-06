@@ -60,6 +60,7 @@ async function init() {
   renderHeroMilestone_();
   renderSeasonCountdown_();
   renderTodaysGames();
+  renderWeeklyTop();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
@@ -409,6 +410,50 @@ async function renderTodaysGames() {
   }
 }
 
+/**
+ * "Top Performers Last Week" under Division Leaders: the three pool
+ * players with the most pool points over the last completed Mon-Sun week.
+ * Hidden until the weekly ranking exists.
+ */
+async function renderWeeklyTop() {
+  const section = document.getElementById('weekly-top-section');
+  const el = document.getElementById('weekly-top-panel');
+  if (!section || !el) return;
+
+  try {
+    const data = await fetchWeeklyTop();
+    const top = ((data && data.top) || []).slice(0, 3);
+    if (top.length === 0) { section.style.display = 'none'; return; }
+
+    const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    document.getElementById('weekly-top-dates').textContent = `${day(data.weekStart)} – ${day(data.weekEnd)}`;
+
+    el.innerHTML = top.map((p, i) => {
+      const line = p.isGoalie
+        ? `${p.wins || 0}W${p.shutouts ? ` · ${p.shutouts}SO` : ''} · ${p.saves || 0}SV`
+        : `${p.goals || 0}G · ${p.assists || 0}A · ${p.sog || 0}SOG`;
+      return `
+      <div class="division-leader-row">
+        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+          <span class="mono" style="color:var(--amber); font-weight:700; width:14px;">${i + 1}</span>
+          ${p.headshotUrl ? `<img class="star-photo" src="${p.headshotUrl}" alt="" loading="lazy">` : `<div class="star-photo star-photo-empty"></div>`}
+          <div class="division-leader-info" style="min-width:0;">
+            <div class="division-leader-team">${escapeHtml(p.fullName)}</div>
+            <div class="mono division-leader-record">${escapeHtml(p.team || '')} · ${escapeHtml(p.isGoalie ? 'G' : (p.position || ''))} · ${p.games || 0}GP · ${line}</div>
+          </div>
+        </div>
+        <div class="division-leader-earning">
+          <span class="division-leader-count">+${(p.pts || 0).toFixed(2)}</span>
+          <span class="mono division-leader-count-label">pts</span>
+        </div>
+      </div>`;
+    }).join('');
+    section.style.display = 'block';
+  } catch (e) {
+    section.style.display = 'none';
+  }
+}
+
 let allActivity = [];
 let activityTypeFilter = 'all';
 let activityTeamFilter = 'all';
@@ -503,6 +548,7 @@ async function refreshAndRenderHome() {
   renderHeroMilestone_();
   renderSeasonCountdown_();
   renderTodaysGames();
+  renderWeeklyTop();
   document.getElementById('hero-entries').textContent = currentConfig.totalEntries ?? 0;
   document.getElementById('hero-prizepool').textContent = '$' + (currentConfig.prizePool ?? 0).toFixed(0);
   renderHomeStandingsPreview();
