@@ -215,8 +215,73 @@ function gpPrefix_(s, sep) {
 
 async function ensurePlayersLoaded() {
   if (allPlayers.length === 0) {
-    allPlayers = await fetchPlayers();
+    const [players] = await Promise.all([fetchPlayers(), ensureInjuriesLoaded_()]);
+    allPlayers = players;
+    applyInjuriesToPlayers_();
   }
+}
+
+// ---------- Player status (injured / suspended / not playing) ----------
+// One place that knows every status code, so every page shows the same
+// marker. Order here is also the sort order on the IR List.
+const INJURY_STATUS = {
+  LTIR:    { label: 'Long-Term Injured Reserve', note: 'Out at least 10 games and 24 days.' },
+  IR:      { label: 'Injured Reserve', note: 'Out at least 7 days.' },
+  SOIR:    { label: 'Season-Opening Injured Reserve', note: 'Came into the season injured.' },
+  OUT:     { label: 'Out', note: 'Injured and not playing; no official list yet.' },
+  W2W:     { label: 'Week-to-Week', note: 'Moderate injury; likely headed to IR.' },
+  SUSP:    { label: 'Suspended', note: 'League or team suspension.' },
+  NR:      { label: 'Non-Roster', note: 'Off the active roster (injury or illness short of IR).' },
+  NHI:     { label: 'Personal / Non-Hockey', note: 'Away for personal reasons or a non-hockey illness.' },
+  PAP:     { label: 'Player Assistance Program', note: 'In the NHL/NHLPA assistance program.' },
+  DNR:     { label: 'Unassigned', note: 'Waiting on a visa, clearance or contract.' },
+  NP:      { label: 'Not Playing', note: "Has missed his team's last 3+ games; reason not confirmed." },
+  DTD:     { label: 'Day-to-Day', note: 'Minor injury; expected back within days.' },
+  GTD:     { label: 'Game-Time Decision', note: 'To be decided before the game.' },
+  SCRATCH: { label: 'Healthy Scratch', note: "Fit, but left out of the lineup." }
+};
+const INJURY_ORDER = Object.keys(INJURY_STATUS);
+
+let injuriesByPlayer = {};
+let injuriesMeta = null;
+let injuriesLoaded_ = false;
+async function ensureInjuriesLoaded_(force) {
+  if (injuriesLoaded_ && !force) return;
+  try {
+    const data = await fetchInjuries();
+    injuriesByPlayer = (data && data.players) || {};
+    injuriesMeta = data;
+  } catch (e) {
+    injuriesByPlayer = {};
+  }
+  injuriesLoaded_ = true;
+}
+
+/** Copies each player's status onto the player record (used by the tables). */
+function applyInjuriesToPlayers_() {
+  allPlayers.forEach(p => {
+    const inj = injuriesByPlayer[p.id];
+    p.injuryStatus = inj ? `${inj.code}${inj.detail ? ' · ' + inj.detail : ''}` : null;
+  });
+}
+
+/** Plain-text description, e.g. "Injured Reserve - Knee - back around Oct 20". */
+function injuryText_(inj) {
+  const info = INJURY_STATUS[inj.code] || { label: inj.code };
+  let out = info.label;
+  if (inj.detail) out += ' - ' + inj.detail;
+  if (inj.returnDate) out += ' - back around ' + new Date(inj.returnDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return out;
+}
+
+/**
+ * The marker shown beside a player's name anywhere on the site:
+ * " 🩹 IR" (hover for the details). Empty if the player is fine.
+ */
+function statusBadge_(playerId) {
+  const inj = injuriesByPlayer[playerId];
+  if (!inj) return '';
+  return ` <span class="ir-badge" title="${escapeHtml(injuryText_(inj))}">🩹 ${escapeHtml(inj.code)}</span>`;
 }
 
 async function ensureBoxesLoaded_() {
@@ -796,7 +861,7 @@ function renderPicksModalBody_(data, ownerLine) {
             `).join('') : ''}
             <div class="modal-pick-row">
               ${p.headshotUrl ? `<img class="modal-pick-photo" src="${p.headshotUrl}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
-              <span class="modal-pick-name">${escapeHtml(p.playerName)}</span>
+              <span class="modal-pick-name">${escapeHtml(p.playerName)}${statusBadge_(p.playerId)}</span>
               <span class="mono modal-pick-stats">${statLine}</span>
               <span class="mono modal-pick-pts">${hasMoves ? `+${p.contributionSinceAcquired.toFixed(2)}pts since acquired` : `${p.contributionSinceAcquired.toFixed(2)}pts`}</span>
               <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
@@ -880,21 +945,57 @@ if (teamPicksCloseBtn && teamPicksModalEl) {
 // ---------- IR List (public) ----------
 async function renderIRPanel() {
   const el = document.getElementById('ir-panel');
-  el.innerHTML = `${skeletonLoader_()}`;
-  const irList = await fetchIRList();
+  el.innerHTML = `<div class="panel">${skeletonLoader_()}</div>`;
+  await Promise.all([ensurePlayersLoaded(), ensureInjuriesLoaded_(true), ensurePickCountsLoaded_()]);
+  applyInjuriesToPlayers_();
 
-  if (irList.length === 0) {
-    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No players currently on IR.</p>`;
-    return;
-  }
+  const rows = Object.keys(injuriesByPlayer).map(id => {
+    const inj = injuriesByPlayer[id];
+    const p = allPlayers.find(ap => ap.id === id) || {};
+    return { id, inj, name: p.fullName || inj.name || id, team: p.team || inj.team || '', pos: p.position || '', headshot: p.headshotUrl || '' };
+  }).sort((a, b) => {
+    const oa = INJURY_ORDER.indexOf(a.inj.code), ob = INJURY_ORDER.indexOf(b.inj.code);
+    return ((oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob)) || a.name.localeCompare(b.name);
+  });
+
+  const day = (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
+  const updated = injuriesMeta && injuriesMeta.updatedAt
+    ? new Date(injuriesMeta.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
+  const usedCodes = INJURY_ORDER.filter(code => rows.some(r => r.inj.code === code));
+  const showPicked = hasPickCounts_();
 
   el.innerHTML = `
-    <table>
-      <thead><tr><th>Player</th><th>Note</th><th>Flagged</th></tr></thead>
-      <tbody>
-        ${irList.map(p => `<tr><td>${escapeHtml(p.id)}</td><td>${escapeHtml(p.note || '')}</td><td class="mono">${escapeHtml((p.flaggedAt || '').slice(0,10))}</td></tr>`).join('')}
-      </tbody>
-    </table>
+    <div class="panel" style="margin-bottom:16px;">
+      ${rows.length === 0
+        ? `<p class="mono" style="color:var(--text-dim)">No pool players are currently injured or unavailable.</p>`
+        : `<table>
+            <thead><tr><th>Player</th><th>NHL</th><th>Pos</th><th>Status</th><th>Details</th><th>Expected Back</th>${showPicked ? '<th>Picked</th>' : ''}<th>Since</th></tr></thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td><span style="display:inline-flex; align-items:center; gap:8px;">${r.headshot ? `<img class="modal-pick-photo" src="${r.headshot}" alt="" loading="lazy">` : ''}${escapeHtml(r.name)}</span></td>
+                  <td>${escapeHtml(r.team)}</td>
+                  <td>${escapeHtml(r.pos)}</td>
+                  <td><span class="ir-badge" title="${escapeHtml((INJURY_STATUS[r.inj.code] || {}).label || r.inj.code)}">🩹 ${escapeHtml(r.inj.code)}</span></td>
+                  <td>${escapeHtml(r.inj.detail || '—')}</td>
+                  <td>${escapeHtml(day(r.inj.returnDate))}</td>
+                  ${showPicked ? `<td>${pickedCount_(r.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span></td>` : ''}
+                  <td>${escapeHtml(day(r.inj.since))}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`}
+      <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">${rows.length} player${rows.length === 1 ? '' : 's'}${updated ? ` · updated ${escapeHtml(updated)}` : ''} · expected-back dates are estimates</p>
+    </div>
+    ${usedCodes.length ? `
+      <h3 class="mini-title">What the codes mean</h3>
+      <div class="panel">
+        ${usedCodes.map(code => `
+          <div class="activity-row">
+            <span><span class="ir-badge">${escapeHtml(code)}</span> &nbsp;<strong>${escapeHtml(INJURY_STATUS[code].label)}</strong></span>
+            <span style="color:var(--text-dim);">${escapeHtml(INJURY_STATUS[code].note)}</span>
+          </div>`).join('')}
+      </div>` : ''}
   `;
 }
 
