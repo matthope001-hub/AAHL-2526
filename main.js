@@ -249,9 +249,32 @@ function getStarsOfNightData() {
   return starsOfNightPromise;
 }
 
+/**
+ * Fills one ticker row and starts it scrolling. The chips are repeated
+ * until one set is wider than any screen, then doubled, so the row loops
+ * forever with no gap or jump. Speed is a steady ~45px per second.
+ */
+function fillTickerRow_(track, chips) {
+  const GAP_PX = 32; // matches .stat-ticker-track gap in style.css
+  track.style.animation = 'none';
+  track.innerHTML = chips.join('');
+  const setWidth = track.scrollWidth + GAP_PX;
+  const copies = Math.max(1, Math.ceil(1600 / setWidth));
+  let oneSet = '';
+  for (let i = 0; i < copies; i++) oneSet += chips.join('');
+  track.innerHTML = oneSet + oneSet;
+  track.style.animation = '';
+  track.style.animationDuration = Math.round(setWidth * copies / 45) + 's';
+}
+
+/**
+ * Last night's pool performers, as a continuous two-row ticker the same
+ * width as the Today's Games ticker. Top scorers are dealt alternately
+ * into the two rows. With only a handful of performers it uses one row.
+ */
 async function renderStatTicker() {
   const wrap = document.getElementById('stat-ticker');
-  const track = document.getElementById('stat-ticker-track');
+  if (!wrap) return;
 
   try {
     const stars = await getStarsOfNightData();
@@ -269,9 +292,13 @@ async function renderStatTicker() {
       return `<span class="ticker-chip"><span class="ticker-name">${escapeHtml(p.fullName)}</span> (${escapeHtml(p.team)}) <span class="ticker-stats">${statLine}</span> <span class="ticker-pts">+${p.pts}pts</span></span>`;
     });
 
-    // Duplicate the chip list so the marquee loops seamlessly.
-    track.innerHTML = chips.concat(chips).join('<span class="ticker-chip">&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span>');
-    wrap.style.display = 'block';
+    const rows = chips.length >= 8
+      ? [chips.filter((_, i) => i % 2 === 0), chips.filter((_, i) => i % 2 === 1)]
+      : [chips];
+
+    wrap.innerHTML = rows.map(() => `<div class="stat-ticker-row"><div class="stat-ticker-track"></div></div>`).join('');
+    wrap.style.display = 'block'; // must be visible before widths are measured
+    wrap.querySelectorAll('.stat-ticker-track').forEach((track, i) => fillTickerRow_(track, rows[i]));
   } catch (e) {
     wrap.style.display = 'none';
   }
