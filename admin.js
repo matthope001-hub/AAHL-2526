@@ -99,6 +99,11 @@ function renderAdminEntries(entries) {
       <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">Send someone a private link so they can fill in the form themselves. One entry per link, expires in 7 days.</span>
       <div id="admin-late-link-result" style="margin-top:10px;"></div>
     </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <button id="admin-weekly-image-btn" style="margin:0;">📸 Weekly Standings Image</button>
+      <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">A ready-to-post picture of last week's standings for the Facebook group.</span>
+      <div id="admin-weekly-image-result" style="margin-top:10px;"></div>
+    </div>
     <div id="admin-pending-moves"></div>
   `;
 
@@ -109,6 +114,7 @@ function renderAdminEntries(entries) {
     wireAdminCtaToggle_();
     wireAdminAddLateEntryButton_();
     wireAdminCreateLateLinkButton_();
+    wireAdminWeeklyImageButton_();
     return;
   }
 
@@ -228,6 +234,7 @@ function renderAdminEntries(entries) {
   wireAdminCtaToggle_();
   wireAdminAddLateEntryButton_();
   wireAdminCreateLateLinkButton_();
+  wireAdminWeeklyImageButton_();
 }
 
 async function loadAdminPendingMoves() {
@@ -346,4 +353,147 @@ function wireAdminCreateLateLinkButton_() {
       setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
     });
   });
+}
+
+// ---------- Weekly standings image (for the Facebook post) ----------
+/**
+ * "Weekly Standings Image": draws a 1080x1350 picture of last week's
+ * standings (top 10 with each team's points gained that week), the three
+ * hottest teams and the three top players, then offers it as a PNG.
+ * Built from the Points Race history and the weekly top performers, so
+ * both need to have run at least once.
+ */
+function wireAdminWeeklyImageButton_() {
+  const btn = document.getElementById('admin-weekly-image-btn');
+  const out = document.getElementById('admin-weekly-image-result');
+  if (!btn || !out) return;
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    out.innerHTML = `<span class="mono" style="color:var(--text-dim); font-size:12px;">Building image...</span>`;
+    try {
+      const [race, weekly] = await Promise.all([fetchPointsRace(), fetchWeeklyTop()]);
+      if (!race || !race.dates || race.dates.length === 0) {
+        out.innerHTML = `<span class="status-msg error">No nightly standings history yet - run setupPointsRaceTrigger in Apps Script first.</span>`;
+        return;
+      }
+      try { await Promise.all([document.fonts.load("800 60px 'Barlow Condensed'"), document.fonts.load("700 30px 'JetBrains Mono'")]); } catch (e) { /* fall back to default fonts */ }
+
+      const canvas = drawWeeklyImage_(race, weekly);
+      canvas.style.cssText = 'width:100%; max-width:360px; height:auto; border:1px solid var(--border); display:block; margin-bottom:8px;';
+      out.innerHTML = '';
+      out.appendChild(canvas);
+      const dl = document.createElement('button');
+      dl.textContent = 'Download PNG';
+      dl.style.margin = '0';
+      dl.addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.download = `aahl-week-${canvas.dataset.weekEnd}.png`;
+        a.href = canvas.toDataURL('image/png');
+        a.click();
+      });
+      out.appendChild(dl);
+    } catch (err) {
+      out.innerHTML = `<span class="status-msg error">Could not build the image: ${escapeHtml(err.message)}</span>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function drawWeeklyImage_(race, weekly) {
+  const W = 1080, H = 1350, PAD = 60;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const c = canvas.getContext('2d');
+  const DISPLAY = "'Barlow Condensed', Arial, sans-serif", MONO = "'JetBrains Mono', monospace";
+  const ICE = '#4C8FC4', AMBER = '#A13F5C', GOLD = '#d4a017', TEXT = '#e8edf1', DIM = '#A2AAAD', PANEL = '#141414', LINE = '#2a2a2a', GREEN = '#3ecf6a';
+
+  // The week: taken from the weekly top performers if available, otherwise
+  // the last completed Mon-Sun week.
+  const iso = (d) => d.toISOString().slice(0, 10);
+  let weekStart = weekly && weekly.weekStart, weekEnd = weekly && weekly.weekEnd;
+  if (!weekStart || !weekEnd) {
+    const now = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) + 'T12:00:00Z');
+    const dow = now.getUTCDay() === 0 ? 7 : now.getUTCDay();
+    const end = new Date(now.getTime() - dow * 86400000);
+    weekEnd = iso(end); weekStart = iso(new Date(end.getTime() - 6 * 86400000));
+  }
+  canvas.dataset.weekEnd = weekEnd;
+
+  // Standings as of the end of that week, and each team's gain during it.
+  let endIdx = -1, baseIdx = -1;
+  race.dates.forEach((d, i) => { if (d <= weekEnd) endIdx = i; if (d < weekStart) baseIdx = i; });
+  if (endIdx === -1) endIdx = race.dates.length - 1;
+  const teams = Object.keys(race.teams).map(id => {
+    const t = race.teams[id];
+    const pts = t.pts[endIdx];
+    const base = baseIdx === -1 ? 0 : t.pts[baseIdx];
+    return { name: t.name, pts, gain: (pts == null || base == null) ? null : pts - base };
+  }).filter(t => t.pts != null).sort((a, b) => b.pts - a.pts);
+  const hot = teams.filter(t => t.gain != null).sort((a, b) => b.gain - a.gain).slice(0, 3);
+
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const text = (str, x, y, font, color, align) => { c.font = font; c.fillStyle = color; c.textAlign = align || 'left'; c.fillText(str, x, y); };
+  const fit = (str, font, maxW) => {
+    c.font = font;
+    if (c.measureText(str).width <= maxW) return str;
+    while (str.length > 1 && c.measureText(str + '…').width > maxW) str = str.slice(0, -1);
+    return str + '…';
+  };
+
+  c.fillStyle = '#0a0a0a'; c.fillRect(0, 0, W, H);
+
+  // Header
+  text('ANGRY ALPACA HOCKEY LEAGUE · 2026-27', PAD, 86, `700 24px ${MONO}`, AMBER);
+  text('WEEKLY STANDINGS', PAD, 168, `800 84px ${DISPLAY}`, TEXT);
+  text(`${day(weekStart)} – ${day(weekEnd)}`.toUpperCase(), PAD, 214, `700 30px ${MONO}`, ICE);
+
+  // Top 10
+  let y = 252;
+  c.fillStyle = PANEL; c.fillRect(PAD, y, W - PAD * 2, 56 + 62 * Math.min(10, teams.length));
+  text('RANK', PAD + 24, y + 38, `700 20px ${MONO}`, DIM);
+  text('TEAM', PAD + 130, y + 38, `700 20px ${MONO}`, DIM);
+  text('THIS WEEK', W - PAD - 190, y + 38, `700 20px ${MONO}`, DIM, 'right');
+  text('POINTS', W - PAD - 24, y + 38, `700 20px ${MONO}`, DIM, 'right');
+  y += 56;
+  teams.slice(0, 10).forEach((t, i) => {
+    c.fillStyle = LINE; c.fillRect(PAD, y, W - PAD * 2, 1);
+    const rankColor = i === 0 ? GOLD : (i < 3 ? AMBER : DIM);
+    text(String(i + 1), PAD + 24, y + 43, `800 40px ${DISPLAY}`, rankColor);
+    text(fit(t.name, `700 38px ${DISPLAY}`, 520), PAD + 130, y + 43, `700 38px ${DISPLAY}`, TEXT);
+    if (t.gain != null) text('+' + t.gain.toFixed(1), W - PAD - 190, y + 42, `700 28px ${MONO}`, GREEN, 'right');
+    text(t.pts.toFixed(2), W - PAD - 24, y + 42, `700 30px ${MONO}`, ICE, 'right');
+    y += 62;
+  });
+
+  // Two side-by-side lists: hottest teams and top players of the week.
+  y += 34;
+  const colW = (W - PAD * 2 - 24) / 2;
+  const list = (x, title, rows) => {
+    text(title, x, y + 26, `700 24px ${MONO}`, AMBER);
+    c.fillStyle = PANEL; c.fillRect(x, y + 44, colW, 74 * 3 + 12);
+    rows.forEach((r, i) => {
+      const ry = y + 44 + 12 + i * 74;
+      text(String(i + 1), x + 20, ry + 44, `800 36px ${DISPLAY}`, AMBER);
+      text(fit(r.name, `700 32px ${DISPLAY}`, colW - 200), x + 60, ry + 34, `700 32px ${DISPLAY}`, TEXT);
+      text(fit(r.sub, `400 19px ${MONO}`, colW - 200), x + 60, ry + 60, `400 19px ${MONO}`, DIM);
+      text(r.value, x + colW - 18, ry + 44, `700 28px ${MONO}`, GREEN, 'right');
+    });
+    if (rows.length === 0) text('Not available yet', x + 20, y + 100, `400 20px ${MONO}`, DIM);
+  };
+  list(PAD, 'HOTTEST TEAMS', hot.map(t => ({ name: t.name, sub: `${ordinal(teams.indexOf(t) + 1)} overall`, value: '+' + t.gain.toFixed(1) })));
+  list(PAD + colW + 24, 'TOP PLAYERS', ((weekly && weekly.top) || []).slice(0, 3).map(p => ({
+    name: p.fullName,
+    sub: `${p.team || ''} · ` + (p.isGoalie ? `${p.wins || 0}W ${p.saves || 0}SV` : `${p.goals || 0}G ${p.assists || 0}A`),
+    value: '+' + (p.pts || 0).toFixed(1)
+  })));
+
+  // Footer
+  const cfg = currentConfig || {};
+  c.fillStyle = LINE; c.fillRect(PAD, H - 96, W - PAD * 2, 1);
+  text(`${cfg.totalEntries ?? teams.length} TEAMS · $${(cfg.prizePool ?? 0).toFixed(0)} PRIZE POOL`, PAD, H - 50, `700 24px ${MONO}`, DIM);
+  text('theaahl.ca', W - PAD, H - 48, `800 40px ${DISPLAY}`, ICE, 'right');
+
+  return canvas;
 }
