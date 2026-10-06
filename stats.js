@@ -458,6 +458,181 @@ async function renderLastNightTeamDetail_(stars) {
   `;
 }
 
+// ---------- Points Race chart (Standings page) ----------
+// Line chart of how far each team is behind 1st place, night by night.
+// Current top 5 in colour, every other team in faint grey, plus one team
+// of your choice in white (remembered with the Last Night team picker).
+const RACE_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
+let pointsRaceData_ = null;
+let pointsRaceResizeWired_ = false;
+
+async function renderPointsRace() {
+  const wrap = document.getElementById('points-race');
+  if (!wrap) return;
+  try {
+    pointsRaceData_ = await fetchPointsRace();
+    drawPointsRace_();
+    if (!pointsRaceResizeWired_) {
+      pointsRaceResizeWired_ = true;
+      let timer = null;
+      window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(drawPointsRace_, 150); });
+    }
+  } catch (e) {
+    wrap.style.display = 'none';
+  }
+}
+
+function drawPointsRace_() {
+  const wrap = document.getElementById('points-race');
+  const data = pointsRaceData_;
+  if (!wrap) return;
+  if (!data || !data.dates || data.dates.length < 2) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+
+  const dates = data.dates;
+  const n = dates.length;
+  const last = n - 1;
+
+  // Gap to the leader on each night (0 = in first place).
+  const leader = dates.map((_, d) => Math.max(...Object.values(data.teams).map(t => (t.pts[d] == null ? -Infinity : t.pts[d]))));
+  const teams = Object.keys(data.teams).map(id => {
+    const t = data.teams[id];
+    return { id, name: t.name, pts: t.pts, gap: t.pts.map((v, d) => (v == null ? null : v - leader[d])) };
+  }).filter(t => t.pts[last] != null).sort((a, b) => b.pts[last] - a.pts[last]);
+  if (teams.length === 0) { wrap.style.display = 'none'; return; }
+
+  let myId = null;
+  try { myId = localStorage.getItem('aahl_lastNightTeam'); } catch (e) { /* ignore */ }
+  const top = teams.slice(0, 5);
+  const mine = teams.find(t => t.id === myId) || null;
+  const mineInTop = mine && top.includes(mine);
+  const shown = mine && !mineInTop ? top.concat([mine]) : top;
+  const colorOf = (t) => (top.includes(t) ? RACE_COLORS[top.indexOf(t)] : '#e8edf1');
+
+  // Layout. Names sit to the right of the chart on wide screens, below it on phones.
+  wrap.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <h3 class="mini-title" style="margin:0;">Points Race <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">points behind 1st place</span></h3>
+      <select id="points-race-team" style="max-width:240px; margin:0;">
+        <option value="">Highlight a team...</option>
+        ${[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === myId ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="panel" style="padding:10px; position:relative; overflow:hidden;">
+      <div id="points-race-plot"></div>
+      <div id="points-race-tip" class="mono" style="display:none; position:absolute; pointer-events:none; background:var(--bg-panel-alt); border:1px solid var(--border); padding:8px 10px; font-size:11px; z-index:3; white-space:nowrap;"></div>
+      <div id="points-race-legend"></div>
+    </div>`;
+
+  const plot = document.getElementById('points-race-plot');
+  const W = Math.max(280, plot.clientWidth);
+  const wide = W >= 700;
+  const H = wide ? 360 : 260;
+  const L = 40, R = wide ? 230 : 12, T = 12, B = 26;
+
+  const worst = Math.max(5, ...shown.map(t => Math.max(...t.gap.map(g => (g == null ? 0 : -g)))));
+  const step = [5, 10, 20, 25, 50, 100, 200].find(s => worst / s <= 5) || 500;
+  const yMax = Math.ceil(worst / step) * step;
+  const X = (d) => L + (W - L - R) * (n === 1 ? 0 : d / last);
+  const Y = (g) => T + (H - T - B) * (-g / yMax);
+  const path = (t) => {
+    let out = '', pen = false;
+    t.gap.forEach((g, d) => {
+      if (g == null) { pen = false; return; }
+      out += `${pen ? 'L' : 'M'}${X(d).toFixed(1)},${Y(g).toFixed(1)} `;
+      pen = true;
+    });
+    return out;
+  };
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  let grid = '';
+  for (let v = 0; v <= yMax; v += step) {
+    grid += `<line x1="${L}" x2="${W - R}" y1="${Y(-v)}" y2="${Y(-v)}" stroke="#2a2a2a"/><text x="${L - 6}" y="${Y(-v) + 4}" text-anchor="end" class="race-ax">${v === 0 ? '0' : '-' + v}</text>`;
+  }
+  const tickCount = Math.min(n, wide ? 6 : 4);
+  for (let i = 0; i < tickCount; i++) {
+    const d = tickCount === 1 ? 0 : Math.round(i * last / (tickCount - 1));
+    grid += `<text x="${X(d)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : (i === tickCount - 1 ? 'end' : 'middle')}" class="race-ax">${escapeHtml(day(dates[d]))}</text>`;
+  }
+
+  const field = teams.filter(t => !shown.includes(t))
+    .map(t => `<path d="${path(t)}" fill="none" stroke="#5a6066" stroke-width="1" opacity="0.35"/>`).join('');
+  const lines = [...shown].reverse().map(t => {
+    const isMine = t === mine;
+    return `<path d="${path(t)}" fill="none" stroke="${colorOf(t)}" stroke-width="${isMine ? 3 : 2}" stroke-linejoin="round" ${isMine && !mineInTop ? 'stroke-dasharray="6 4"' : ''}/>
+      <circle cx="${X(last)}" cy="${Y(t.gap[last])}" r="4" fill="${colorOf(t)}" stroke="#141414" stroke-width="2"/>`;
+  }).join('');
+
+  // Names at the line ends (wide screens), nudged apart so they never overlap.
+  let endLabels = '';
+  if (wide) {
+    const ys = shown.map(t => Y(t.gap[last]));
+    const order = shown.map((_, i) => i).sort((a, b) => ys[a] - ys[b]);
+    let prev = -Infinity;
+    order.forEach(i => { ys[i] = Math.max(ys[i], prev + 17); prev = ys[i]; });
+    endLabels = shown.map((t, i) => `
+      <circle cx="${W - R + 14}" cy="${ys[i]}" r="4" fill="${colorOf(t)}"/>
+      <text x="${W - R + 24}" y="${ys[i] + 4}" class="race-lb">${escapeHtml((teams.indexOf(t) + 1) + '. ' + (t.name.length > 21 ? t.name.slice(0, 20) + '…' : t.name))}</text>
+      <text x="${W - 4}" y="${ys[i] + 4}" text-anchor="end" class="race-pt">${t.pts[last].toFixed(1)}</text>`).join('');
+  }
+
+  plot.innerHTML = `
+    <svg width="${W}" height="${H}" style="display:block;">
+      <style>.race-ax{fill:#A2AAAD;font:11px 'JetBrains Mono',monospace}.race-lb{fill:#e8edf1;font:600 13px 'Barlow Condensed',sans-serif}.race-pt{fill:#e8edf1;font:700 11px 'JetBrains Mono',monospace}</style>
+      <defs><clipPath id="race-clip"><rect x="${L}" y="${T - 6}" width="${W - L - R + 6}" height="${H - T - B + 12}"/></clipPath></defs>
+      ${grid}
+      <g clip-path="url(#race-clip)">${field}${lines}</g>
+      <line id="race-cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#A2AAAD" stroke-dasharray="3 3" opacity="0.6" style="display:none;"/>
+      ${endLabels}
+      <rect id="race-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/>
+    </svg>`;
+
+  // Legend below the chart: always on phones; on wide screens the names are at the line ends.
+  document.getElementById('points-race-legend').innerHTML = wide ? '' : `
+    <div style="display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px;">
+      ${shown.map(t => `<span style="display:inline-flex; align-items:center; gap:6px; font-size:13px;"><span style="width:10px; height:10px; border-radius:50%; background:${colorOf(t)}; display:inline-block;"></span>${escapeHtml((teams.indexOf(t) + 1) + '. ' + t.name)} <span class="mono" style="color:var(--text-dim); font-size:11px;">${t.pts[last].toFixed(1)}</span></span>`).join('')}
+    </div>`;
+
+  // Hover / touch: a guide line and each shown team's gap on that night.
+  const hit = document.getElementById('race-hit');
+  const cross = document.getElementById('race-cross');
+  const tip = document.getElementById('points-race-tip');
+  const show = (clientX) => {
+    const box = plot.getBoundingClientRect();
+    const x = clientX - box.left;
+    const d = Math.max(0, Math.min(last, Math.round((x - L) / ((W - L - R) / Math.max(1, last)))));
+    cross.setAttribute('x1', X(d)); cross.setAttribute('x2', X(d)); cross.style.display = '';
+    const rows = shown.filter(t => t.gap[d] != null).sort((a, b) => b.gap[d] - a.gap[d]).map(t => `
+      <div style="display:flex; align-items:center; gap:6px; padding:1px 0;">
+        <span style="width:8px; height:8px; border-radius:50%; background:${colorOf(t)}; display:inline-block;"></span>
+        <span style="flex:1; color:var(--text);">${escapeHtml(t.name.length > 22 ? t.name.slice(0, 21) + '…' : t.name)}</span>
+        <span style="color:var(--text); font-weight:700; margin-left:12px;">${t.gap[d] === 0 ? '1st' : t.gap[d].toFixed(1)}</span>
+        <span style="color:var(--text-dim); margin-left:8px;">${t.pts[d].toFixed(1)}</span>
+      </div>`).join('');
+    tip.innerHTML = `<div style="color:var(--text-dim); text-transform:uppercase; margin-bottom:4px;">${escapeHtml(day(dates[d]))}</div>${rows}`;
+    tip.style.display = 'block';
+    const tw = tip.offsetWidth;
+    const left = X(d) + 10 + tw + 14 > W - R ? X(d) + 10 - tw - 14 : X(d) + 24;
+    tip.style.left = Math.max(4, left) + 'px';
+    tip.style.top = (T + 16) + 'px';
+  };
+  const hide = () => { cross.style.display = 'none'; tip.style.display = 'none'; };
+  hit.addEventListener('mousemove', (e) => show(e.clientX));
+  hit.addEventListener('mouseleave', hide);
+  hit.addEventListener('touchstart', (e) => show(e.touches[0].clientX), { passive: true });
+  hit.addEventListener('touchmove', (e) => show(e.touches[0].clientX), { passive: true });
+
+  document.getElementById('points-race-team').addEventListener('change', (e) => {
+    try {
+      if (e.target.value) localStorage.setItem('aahl_lastNightTeam', e.target.value);
+      else localStorage.removeItem('aahl_lastNightTeam');
+    } catch (err) { /* ignore */ }
+    lastNightTeamId = e.target.value || null;
+    drawPointsRace_();
+  });
+}
+
 // ---------- Season 3 Stars Tally ----------
 /**
  * Reads the precomputed season tally (config/starsTallyCache), built
