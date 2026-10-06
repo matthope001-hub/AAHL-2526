@@ -529,10 +529,6 @@ button:hover { opacity: 0.85; }
   50% { transform: translateY(-3px) rotate(-4deg); }
 }
 .stat-ticker {
-  /* Same width as the page content, so it lines up with Today's Games */
-  width: calc(100% - 48px);
-  max-width: 1052px;
-  margin: 12px auto 0;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   overflow: hidden;
