@@ -40,7 +40,7 @@ function hasPickCounts_() { return !!(pickCounts && pickCounts.total > 0); }
 function pickedCount_(playerId) { return (hasPickCounts_() && pickCounts.players && pickCounts.players[playerId]) || 0; }
 /** " · 18 of 47 picked" for the Boxes page ('' until counts exist). */
 function pickedSuffix_(count) {
-  return hasPickCounts_() ? ` <span style="color:var(--amber); white-space:nowrap;">· ${count} of ${pickCounts.total} picked</span>` : '';
+  return hasPickCounts_() ? ` <span style="color:var(--amber); white-space:nowrap; margin-left:6px;">${count} of ${pickCounts.total} picked</span>` : '';
 }
 
 function playerColumnValue(p, key) {
