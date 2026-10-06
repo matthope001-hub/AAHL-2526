@@ -1139,3 +1139,16 @@ a.hero-badge { cursor: pointer; }
 .game-chip-team { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
 .game-chip-abbrev { font-weight: 700; font-size: 15px; flex: 1; }
 .game-chip-record { font-size: 11px; color: var(--text-dim); }
+
+/* Home page: Current Standings stretches to line up with the bottom of
+   the right-hand column (Division Leaders + Top Performers Last Week).
+   The table scrolls inside whatever height that column gives it. */
+@media (min-width: 641px) {
+  .home-grid > div:first-child { display: flex; flex-direction: column; }
+  #home-standings-preview { flex: 1; min-height: 320px; position: relative; }
+  #home-standings-preview .players-table-scroll {
+    position: absolute;
+    inset: 14px;
+    max-height: none !important;
+  }
+}
