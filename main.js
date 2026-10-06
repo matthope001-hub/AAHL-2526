@@ -349,12 +349,21 @@ async function renderTodaysGames() {
         <span class="mono game-chip-record">${escapeHtml(record || '')}</span>
       </div>`;
 
+    // Continuous ticker: repeat the games until one set is wider than any
+    // screen, then double it so the scroll loops with no gap or jump.
+    const CARD_PX = 150; // card width + gap, matches style.css
+    const copies = games.length ? Math.max(1, Math.ceil(2400 / (games.length * CARD_PX))) : 0;
+    const oneSet = [];
+    for (let i = 0; i < copies; i++) oneSet.push(...games);
+    const loop = oneSet.concat(oneSet);
+    const tickerSeconds = Math.round(oneSet.length * CARD_PX / 45); // ~45px per second
+
     el.innerHTML = `
       <h3 class="mini-title">🏒 Today's Games <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span></h3>
       ${games.length === 0
         ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
-        : `<div class="games-strip">
-            ${games.map(g => {
+        : `<div class="games-ticker"><div class="games-ticker-track" style="animation-duration:${tickerSeconds}s;">
+            ${loop.map(g => {
               const start = new Date(g.startTimeUTC);
               const time = isNaN(start.getTime()) ? '' : start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
               return `
@@ -364,7 +373,7 @@ async function renderTodaysGames() {
                 ${teamRow(g.home, g.homeRecord)}
               </div>`;
             }).join('')}
-          </div>`}
+          </div></div>`}
     `;
     el.style.display = 'block';
   } catch (e) {
