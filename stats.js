@@ -25,11 +25,27 @@ const PLAYER_COLUMNS = [
   { key: 'shutouts', label: 'SO', title: 'Shutouts', sortable: true, filters: ['all', 'G'] },
   { key: 'saves', label: 'SV', title: 'Saves', sortable: true, filters: ['all', 'G'] },
   { key: 'hatTricks', label: '🎩', title: 'Hat Tricks', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'picked', label: 'Picked', title: 'Pool teams that picked this player', sortable: true, filters: ['all', 'F', 'D', 'G'] },
   { key: 'pts', label: 'Pts', title: 'Fantasy Points', sortable: true, filters: ['all', 'F', 'D', 'G'] }
 ];
 
+// How many pool teams picked each player / division winner (PickCounts.gs).
+// null until loaded; total is 0 until picks are locked.
+let pickCounts = null;
+async function ensurePickCountsLoaded_() {
+  if (pickCounts) return;
+  try { pickCounts = await fetchPickCounts(); } catch (e) { pickCounts = null; }
+}
+function hasPickCounts_() { return !!(pickCounts && pickCounts.total > 0); }
+function pickedCount_(playerId) { return (hasPickCounts_() && pickCounts.players && pickCounts.players[playerId]) || 0; }
+/** " · 18 of 47 picked" for the Boxes page ('' until counts exist). */
+function pickedSuffix_(count) {
+  return hasPickCounts_() ? ` · <span style="color:var(--amber);">${count} of ${pickCounts.total} picked</span>` : '';
+}
+
 function playerColumnValue(p, key) {
   if (key === 'pts') return computePlayerPoints(p, currentConfig);
+  if (key === 'picked') return pickedCount_(p.id);
   const s = p.stats || {};
   return s[key] || 0;
 }
@@ -57,7 +73,7 @@ function renderPlayersTable(searchQuery) {
     list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
   }
 
-  const visibleColumns = PLAYER_COLUMNS.filter(col => col.filters.includes(playerFilter));
+  const visibleColumns = PLAYER_COLUMNS.filter(col => col.filters.includes(playerFilter) && (col.key !== 'picked' || hasPickCounts_()));
 
   // If sorting by a column that's no longer visible after switching filters
   // (e.g. was sorting by Saves, then switched to Forwards), fall back to Pts.
@@ -85,6 +101,7 @@ function renderPlayersTable(searchQuery) {
     shutouts: (p) => (p.stats && p.stats.shutouts) || 0,
     saves: (p) => (p.stats && p.stats.saves) || 0,
     hatTricks: (p) => (p.stats && p.stats.hatTricks) ? `<span class="hat-trick">${p.stats.hatTricks}</span>` : '—',
+    picked: (p) => `${pickedCount_(p.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span>`,
     pts: (p) => `<span class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</span>`
   };
 
@@ -633,6 +650,86 @@ function drawPointsRace_() {
   });
 }
 
+// ---------- Season Records page ----------
+// Built in the browser from data already saved each night: the Points
+// Race history (every team's points per night) and the 3 Stars history
+// (the top three players each night).
+async function renderRecordsPage() {
+  const el = document.getElementById('records-content');
+  if (!el) return;
+  el.innerHTML = skeletonLoader_();
+
+  const [race, tally] = await Promise.all([fetchPointsRace().catch(() => null), fetchStarsTally_()]);
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const card = (title, note, rows) => `
+    <div>
+      <h3 class="mini-title">${title}</h3>
+      <div class="panel">
+        ${rows.length ? rows.join('') : `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not enough games yet.</p>`}
+        ${note ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">${note}</p>` : ''}
+      </div>
+    </div>`;
+  const row = (i, main, sub, value) => `
+    <div class="division-leader-row">
+      <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+        <span class="mono" style="color:var(--amber); font-weight:700; width:14px;">${i + 1}</span>
+        <div class="division-leader-info" style="min-width:0;">
+          <div class="division-leader-team">${main}</div>
+          <div class="mono division-leader-record">${sub}</div>
+        </div>
+      </div>
+      <div class="division-leader-earning"><span class="division-leader-count">${value}</span></div>
+    </div>`;
+
+  const teamNights = [], climbs = [], daysInFirst = {};
+  const teamNames = {};
+  if (race && race.dates && race.teams) {
+    const ids = Object.keys(race.teams);
+    // Rank of every team on each night (1 = most points; ties share a rank).
+    const ranks = race.dates.map((_, d) => {
+      const pts = ids.filter(id => race.teams[id].pts[d] != null).map(id => race.teams[id].pts[d]).sort((a, b) => b - a);
+      const out = {};
+      ids.forEach(id => { const v = race.teams[id].pts[d]; if (v != null) out[id] = pts.indexOf(v) + 1; });
+      return out;
+    });
+    race.dates.forEach((date, d) => {
+      ids.forEach(id => {
+        const t = race.teams[id];
+        const now = t.pts[d];
+        if (now == null) return;
+        if (ranks[d][id] === 1) daysInFirst[id] = (daysInFirst[id] || 0) + 1;
+        // A team's first recorded night only counts if it's opening night
+        // (otherwise a late entry's whole season would look like one night).
+        const prev = d === 0 ? 0 : t.pts[d - 1];
+        if (prev == null) return;
+        teamNights.push({ name: t.name, date, gain: now - prev });
+        // Skip the first two nights: early ranks jump around too much to mean anything.
+        if (d > 1 && ranks[d - 1][id]) {
+          climbs.push({ name: t.name, date, up: ranks[d - 1][id] - ranks[d][id], from: ranks[d - 1][id], to: ranks[d][id] });
+        }
+      });
+    });
+    ids.forEach(id => { teamNames[id] = race.teams[id].name; });
+  }
+  teamNights.sort((a, b) => b.gain - a.gain);
+  climbs.sort((a, b) => (b.up - a.up) || (a.to - b.to));
+
+  const playerNights = [];
+  ((tally && tally.history) || []).forEach(n => (n.stars || []).forEach(p => playerNights.push({ name: p.fullName, team: p.team, date: n.date, pts: p.pts || 0 })));
+  playerNights.sort((a, b) => b.pts - a.pts);
+
+  const firsts = Object.keys(daysInFirst).map(id => ({ name: teamNames[id], days: daysInFirst[id] })).sort((a, b) => b.days - a.days);
+
+  el.innerHTML = `
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">The best of the season so far. Updated every morning.</p>
+    <div class="home-grid" style="margin-top:0;">
+      ${card('🔥 Best Night by a Team', '', teamNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), escapeHtml(day(r.date)), '+' + r.gain.toFixed(2))))}
+      ${card('⭐ Best Night by a Player', '', playerNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(r.team || '')} · ${escapeHtml(day(r.date))}`, '+' + r.pts.toFixed(2))))}
+      ${card('📈 Biggest One-Day Climb', '', climbs.filter(r => r.up > 0).slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(day(r.date))} · ${ordinal(r.from)} → ${ordinal(r.to)}`, '▲' + r.up)))}
+      ${card('👑 Most Nights in 1st Place', '', firsts.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `of ${race.dates.length} nights so far`, r.days)))}
+    </div>`;
+}
+
 // ---------- Season 3 Stars Tally ----------
 /**
  * Reads the precomputed season tally (config/starsTallyCache), built
@@ -812,7 +909,7 @@ async function renderBoxesReference() {
                   ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                 </span>
                 <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
-                <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts</span>
+                <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts${pickedSuffix_(pickedCount_(p.playerId))}</span>
                 <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
               </div>
             `;}).join('')}
@@ -851,7 +948,7 @@ async function renderBoxesReference() {
               <div class="box-option box-option-readonly">
                 <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
-                <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
+                <span class="mono box-option-stats">${escapeHtml(refLabel)}${pickedSuffix_((hasPickCounts_() && pickCounts.divisions && pickCounts.divisions[abbrev]) || 0)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
               </div>
             `;}).join('')}
