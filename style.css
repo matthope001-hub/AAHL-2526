@@ -529,22 +529,27 @@ button:hover { opacity: 0.85; }
   50% { transform: translateY(-3px) rotate(-4deg); }
 }
 .stat-ticker {
+  /* Same width as the page content, so it lines up with Today's Games */
+  width: calc(100% - 48px);
+  max-width: 1052px;
+  margin: 12px auto 0;
   background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
   overflow: hidden;
   white-space: nowrap;
-  padding: 8px 0;
+  padding: 4px 0;
 }
+.stat-ticker-row { overflow: hidden; padding: 4px 0; }
+.stat-ticker-row + .stat-ticker-row { border-top: 1px solid var(--bg-panel-alt); }
 .stat-ticker-track {
-  display: inline-flex;
+  display: flex;
   gap: 32px;
-  animation: ticker-scroll 480s linear infinite;
-  padding-left: 100%;
+  width: max-content;
+  animation: ticker-scroll linear infinite;
 }
-.stat-ticker:hover .stat-ticker-track { animation-play-state: paused; }
 @keyframes ticker-scroll {
   0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+  100% { transform: translateX(calc(-50% - 16px)); }
 }
 .ticker-chip {
   font-family: var(--font-mono);
