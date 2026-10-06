@@ -150,6 +150,13 @@ async function fetchWeeklyTop() {
   return direct || null;
 }
 
+// Every night's team points, saved each morning by
+// recordPointsRaceSnapshot() in PointsRace.gs (for the Points Race chart).
+async function fetchPointsRace() {
+  const direct = await supabaseDirectGet_('config', 'pointsRaceHistory');
+  return direct || null;
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
