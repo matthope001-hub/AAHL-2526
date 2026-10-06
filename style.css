@@ -1115,22 +1115,17 @@ a.hero-badge { cursor: pointer; }
   }
 }
 /* Today's Games strip (Home page) */
-.games-strip {
+.games-ticker { overflow: hidden; }
+.games-ticker-track {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
   gap: 8px;
+  width: max-content;
+  animation: games-ticker-scroll linear infinite;
 }
-.games-strip .game-chip { flex: 0 0 142px; }
-@media (max-width: 640px) {
-  /* Phones: one swipeable row instead of a tall stack */
-  .games-strip {
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    padding-bottom: 6px;
-    -webkit-overflow-scrolling: touch;
-  }
+.games-ticker-track .game-chip { flex: 0 0 142px; margin: 0; }
+@keyframes games-ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 4px)); }
 }
 .game-chip {
   min-width: 132px;
