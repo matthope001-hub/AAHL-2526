@@ -17,7 +17,7 @@ const DEFAULT_TRADE_DEADLINE = '2027-03-01T23:59:00-05:00';
 // ---------- Navigation ----------
 const VIEW_TITLES = {
   home: 'Home', standings: 'Standings', players: 'Players', lastnight: "Last Night",
-  activity: 'Activity', rules: 'Rules', boxes: 'Boxes', ir: 'IR List',
+  records: 'Records', activity: 'Activity', rules: 'Rules', boxes: 'Boxes', ir: 'IR List',
   signup: 'Sign Up', managemoves: 'My Team', admin: 'Commissioner'
 };
 
@@ -38,11 +38,12 @@ document.querySelectorAll('.nav-link').forEach(link => {
 
     if (view === 'home') refreshAndRenderHome();
     if (view === 'standings') refreshAndRenderStandings();
-    if (view === 'players') { await ensurePlayersLoaded(); renderPlayersTable(); }
+    if (view === 'players') { await Promise.all([ensurePlayersLoaded(), ensurePickCountsLoaded_()]); renderPlayersTable(); }
     if (view === 'lastnight') { await ensurePlayersLoaded(); renderLastNightStats(); }
+    if (view === 'records') renderRecordsPage();
     if (view === 'activity') renderActivityList_();
     if (view === 'rules') renderRulesPage();
-    if (view === 'boxes') { await ensurePlayersLoaded(); renderBoxesReference(); }
+    if (view === 'boxes') { await Promise.all([ensurePlayersLoaded(), ensurePickCountsLoaded_()]); renderBoxesReference(); }
     if (view === 'ir') renderIRPanel();
     if (view === 'signup') { await Promise.all([ensurePlayersLoaded(), ensureBoxesLoaded_(), ensureLastSeasonStandingsLoaded_()]); renderSignupForm(); }
     if (view === 'managemoves') { await ensurePlayersLoaded(); renderManageMoves(); }
