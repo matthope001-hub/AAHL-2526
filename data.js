@@ -157,6 +157,13 @@ async function fetchPointsRace() {
   return direct || null;
 }
 
+// How many pool teams picked each player / division winner, saved each
+// morning by rebuildPickCounts() in PickCounts.gs.
+async function fetchPickCounts() {
+  const direct = await supabaseDirectGet_('config', 'pickCountsCache');
+  return direct || null;
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
