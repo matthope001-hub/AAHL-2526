@@ -140,12 +140,12 @@ async function renderSignupFormBody() {
                       <img class="player-hover-photo" src="${headshot}" alt="" loading="lazy">
                       <div class="player-hover-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ' <span class="ir-badge">🩹</span>' : ''}</div>
                       <div class="player-hover-team mono">${escapeHtml(currentTeam)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
-                      ${fullPlayer && fullPlayer.injuryStatus ? `<div class="mono" style="color:#ff5c5c; font-size:12px; margin-bottom:6px;">Injured: ${escapeHtml(fullPlayer.injuryStatus)}</div>` : ''}
+                      ${fullPlayer && fullPlayer.injuryStatus ? `<div class="mono" style="color:#ff5c5c; font-size:12px; margin-bottom:6px;">Status: ${escapeHtml(fullPlayer.injuryStatus)}</div>` : ''}
                       <div class="player-hover-stats mono">${cardStats}</div>
                       <div class="player-hover-pts mono">${pts} pts</div>
                     </div>` : ''}
                   </span>
-                  <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Injured: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
+                  <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Status: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
                   <span class="mono box-option-stats">${statLine}</span>
                   <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
                 </label>
@@ -628,7 +628,7 @@ function renderMyTeamBoxPicker() {
             return `
             <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
               <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}" ${isSelected ? 'checked' : ''}>
-              <span class="box-option-name">${escapeHtml(p.name)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
+              <span class="box-option-name">${escapeHtml(p.name)}${statusBadge_(p.playerId)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
               <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
             </label>
           `;}).join('')}
