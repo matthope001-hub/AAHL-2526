@@ -104,6 +104,19 @@ function renderAdminEntries(entries) {
       <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">A ready-to-post picture of last week's standings for the Facebook group.</span>
       <div id="admin-weekly-image-result" style="margin-top:10px;"></div>
     </div>
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:6px;">Player Status (IR List)</h3>
+      <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">The IR List fills itself from the NHL injury feed every 4 hours. Use this to add someone it missed, correct a status, or mark a player healthy.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <select id="admin-inj-player" style="flex:2; min-width:200px; margin:0;"><option value="">Loading players...</option></select>
+        <select id="admin-inj-code" style="flex:1; min-width:170px; margin:0;"></select>
+        <input type="text" id="admin-inj-note" placeholder="Details (e.g. Knee)" style="flex:1; min-width:150px; margin:0;">
+        <button id="admin-inj-set-btn" style="margin:0;">Set</button>
+        <button id="admin-inj-refresh-btn" class="admin-btn">Refresh from feed now</button>
+      </div>
+      <div id="admin-inj-status" class="status-msg"></div>
+      <div id="admin-inj-overrides" style="margin-top:10px;"></div>
+    </div>
     <div id="admin-pending-moves"></div>
   `;
 
@@ -115,6 +128,7 @@ function renderAdminEntries(entries) {
     wireAdminAddLateEntryButton_();
     wireAdminCreateLateLinkButton_();
     wireAdminWeeklyImageButton_();
+    wireAdminInjuryPanel_();
     return;
   }
 
@@ -235,6 +249,7 @@ function renderAdminEntries(entries) {
   wireAdminAddLateEntryButton_();
   wireAdminCreateLateLinkButton_();
   wireAdminWeeklyImageButton_();
+  wireAdminInjuryPanel_();
 }
 
 async function loadAdminPendingMoves() {
@@ -496,4 +511,79 @@ function drawWeeklyImage_(race, weekly) {
   text('theaahl.ca', W - PAD, H - 48, `800 40px ${DISPLAY}`, ICE, 'right');
 
   return canvas;
+}
+
+// ---------- Player status overrides (IR List) ----------
+/**
+ * Admin panel for setting a pool player's status by hand. An override
+ * always beats the automatic feed; "Healthy" forces a player off the IR
+ * List; "Remove" hands the player back to the automatic feed.
+ */
+async function wireAdminInjuryPanel_() {
+  const playerSel = document.getElementById('admin-inj-player');
+  const codeSel = document.getElementById('admin-inj-code');
+  const noteEl = document.getElementById('admin-inj-note');
+  const statusEl = document.getElementById('admin-inj-status');
+  const listEl = document.getElementById('admin-inj-overrides');
+  if (!playerSel || !codeSel) return;
+
+  codeSel.innerHTML = INJURY_ORDER.map(code => `<option value="${code}">${code} - ${escapeHtml(INJURY_STATUS[code].label)}</option>`).join('')
+    + `<option value="OK">OK - Healthy (take off the list)</option>`;
+
+  await ensurePlayersLoaded();
+  const pool = allPlayers.filter(p => poolPlayerIds.has(p.id)).sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
+  playerSel.innerHTML = `<option value="">Pick a player...</option>` + pool.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.fullName)} (${escapeHtml(p.team || '')})</option>`).join('');
+
+  const say = (msg, isError) => { statusEl.textContent = msg; statusEl.className = 'status-msg' + (isError ? ' error' : ''); };
+
+  const reloadSite = async () => {
+    await ensureInjuriesLoaded_(true);
+    applyInjuriesToPlayers_();
+  };
+
+  const renderOverrides = async () => {
+    const overrides = await fetchInjuryOverrides();
+    const ids = Object.keys(overrides);
+    listEl.innerHTML = ids.length === 0
+      ? `<p class="mono" style="color:var(--text-dim); font-size:12px;">No manual statuses set.</p>`
+      : ids.map(id => {
+          const p = allPlayers.find(ap => ap.id === id);
+          const o = overrides[id];
+          return `<div class="activity-row">
+            <span>${escapeHtml(p ? p.fullName : id)} — <span class="ir-badge">${escapeHtml(o.code)}</span>${o.note ? ' ' + escapeHtml(o.note) : ''}</span>
+            <button class="admin-btn" data-inj-remove="${escapeHtml(id)}">Remove</button>
+          </div>`;
+        }).join('');
+    listEl.querySelectorAll('[data-inj-remove]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        say('Removing...');
+        const result = await adminClearInjury(adminPassword, btn.dataset.injRemove);
+        say(result.success ? 'Removed - back to the automatic feed.' : (result.error || 'Failed'), !result.success);
+        await reloadSite();
+        renderOverrides();
+      });
+    });
+  };
+
+  document.getElementById('admin-inj-set-btn').addEventListener('click', async () => {
+    if (!playerSel.value) { say('Pick a player first.', true); return; }
+    say('Saving...');
+    const result = await adminSetInjury(adminPassword, playerSel.value, codeSel.value, noteEl.value.trim(), '');
+    say(result.success ? 'Saved.' : (result.error || 'Failed'), !result.success);
+    if (result.success) { noteEl.value = ''; playerSel.value = ''; }
+    await reloadSite();
+    renderOverrides();
+  });
+
+  document.getElementById('admin-inj-refresh-btn').addEventListener('click', async () => {
+    say('Refreshing from the injury feed...');
+    const result = await adminRefreshInjuries(adminPassword);
+    say(result.success
+      ? `Done - ${result.count} pool player${result.count === 1 ? '' : 's'} listed.${result.feedOk === false ? ' The feed could not be reached, so the last results were kept.' : ''}`
+      : (result.error || 'Failed'), !result.success);
+    await reloadSite();
+  });
+
+  renderOverrides();
 }
