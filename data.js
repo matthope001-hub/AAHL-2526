@@ -189,6 +189,13 @@ async function adminRefreshInjuries(password) {
   return apiPost('adminRefreshInjuries', { password });
 }
 
+// How many of each team's division winner picks are leading right now,
+// saved each morning by rebuildDivisionProjection() in DivisionProjection.gs.
+async function fetchDivisionProjection() {
+  const direct = await supabaseDirectGet_('config', 'divisionProjectionCache');
+  return direct || null;
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
