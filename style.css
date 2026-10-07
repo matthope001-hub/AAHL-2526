@@ -1156,3 +1156,27 @@ a.hero-badge { cursor: pointer; }
     max-height: none !important;
   }
 }
+
+/* Standings: payouts beside the heading, division dots, compact home table */
+.payout-summary { margin-left: auto; font-weight: 400; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--text-dim); white-space: nowrap; }
+.payout-amount { color: var(--amber); font-weight: 700; }
+.div-dots { display: inline-flex; gap: 3px; vertical-align: middle; }
+.div-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid #4a4f55; }
+.div-dot-on { background: var(--amber); border-color: var(--amber); }
+.rank-move { font-family: var(--font-mono); font-size: 10px; margin-left: 5px; }
+.compact-standings { table-layout: fixed; }
+.compact-standings .col-rank { width: 64px; }
+.compact-standings .col-div { width: 70px; }
+.compact-standings .col-today { width: 78px; }
+.compact-standings .col-pts { width: 80px; }
+.compact-standings .num { text-align: right; }
+.compact-standings .team-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 640px) {
+  .mini-title { flex-wrap: wrap; }
+  .payout-summary { margin-left: 0; }
+  /* Phones: drop "Today" so the team name keeps its room */
+  .compact-standings .col-today { display: none; width: 0; }
+  .compact-standings .col-rank { width: 56px; }
+  .compact-standings .col-div { width: 62px; }
+  .compact-standings .col-pts { width: 72px; }
+}
