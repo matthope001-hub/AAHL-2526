@@ -203,6 +203,13 @@ async function fetchPlayersOfWeekHistory() {
   return (direct && direct.weeks) || [];
 }
 
+// Live pool points during tonight's games, updated every 10 minutes by
+// refreshLivePoints_() in LivePoints.gs (an estimate until the 4am run).
+async function fetchLivePoints() {
+  const direct = await supabaseDirectGet_('config', 'livePointsCache');
+  return direct || null;
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
