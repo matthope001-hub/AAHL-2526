@@ -1175,3 +1175,17 @@ a.hero-badge { cursor: pointer; }
 .division-card .division-leader-count { font-size: 26px; }
 @media (max-width: 900px) { .division-cards { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .division-cards { grid-template-columns: 1fr; } }
+
+/* IR List: compact, sortable */
+.ir-table { font-size: 12px; }
+.ir-table th { padding: 6px 8px; }
+.ir-table td { padding: 4px 8px; }
+.ir-player { display: flex; align-items: center; gap: 8px; }
+.ir-player img, .ir-player-nophoto { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); flex-shrink: 0; display: inline-block; }
+.ir-player-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; line-height: 1.1; }
+.ir-player-meta { color: var(--text-dim); font-size: 10px; }
+.ir-soon { color: var(--text-dim); font-size: 10px; margin-left: 4px; }
+.ir-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 11px; color: var(--text-dim); }
+@media (max-width: 640px) {
+  .ir-table .ir-hide-sm { display: none; }
+}
