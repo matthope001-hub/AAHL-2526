@@ -83,7 +83,7 @@
     </div>
 
     <div style="margin-bottom:20px;">
-      <h3 class="mini-title">Current Standings</h3>
+      <h3 class="mini-title">Current Standings <span class="mono updated-stamp" data-stamp="stats"></span></h3>
       <div id="home-standings-preview" class="panel"></div>
     </div>
 
@@ -111,13 +111,14 @@
 
   <section id="view-standings" class="view">
     <h2 class="section-title">Standings</h2>
-    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">Payout reflects the current prize pool and will grow as more entries join.</p>
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">Payout reflects the current prize pool and will grow as more entries join. <span class="mono updated-stamp" data-stamp="stats" style="margin-left:6px;"></span></p>
     <div id="points-race" style="display:none; margin-bottom:20px;"></div>
     <div id="standings-table" class="panel"></div>
   </section>
 
   <section id="view-players" class="view">
     <h2 class="section-title">Players</h2>
+    <p style="margin:-6px 0 10px;"><span class="mono updated-stamp" data-stamp="stats"></span></p>
     <div class="filter-tabs" id="player-filter-tabs">
       <button class="filter-tab active" data-filter="all">All</button>
       <button class="filter-tab" data-filter="F">Forwards</button>
