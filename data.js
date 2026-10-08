@@ -196,6 +196,13 @@ async function fetchDivisionProjection() {
   return direct || null;
 }
 
+// Every week's Players of the Week this season (newest first), saved each
+// Monday by rebuildWeeklyTopPerformers() in WeeklyStars.gs.
+async function fetchPlayersOfWeekHistory() {
+  const direct = await supabaseDirectGet_('config', 'playersOfWeekHistory');
+  return (direct && direct.weeks) || [];
+}
+
 async function fetchRecentActivity() {
   const direct = await supabaseDirectGet_('config', 'recentActivityCache');
   if (direct !== undefined) return (direct && direct.items) || [];
