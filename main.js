@@ -809,20 +809,57 @@ function sortedStandings_() {
  * Ranking and payouts always use the real points; until the season ends
  * the division bonus is a projection only.
  */
+// Which column the standings are sorted by (shared by Home and Standings).
+// 'rank' is the normal order; Players / Div / Projected sort high to low
+// first, and clicking the same heading again flips it.
+let standingsSort = { key: 'rank', dir: 'asc' };
+
+function applyStandingsSort_(rows) {
+  if (standingsSort.key === 'rank') return rows;
+  const val = {
+    players: e => pointsBreakdown_(e).players,
+    div: e => (pointsBreakdown_(e).leading || 0) * 1000 + pointsBreakdown_(e).players, // ties broken by players
+    projected: e => pointsBreakdown_(e).total
+  }[standingsSort.key];
+  const out = [...rows].sort((a, b) => val(b) - val(a));
+  return standingsSort.dir === 'desc' ? out : out.reverse();
+}
+
+/** Makes the sortable headings clickable; redraw() re-renders the table. */
+function wireStandingsSort_(el, redraw) {
+  el.querySelectorAll('[data-st-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.stSort;
+      if (key === 'rank') standingsSort = { key: 'rank', dir: 'asc' };
+      else standingsSort = standingsSort.key === key
+        ? { key, dir: standingsSort.dir === 'desc' ? 'asc' : 'desc' }
+        : { key, dir: 'desc' };
+      redraw();
+    });
+  });
+}
+
 function standingsTableHtml_(sorted, deltaLabel) {
   const hasDiv = !!(divisionProjection && divisionProjection.byEntry);
   const final = currentConfig.seasonComplete === true;
   const approvedRanks = sorted.filter(e => e.approved && e.rank != null).map(e => e.rank);
   const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
+  if (!hasDiv && standingsSort.key !== 'rank') standingsSort = { key: 'rank', dir: 'asc' };
+  sorted = applyStandingsSort_(sorted);
+  const sortHead = (key, label, cls, title) => {
+    const on = standingsSort.key === key;
+    const arrow = on && key !== 'rank' ? (standingsSort.dir === 'desc' ? ' ▼' : ' ▲') : '';
+    return `<th class="sortable-col ${on ? 'sorted-col' : ''} ${cls || ''}" data-st-sort="${key}" title="${escapeHtml(title || 'Sort')}">${label}${arrow}</th>`;
+  };
 
   return `
     <table class="standings-full">
       <thead><tr>
-        <th>Rank</th><th>Team</th>
+        ${hasDiv ? sortHead('rank', 'Rank', '', 'Back to the normal ranking') : '<th>Rank</th>'}<th>Team</th>
         ${hasDiv
-          ? `<th class="num" title="Points earned by players">Players</th>
-             <th title="Division winner picks leading now, +25 each">Div${final ? '' : '*'}</th>
-             <th class="num col-hide-sm" title="Players plus the division bonus">${final ? 'Total' : 'Projected*'}</th>`
+          ? `${sortHead('players', 'Players', 'num', 'Points earned by players - click to sort')}
+             ${sortHead('div', 'Div' + (final ? '' : '*'), '', 'Division winner picks leading now, +25 each - click to sort')}
+             ${sortHead('projected', final ? 'Total' : 'Projected*', 'num col-hide-sm', 'Players plus the division bonus - click to sort')}`
           : '<th class="num">Points</th>'}
         <th class="num col-hide-sm">${escapeHtml(deltaLabel)}</th><th class="col-hide-sm">Move</th><th class="col-hide-sm">Payout</th>
       </tr></thead>
@@ -858,6 +895,7 @@ function renderHomeStandingsPreview() {
   }
   el.innerHTML = `<div class="players-table-scroll" style="max-height:470px;">${standingsTableHtml_(sorted, '±Pts')}</div>`;
   attachTeamLinkListeners(el);
+  wireStandingsSort_(el, renderHomeStandingsPreview);
 }
 
 // ---------- Standings ----------
@@ -876,6 +914,7 @@ function renderStandingsTable() {
   }
   el.innerHTML = standingsTableHtml_(sorted, '±Pts (24h)');
   attachTeamLinkListeners(el);
+  wireStandingsSort_(el, renderStandingsTable);
 }
 
 function renderPicksModalBody_(data, ownerLine) {
