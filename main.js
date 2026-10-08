@@ -70,6 +70,7 @@ async function init() {
   renderStatTicker();
   renderDivisionLeadersPanel();
   applySignupCtaVisibility();
+  fillUpdatedStamps_();
 }
 
 function applySignupCtaVisibility() {
@@ -455,6 +456,17 @@ function gameCardInner_(g) {
     ${teamRow(g.home, g.homeRecord, g.homeScore, g.awayScore)}`;
 }
 
+/** "● LIVE · scores updated 8:42 PM" while games are on; "Scores updated ..." after. */
+function gamesStampHtml_(data) {
+  const games = (data && data.games) || [];
+  const live = games.some(g => g.state === 'live');
+  const anyStarted = games.some(g => g.state === 'live' || g.state === 'final');
+  if (!anyStarted) return '';
+  const d = data.updatedAt ? new Date(data.updatedAt) : null;
+  const time = d && !isNaN(d.getTime()) ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+  return `${live ? '<span class="game-chip-live">● LIVE</span> · ' : ''}${time ? 'scores updated ' + time : ''}`;
+}
+
 /** The current "hockey day" (ET, rolling over at 5am) as YYYY-MM-DD. */
 function hockeyDay_() {
   return new Date(Date.now() - 5 * 3600000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -484,6 +496,8 @@ async function renderTodaysGames() {
 
     // Same games as last time: just refresh scores/status in place.
     if (key === todaysGamesKey_ && el.querySelector('.game-chip')) {
+      const stamp = document.getElementById('todays-games-stamp');
+      if (stamp) stamp.innerHTML = gamesStampHtml_(data);
       games.forEach(g => {
         el.querySelectorAll(`.game-chip[data-game-id="${g.id}"]`).forEach(card => { card.innerHTML = gameCardInner_(g); });
       });
@@ -501,7 +515,8 @@ async function renderTodaysGames() {
     const tickerSeconds = Math.round(oneSet.length * CARD_PX / 45); // ~45px per second
 
     el.innerHTML = `
-      <h3 class="mini-title">🏒 Today's Games <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span></h3>
+      <h3 class="mini-title">🏒 Today's Games <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span>
+        <span class="mono updated-stamp" id="todays-games-stamp">${gamesStampHtml_(data)}</span></h3>
       ${games.length === 0
         ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
         : `<div class="games-ticker"><div class="games-ticker-track" style="animation-duration:${tickerSeconds}s;">
@@ -853,7 +868,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
   };
 
   return `
-    <table class="standings-full">
+    <table class="standings-full data-table">
       <thead><tr>
         ${hasDiv ? sortHead('rank', 'Rank', '', 'Back to the normal ranking') : '<th>Rank</th>'}<th>Team</th>
         ${hasDiv
@@ -1094,7 +1109,7 @@ function drawIRTable_() {
     <div class="panel" style="margin-bottom:16px;">
       ${rows.length === 0
         ? `<p class="mono" style="color:var(--text-dim)">No pool players are currently injured or unavailable.</p>`
-        : `<table class="ir-table">
+        : `<table class="ir-table data-table">
             <thead><tr>
               ${head('player', 'Player')}
               ${head('status', 'Status')}
@@ -1143,6 +1158,70 @@ function drawIRTable_() {
   });
 }
 
+
+// ---------- Shared table helpers ----------
+/**
+ * Player cell used by every table: small photo, name (with any injury
+ * marker), and "TEAM · POS" underneath.
+ */
+function playerCellHtml_(name, headshot, team, pos, playerId) {
+  return `<div class="dt-player">
+    ${headshot ? `<img src="${headshot}" alt="" loading="lazy">` : '<span class="dt-player-nophoto"></span>'}
+    <div><div class="dt-player-name">${escapeHtml(name)}${playerId ? statusBadge_(playerId) : ''}</div>
+    <div class="dt-player-meta">${escapeHtml(team || '')}${pos ? ' · ' + escapeHtml(pos) : ''}</div></div>
+  </div>`;
+}
+
+/**
+ * Click-to-sort for simple tables: any <th data-sort="num|text"> sorts the
+ * rows by that column (cells can carry data-v with the value to sort on).
+ * Numbers sort high to low first; click again to reverse.
+ */
+function makeTableSortable_(table) {
+  if (!table) return;
+  const heads = [...table.querySelectorAll('thead th')];
+  heads.forEach((th, col) => {
+    const type = th.dataset.sort;
+    if (!type) return;
+    th.classList.add('sortable-col');
+    th.addEventListener('click', () => {
+      const dir = th.dataset.dir === 'desc' ? 'asc' : (th.dataset.dir === 'asc' ? 'desc' : (type === 'num' ? 'desc' : 'asc'));
+      heads.forEach(h => { delete h.dataset.dir; h.classList.remove('sorted-col'); h.textContent = h.textContent.replace(/ [▲▼]$/, ''); });
+      th.dataset.dir = dir;
+      th.classList.add('sorted-col');
+      th.textContent += dir === 'desc' ? ' ▼' : ' ▲';
+      const body = table.tBodies[0];
+      const val = (row) => {
+        const cell = row.children[col];
+        const raw = cell && cell.dataset.v != null ? cell.dataset.v : (cell ? cell.textContent.trim() : '');
+        if (type !== 'num') return raw.toLowerCase();
+        const n = parseFloat(String(raw).replace(/[^0-9.\-]/g, ''));
+        return isNaN(n) ? -Infinity : n;
+      };
+      [...body.rows]
+        .sort((a, b) => { const va = val(a), vb = val(b); const d = va < vb ? -1 : (va > vb ? 1 : 0); return dir === 'asc' ? d : -d; })
+        .forEach(row => body.appendChild(row));
+    });
+  });
+}
+
+// ---------- "Updated" stamps ----------
+/** "Updated Oct 8, 4:12 AM" from an ISO time, or '' if there isn't one. */
+function updatedText_(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || isNaN(d.getTime())) return '';
+  return 'Updated ' + d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ * Fills every [data-stamp="stats"] with when the stats and standings were
+ * last refreshed (the nightly run's standings timestamp).
+ */
+async function fillUpdatedStamps_() {
+  let text = '';
+  try { text = updatedText_(await getDataVersion_()); } catch (e) { /* leave blank */ }
+  document.querySelectorAll('[data-stamp="stats"]').forEach(el => { el.textContent = text; });
+}
 
 // ---------- Utility ----------
 /**
