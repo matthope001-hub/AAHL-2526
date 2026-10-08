@@ -979,6 +979,7 @@ function renderPicksModalBody_(data, ownerLine) {
     <h2 style="margin-bottom:4px;">${escapeHtml(data.teamName)}</h2>
     ${ownerLine ? `<p style="color:var(--text-dim); font-size:13px; margin-bottom:8px;">${ownerLine}</p>` : ''}
     ${data.pointBank ? `<p class="mono" style="color:var(--amber); font-size:13px; margin-bottom:12px;">Banked from moves: +${data.pointBank.toFixed(2)}pts</p>` : ''}
+    ${dataVersionValue_ ? `<p class="mono updated-stamp" style="margin:-2px 0 8px;">Points ${escapeHtml(updatedText_(dataVersionValue_).toLowerCase())} · updates every morning around 4 AM ET</p>` : ''}
     ${tonightSummaryHtml_(data)}
     ${Object.keys(groupTitles).map(type => {
       // Group total = every pick's points since acquired + points banked
