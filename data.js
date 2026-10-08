@@ -217,7 +217,20 @@ async function fetchRecentActivity() {
   return result.success ? result.data : [];
 }
 
+/**
+ * A team's picks for the team popup. Reads the ready-made copy saved by
+ * rebuildTeamViews() in TeamViews.gs (fast), as long as it was built from
+ * the current standings; otherwise asks Apps Script to build it (slower).
+ */
 async function fetchEntryPicks(entryId) {
+  try {
+    const [doc, version] = await Promise.all([
+      supabaseDirectGet_('config', 'teamView_' + entryId),
+      getDataVersion_()
+    ]);
+    if (doc && doc.view && (!version || doc.version === version)) return doc.view;
+  } catch (e) { /* fall back below */ }
+
   const result = await apiGet('entryPicks', { entryId });
   return result.success ? result.data : { error: result.error || "Couldn't load picks." };
 }
