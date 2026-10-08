@@ -670,9 +670,19 @@ async function refreshAndRenderHome() {
   applySignupCtaVisibility();
 }
 
+// Short team names for the Division Leaders cards (the logo says the rest).
+const TEAM_NICKNAMES = {
+  ANA: 'Ducks', BOS: 'Bruins', BUF: 'Sabres', CGY: 'Flames', CAR: 'Hurricanes', CHI: 'Blackhawks',
+  COL: 'Avalanche', CBJ: 'Blue Jackets', DAL: 'Stars', DET: 'Red Wings', EDM: 'Oilers', FLA: 'Panthers',
+  LAK: 'Kings', MIN: 'Wild', MTL: 'Canadiens', NSH: 'Predators', NJD: 'Devils', NYI: 'Islanders',
+  NYR: 'Rangers', OTT: 'Senators', PHI: 'Flyers', PIT: 'Penguins', SJS: 'Sharks', SEA: 'Kraken',
+  STL: 'Blues', TBL: 'Lightning', TOR: 'Maple Leafs', UTA: 'Mammoth', VAN: 'Canucks', VGK: 'Golden Knights',
+  WSH: 'Capitals', WPG: 'Jets'
+};
+
 async function renderDivisionLeadersPanel(preloadedLeaders) {
   const el = document.getElementById('division-leaders-panel');
-  el.innerHTML = `${skeletonLoader_()}`;
+  el.innerHTML = `<div class="panel" style="grid-column:1 / -1;">${skeletonLoader_()}</div>`;
 
   try {
     const leaders = preloadedLeaders !== undefined ? preloadedLeaders : await fetchDivisionLeadersDisplay();
@@ -681,14 +691,14 @@ async function renderDivisionLeadersPanel(preloadedLeaders) {
       return;
     }
 
+    // One card per division: big logo, the team's short name, its record,
+    // and how many pool teams picked it.
     el.innerHTML = leaders.map(d => `
-      <div class="division-leader-row">
-        <div class="division-leader-info">
+      <div class="division-card" title="${escapeHtml(d.teamName || '')}">
+        ${d.teamAbbrev ? `<img class="division-card-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(d.teamAbbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+        <div class="division-card-info">
           <div class="mono division-leader-name-label">${escapeHtml(d.division)}</div>
-          <div class="division-leader-team">
-            ${d.teamAbbrev ? `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${d.teamAbbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
-            ${escapeHtml(d.teamName)}
-          </div>
+          <div class="division-card-team">${escapeHtml(TEAM_NICKNAMES[d.teamAbbrev] || d.teamName || '')}</div>
           <div class="mono division-leader-record">${d.points}pts · ${d.gamesPlayed}GP</div>
         </div>
         <div class="division-leader-earning">
@@ -783,21 +793,6 @@ function divisionDotsHtml_(e) {
   return `<span class="div-dots" title="${escapeHtml(tip)}">${dots}</span>`;
 }
 
-/** "🥇 $188  🥈 $47  Last: free entry" - shown beside the standings headings. */
-function renderPayoutSummary_() {
-  const parts = [];
-  ['🥇', '🥈', '🥉'].forEach((medal, i) => {
-    const amount = payoutForRank(i + 1);
-    if (amount != null && amount > 0) parts.push(`${medal} <span class="payout-amount">$${amount.toFixed(0)}</span>`);
-  });
-  if (parts.length) parts.push(`Last: <span style="color:var(--ice);">free entry</span>`);
-  const html = parts.join(' &nbsp;');
-  ['home-payouts', 'standings-payouts'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.innerHTML = html;
-  });
-}
-
 function sortedStandings_() {
   return [...allStandings].sort((a, b) => {
     if (a.rank == null && b.rank == null) return 0;
@@ -807,43 +802,61 @@ function sortedStandings_() {
   });
 }
 
-/** Rank with the up/down movement beside it, in one cell. */
-function rankCellHtml_(e) {
-  let move = '';
-  if (e.rankChange > 0) move = `<span class="rank-move" style="color:#3ecf6a">▲${e.rankChange}</span>`;
-  else if (e.rankChange < 0) move = `<span class="rank-move" style="color:#ff5c5c">▼${Math.abs(e.rankChange)}</span>`;
-  return `${e.rank ?? '—'}${move}`;
+/**
+ * The standings table, shared by the Home page and the Standings page:
+ * Rank, Team, points from Players, the Division bonus (dots + amount),
+ * the Projected total with that bonus, ±Pts, Move and Payout.
+ * Ranking and payouts always use the real points; until the season ends
+ * the division bonus is a projection only.
+ */
+function standingsTableHtml_(sorted, deltaLabel) {
+  const hasDiv = !!(divisionProjection && divisionProjection.byEntry);
+  const final = currentConfig.seasonComplete === true;
+  const approvedRanks = sorted.filter(e => e.approved && e.rank != null).map(e => e.rank);
+  const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
+
+  return `
+    <table class="standings-full">
+      <thead><tr>
+        <th>Rank</th><th>Team</th>
+        ${hasDiv
+          ? `<th class="num" title="Points earned by players">Players</th>
+             <th title="Division winner picks leading now, +25 each">Div${final ? '' : '*'}</th>
+             <th class="num col-hide-sm" title="Players plus the division bonus">${final ? 'Total' : 'Projected*'}</th>`
+          : '<th class="num">Points</th>'}
+        <th class="num col-hide-sm">${escapeHtml(deltaLabel)}</th><th class="col-hide-sm">Move</th><th class="col-hide-sm">Payout</th>
+      </tr></thead>
+      <tbody>
+        ${sorted.map(e => {
+          const b = pointsBreakdown_(e);
+          return `
+          <tr>
+            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
+            <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
+            ${hasDiv
+              ? `<td class="pts num">${b.players.toFixed(2)}</td>
+                 <td style="white-space:nowrap;">${divisionDotsHtml_(e)}<span class="mono" style="color:${b.bonus ? 'var(--amber)' : 'var(--text-dim)'}; margin-left:8px;">${b.bonus ? '+' + b.bonus : '—'}</span></td>
+                 <td class="mono num col-hide-sm" style="color:${final ? 'var(--ice)' : 'var(--text-dim)'}; font-weight:${final ? 700 : 400};">${b.total.toFixed(2)}</td>`
+              : `<td class="pts num">${e.pts.toFixed(2)}</td>`}
+            <td class="num col-hide-sm">${ptsDeltaHtml(e)}</td>
+            <td class="col-hide-sm">${rankMovementHtml(e)}</td>
+            <td class="col-hide-sm">${payoutHtml(e.rank, lastRank != null && e.rank === lastRank)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    ${hasDiv && !final ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">* <span class="div-dot div-dot-on"></span> = a division pick that is leading now. Projected = players + 25 for each one, if the season ended today. Not counted in the ranking until the season ends.</p>` : ''}`;
 }
 
-// Home page: compact standings - one line per team. Division picks show
-// as dots; payouts sit beside the heading instead of in a column.
+// Home page: full-width standings, scrolling inside its box.
 function renderHomeStandingsPreview() {
-  renderPayoutSummary_();
   const sorted = sortedStandings_();
   const el = document.getElementById('home-standings-preview');
   if (sorted.length === 0) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     return;
   }
-  const hasDiv = !!(divisionProjection && divisionProjection.byEntry);
-  el.innerHTML = `
-    <div class="players-table-scroll" style="max-height:50vh;">
-      <table class="compact-standings">
-        <colgroup><col class="col-rank"><col>${hasDiv ? '<col class="col-div">' : ''}<col class="col-today"><col class="col-pts"></colgroup>
-        <thead><tr><th>Rank</th><th>Team</th>${hasDiv ? '<th title="Division winner picks that are leading right now (+25 each at season end)">Div</th>' : ''}<th class="col-today num">Today</th><th class="num">Pts</th></tr></thead>
-        <tbody>
-          ${sorted.map(e => `
-            <tr>
-              <td class="${e.rank === 1 ? 'rank-1' : ''}" style="white-space:nowrap;">${rankCellHtml_(e)}</td>
-              <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}" title="${escapeHtml(e.teamName)}">${escapeHtml(e.teamName)}</span></td>
-              ${hasDiv ? `<td>${divisionDotsHtml_(e)}</td>` : ''}
-              <td class="col-today num">${ptsDeltaHtml(e)}</td>
-              <td class="pts num">${e.pts.toFixed(2)}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-      ${hasDiv ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;"><span class="div-dot div-dot-on"></span> = a division pick that is leading now (+25 each at season end)</p>` : ''}
-    </div>`;
+  el.innerHTML = `<div class="players-table-scroll" style="max-height:470px;">${standingsTableHtml_(sorted, '±Pts')}</div>`;
   attachTeamLinkListeners(el);
 }
 
@@ -854,45 +867,14 @@ async function refreshAndRenderStandings() {
   renderPointsRace();
 }
 
-// Standings page: the full breakdown - points from players, the division
-// bonus, and the total with it. Ranking always uses the real points.
 function renderStandingsTable() {
-  renderPayoutSummary_();
   const el = document.getElementById('standings-table');
   const sorted = sortedStandings_();
   if (sorted.length === 0) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     return;
   }
-  const hasDiv = !!(divisionProjection && divisionProjection.byEntry);
-  const final = currentConfig.seasonComplete === true;
-  el.innerHTML = `
-    <table>
-      <thead><tr>
-        <th>Rank</th><th>Team</th>
-        ${hasDiv
-          ? `<th title="Points earned by players">Players</th><th title="Division winner picks leading now, +25 each">Div${final ? '' : '*'}</th><th title="Players plus division bonus">${final ? 'Total' : 'Projected*'}</th>`
-          : '<th>Points</th>'}
-        <th>±Pts (24h)</th>
-      </tr></thead>
-      <tbody>
-        ${sorted.map(e => {
-          const b = pointsBreakdown_(e);
-          return `
-          <tr>
-            <td class="${e.rank === 1 ? 'rank-1' : ''}" style="white-space:nowrap;">${rankCellHtml_(e)}</td>
-            <td><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
-            ${hasDiv
-              ? `<td class="pts">${b.players.toFixed(2)}</td>
-                 <td style="white-space:nowrap;">${divisionDotsHtml_(e)} <span class="mono" style="color:${b.bonus ? 'var(--amber)' : 'var(--text-dim)'}; margin-left:6px;">${b.bonus ? '+' + b.bonus : '—'}</span></td>
-                 <td class="mono" style="color:${final ? 'var(--ice)' : 'var(--text-dim)'}; font-weight:${final ? 700 : 400};">${b.total.toFixed(2)}</td>`
-              : `<td class="pts">${e.pts.toFixed(2)}</td>`}
-            <td>${ptsDeltaHtml(e)}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-    ${hasDiv && !final ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">* Division bonus if the season ended today (+25 for each division pick leading now). It isn't counted in the ranking until the season ends.</p>` : ''}`;
+  el.innerHTML = standingsTableHtml_(sorted, '±Pts (24h)');
   attachTeamLinkListeners(el);
 }
 
