@@ -82,24 +82,25 @@
       <div id="stars-of-night" class="panel"></div>
     </div>
 
-    <div class="home-grid">
-      <div>
-        <h3 class="mini-title">Current Standings <span class="mono payout-summary" id="home-payouts"></span></h3>
-        <div id="home-standings-preview" class="panel"></div>
-      </div>
-      <div>
-        <h3 class="mini-title">Division Leaders <span class="mono" style="color:var(--amber); font-weight:400; font-size:12px;">+25 pts at season end</span></h3>
-        <div id="division-leaders-panel" class="panel"></div>
-        <div id="weekly-top-section" style="display:none; margin-top:20px;">
-          <h3 class="mini-title">🔥 Top Performers Last Week <span class="mono" id="weekly-top-dates" style="color:var(--amber); font-weight:400; font-size:12px;"></span></h3>
-          <div id="weekly-top-panel" class="panel"></div>
-        </div>
-      </div>
+    <div style="margin-bottom:20px;">
+      <h3 class="mini-title">Current Standings</h3>
+      <div id="home-standings-preview" class="panel"></div>
     </div>
 
-    <div style="margin-top:20px;">
-      <h3 class="mini-title">Recent Activity <a href="#" data-view="activity" class="nav-link" style="font-size:12px; text-transform:none; letter-spacing:0; margin-left:8px;">View All →</a></h3>
-      <div id="home-activity-teaser" class="panel"></div>
+    <div style="margin-bottom:20px;">
+      <h3 class="mini-title">Division Leaders <span class="mono" style="color:var(--amber); font-weight:400; font-size:12px;">+25 pts at season end</span></h3>
+      <div id="division-leaders-panel" class="division-cards"></div>
+    </div>
+
+    <div class="home-grid" style="margin-top:0;">
+      <div id="weekly-top-section" style="display:none;">
+        <h3 class="mini-title">🔥 Top Performers Last Week <span class="mono" id="weekly-top-dates" style="color:var(--amber); font-weight:400; font-size:12px;"></span></h3>
+        <div id="weekly-top-panel" class="panel"></div>
+      </div>
+      <div>
+        <h3 class="mini-title">Recent Activity <a href="#" data-view="activity" class="nav-link" style="font-size:12px; text-transform:none; letter-spacing:0; margin-left:8px;">View All →</a></h3>
+        <div id="home-activity-teaser" class="panel"></div>
+      </div>
     </div>
   </section>
 
@@ -110,7 +111,7 @@
 
   <section id="view-standings" class="view">
     <h2 class="section-title">Standings</h2>
-    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;"><span class="mono payout-summary" id="standings-payouts" style="margin-left:0; margin-right:10px;"></span>Payouts reflect the current prize pool and will grow as more entries join.</p>
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">Payout reflects the current prize pool and will grow as more entries join.</p>
     <div id="points-race" style="display:none; margin-bottom:20px;"></div>
     <div id="standings-table" class="panel"></div>
   </section>
