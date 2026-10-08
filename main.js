@@ -56,6 +56,7 @@ async function init() {
   [allBoxes, allStandings, currentConfig, divisionProjection] = await Promise.all([
     fetchBoxes(), fetchStandings(), fetchConfig(), fetchDivisionProjection().catch(() => null)
   ]);
+  await loadTonight_();
   allBoxes.forEach(box => (box.players || []).forEach(p => poolPlayerIds.add(p.playerId)));
 
   renderHeroMilestone_();
@@ -490,6 +491,7 @@ async function renderTodaysGames() {
   try {
     const data = await fetchTodaysGames();
     if (!data || data.date !== hockeyDay_()) { el.style.display = 'none'; todaysGamesKey_ = null; return; }
+    todaysGamesData_ = data;
 
     const games = data.games || [];
     const key = data.date + '|' + games.map(g => g.id).join(',');
@@ -531,10 +533,27 @@ async function renderTodaysGames() {
 
 // Keep scores current on an open tab: re-check every 3 minutes while the
 // Home page is showing and the tab is visible.
-setInterval(() => {
+setInterval(async () => {
+  if (document.hidden) return;
   const home = document.getElementById('view-home');
-  if (document.hidden || !home || !home.classList.contains('active')) return;
-  renderTodaysGames();
+  const standings = document.getElementById('view-standings');
+  const onHome = home && home.classList.contains('active');
+  const onStandings = standings && standings.classList.contains('active');
+  if (!onHome && !onStandings) return;
+  if (onHome) renderTodaysGames();
+  // Live points: redraw the standings only if they changed, keeping the
+  // table's scroll position.
+  const before = livePoints && livePoints.updatedAt;
+  await loadTonight_(true);
+  if (!livePoints || livePoints.updatedAt === before) return;
+  if (onHome) {
+    const box = document.querySelector('#home-standings-preview .players-table-scroll');
+    const top = box ? box.scrollTop : 0;
+    renderHomeStandingsPreview();
+    const again = document.querySelector('#home-standings-preview .players-table-scroll');
+    if (again) again.scrollTop = top;
+  }
+  if (onStandings) renderStandingsTable();
 }, 180000);
 
 /**
@@ -679,6 +698,7 @@ function renderActivityList_() {
 async function refreshAndRenderHome() {
   starsOfNightPromise = null;
   [allStandings, currentConfig, divisionProjection] = await Promise.all([fetchStandings(), fetchConfig(), fetchDivisionProjection().catch(() => null)]);
+  await loadTonight_();
   renderHeroMilestone_();
   renderSeasonCountdown_();
   renderTodaysGames();
@@ -841,7 +861,8 @@ function applyStandingsSort_(rows) {
   const val = {
     players: e => pointsBreakdown_(e).players,
     div: e => (pointsBreakdown_(e).leading || 0) * 1000 + pointsBreakdown_(e).players, // ties broken by players
-    projected: e => pointsBreakdown_(e).total
+    projected: e => pointsBreakdown_(e).total,
+    tonight: e => { const lp = liveActive_(); return (lp && lp.entries && lp.entries[e.entryId] && lp.entries[e.entryId].pts) || 0; }
   }[standingsSort.key];
   const out = [...rows].sort((a, b) => val(b) - val(a));
   return standingsSort.dir === 'desc' ? out : out.reverse();
@@ -866,7 +887,9 @@ function standingsTableHtml_(sorted, deltaLabel) {
   const final = currentConfig.seasonComplete === true;
   const approvedRanks = sorted.filter(e => e.approved && e.rank != null).map(e => e.rank);
   const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
-  if (!hasDiv && standingsSort.key !== 'rank') standingsSort = { key: 'rank', dir: 'asc' };
+  const live = liveActive_();
+  if (!live && standingsSort.key === 'tonight') standingsSort = { key: 'rank', dir: 'asc' };
+  if (!hasDiv && standingsSort.key !== 'rank' && standingsSort.key !== 'tonight') standingsSort = { key: 'rank', dir: 'asc' };
   sorted = applyStandingsSort_(sorted);
   const sortHead = (key, label, cls, title) => {
     const on = standingsSort.key === key;
@@ -877,7 +900,8 @@ function standingsTableHtml_(sorted, deltaLabel) {
   return `
     <table class="standings-full data-table">
       <thead><tr>
-        ${hasDiv ? sortHead('rank', 'Rank', '', 'Back to the normal ranking') : '<th>Rank</th>'}<th>Team</th>
+        ${hasDiv || live ? sortHead('rank', 'Rank', '', 'Back to the normal ranking') : '<th>Rank</th>'}<th>Team</th>
+        ${live ? sortHead('tonight', '<span class="game-chip-live">●</span> Tonight', 'num', 'Live points from tonight\'s games (estimate until the 4am update) - click to sort') : ''}
         ${hasDiv
           ? `${sortHead('players', 'Players', 'num', 'Points earned by players - click to sort')}
              ${sortHead('div', 'Div' + (final ? '' : '*'), '', 'Division winner picks leading now, +25 each - click to sort')}
@@ -892,6 +916,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
           <tr>
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
             <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
+            ${live ? (() => { const t = live.entries && live.entries[e.entryId]; return `<td class="num mono" style="color:${t && t.pts ? '#3ecf6a' : 'var(--text-dim)'}; white-space:nowrap;">${t ? '+' + t.pts.toFixed(2) : '—'}${t && t.players ? ` <span style="color:var(--text-dim); font-size:10px;">(${t.players})</span>` : ''}</td>`; })() : ''}
             ${hasDiv
               ? `<td class="pts num">${b.players.toFixed(2)}</td>
                  <td style="white-space:nowrap;">${divisionDotsHtml_(e)}<span class="mono" style="color:${b.bonus ? 'var(--amber)' : 'var(--text-dim)'}; margin-left:8px;">${b.bonus ? '+' + b.bonus : '—'}</span></td>
@@ -904,6 +929,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
         }).join('')}
       </tbody>
     </table>
+    ${live ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;"><span class="game-chip-live">●</span> Tonight = live points from tonight's games so far (number of players who've played in brackets). An estimate, updated every 10 minutes; the official points come in the 4am update.</p>` : ''}
     ${hasDiv && !final ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">* <span class="div-dot div-dot-on"></span> = a division pick that is leading now. Projected = players + 25 for each one, if the season ended today. Not counted in the ranking until the season ends.</p>` : ''}`;
 }
 
@@ -923,6 +949,7 @@ function renderHomeStandingsPreview() {
 // ---------- Standings ----------
 async function refreshAndRenderStandings() {
   [allStandings, divisionProjection] = await Promise.all([fetchStandings(), fetchDivisionProjection().catch(() => null)]);
+  await loadTonight_();
   renderStandingsTable();
   renderPointsRace();
 }
@@ -952,6 +979,7 @@ function renderPicksModalBody_(data, ownerLine) {
     <h2 style="margin-bottom:4px;">${escapeHtml(data.teamName)}</h2>
     ${ownerLine ? `<p style="color:var(--text-dim); font-size:13px; margin-bottom:8px;">${ownerLine}</p>` : ''}
     ${data.pointBank ? `<p class="mono" style="color:var(--amber); font-size:13px; margin-bottom:12px;">Banked from moves: +${data.pointBank.toFixed(2)}pts</p>` : ''}
+    ${tonightSummaryHtml_(data)}
     ${Object.keys(groupTitles).map(type => {
       // Group total = every pick's points since acquired + points banked
       // from any players traded out of these boxes, so F + D + G always
@@ -980,7 +1008,7 @@ function renderPicksModalBody_(data, ownerLine) {
             `).join('') : ''}
             <div class="modal-pick-row">
               ${p.headshotUrl ? `<img class="modal-pick-photo" src="${p.headshotUrl}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
-              <span class="modal-pick-name">${escapeHtml(p.playerName)}${statusBadge_(p.playerId)}</span>
+              <span class="modal-pick-name">${escapeHtml(p.playerName)}${statusBadge_(p.playerId)}${tonightTagHtml_(p.playerId, p.team)}</span>
               <span class="mono modal-pick-stats">${statLine}</span>
               <span class="mono modal-pick-pts">${hasMoves ? `+${p.contributionSinceAcquired.toFixed(2)}pts since acquired` : `${p.contributionSinceAcquired.toFixed(2)}pts`}</span>
               <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
@@ -1044,7 +1072,8 @@ async function openTeamPicksModal(entryId, teamName) {
     body.innerHTML = `<p class="mono" style="color:var(--text-dim)">${escapeHtml((data && data.error) || "Couldn't load picks.")}</p>`;
     return;
   }
-  await ensurePlayersLoaded();
+  await Promise.all([ensurePlayersLoaded(), loadTonight_()]);
+  data.entryId = data.entryId || entryId;
 
   body.innerHTML = renderPicksModalBody_(data, '');
 }
@@ -1165,6 +1194,67 @@ function drawIRTable_() {
   });
 }
 
+
+// ---------- Tonight: who's playing, and live points ----------
+let livePoints = null;
+let todaysGamesData_ = null;
+let dataVersionValue_ = null;
+
+/** Loads tonight's games and live points (once, or again when forced). */
+async function loadTonight_(force) {
+  const jobs = [];
+  if (force || !livePoints) jobs.push(fetchLivePoints().then(v => { livePoints = v; }).catch(() => {}));
+  if (!todaysGamesData_) jobs.push(fetchTodaysGames().then(d => { if (d && d.date === hockeyDay_()) todaysGamesData_ = d; }).catch(() => {}));
+  if (!dataVersionValue_) jobs.push(getDataVersion_().then(v => { dataVersionValue_ = v; }).catch(() => {}));
+  await Promise.all(jobs);
+}
+
+/**
+ * The live points, but only while they're for tonight and newer than the
+ * official standings (after the 4am run the real points take over).
+ */
+function liveActive_() {
+  const lp = livePoints;
+  if (!lp || lp.date !== hockeyDay_() || !lp.players || Object.keys(lp.players).length === 0) return null;
+  if (dataVersionValue_ && lp.updatedAt && new Date(lp.updatedAt) <= new Date(dataVersionValue_)) return null;
+  return lp;
+}
+
+/** Tonight's game for an NHL team (abbrev), or null. */
+function tonightGameFor_(team) {
+  const games = (todaysGamesData_ && todaysGamesData_.games) || [];
+  return games.find(g => g.away === team || g.home === team) || null;
+}
+
+/**
+ * Tag beside a player in the team popup:
+ *   before his game: "🏒 7:00 PM"; during: "● +2.30"; after: "+2.30 final".
+ */
+function tonightTagHtml_(playerId, team) {
+  const g = tonightGameFor_(team);
+  if (!g) return '';
+  const lp = liveActive_();
+  const mine = lp && lp.players[playerId];
+  if (g.state === 'pre' || (!mine && g.state !== 'live' && g.state !== 'final')) {
+    const t = new Date(g.startTimeUTC);
+    return `<span class="tonight-tag">🏒 ${isNaN(t.getTime()) ? 'tonight' : escapeHtml(t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</span>`;
+  }
+  const pts = mine ? mine.pts : 0;
+  if (g.state === 'final') return `<span class="tonight-tag tonight-final">+${pts.toFixed(2)} final</span>`;
+  return `<span class="tonight-tag tonight-live">● +${pts.toFixed(2)}</span>`;
+}
+
+/** "🏒 9 of 27 play tonight · ● +12.40 live" for the top of the team popup. */
+function tonightSummaryHtml_(data) {
+  const picks = data.picks || [];
+  const playing = picks.filter(p => tonightGameFor_(p.team)).length;
+  if (!playing) return '';
+  const lp = liveActive_();
+  const live = lp && lp.entries && data.entryId && lp.entries[data.entryId];
+  let livePts = live ? live.pts : null;
+  if (livePts == null && lp) livePts = picks.reduce((s, p) => s + ((lp.players[p.playerId] || {}).pts || 0), 0);
+  return `<p class="mono" style="font-size:12px; margin-bottom:10px; color:var(--text-dim);">🏒 ${playing} of ${picks.length} play tonight${lp ? ` · <span class="game-chip-live">● +${livePts.toFixed(2)} live</span>` : ''}</p>`;
+}
 
 // ---------- Shared table helpers ----------
 /**
