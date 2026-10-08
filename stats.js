@@ -667,7 +667,7 @@ async function renderRecordsPage() {
   if (!el) return;
   el.innerHTML = skeletonLoader_();
 
-  const [race, tally] = await Promise.all([fetchPointsRace().catch(() => null), fetchStarsTally_()]);
+  const [race, tally, powWeeks] = await Promise.all([fetchPointsRace().catch(() => null), fetchStarsTally_(), fetchPlayersOfWeekHistory().catch(() => [])]);
   const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const card = (title, note, rows) => `
     <div>
@@ -735,8 +735,41 @@ async function renderRecordsPage() {
       ${card('⭐ Best Night by a Player', '', playerNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(r.team || '')} · ${escapeHtml(day(r.date))}`, '+' + r.pts.toFixed(2))))}
       ${card('📈 Biggest One-Day Climb', '', climbs.filter(r => r.up > 0).slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(day(r.date))} · ${ordinal(r.from)} → ${ordinal(r.to)}`, '▲' + r.up)))}
       ${card('👑 Most Nights in 1st Place', '', firsts.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `of ${race.dates.length} nights so far`, r.days)))}
+    </div>
+    ${playersOfWeekHistoryHtml_(powWeeks || [])}`;
+}
+
+/**
+ * Records page: every week's Players of the Week (newest first), plus who
+ * has won it most often.
+ */
+function playersOfWeekHistoryHtml_(weeks) {
+  if (!weeks.length) return '';
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const wins = {};
+  weeks.forEach(w => ['F', 'D', 'G'].forEach(g => {
+    const p = w[g];
+    if (p) { const k = p.playerId; wins[k] = wins[k] || { p, n: 0 }; wins[k].n++; }
+  }));
+  const repeat = Object.values(wins).filter(x => x.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
+  const cell = (p) => p
+    ? `<td data-v="${escapeHtml(p.fullName)}">${playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.isGoalie ? 'G' : p.position, p.playerId)}</td><td class="pts">+${(p.pts || 0).toFixed(2)}</td>`
+    : '<td>—</td><td></td>';
+  return `
+    <h3 class="mini-title" style="margin-top:24px;">🏆 Players of the Week</h3>
+    <div class="panel">
+      <div class="players-table-scroll" style="max-height:60vh;">
+        <table class="data-table">
+          <thead><tr><th>Week</th><th>Forward</th><th></th><th>Defense</th><th></th><th>Goalie</th><th></th></tr></thead>
+          <tbody>
+            ${weeks.map(w => `<tr><td class="mono" style="white-space:nowrap;">${escapeHtml(day(w.weekStart))} – ${escapeHtml(day(w.weekEnd))}</td>${cell(w.F)}${cell(w.D)}${cell(w.G)}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${repeat.length ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Most awards: ${repeat.map(x => `${escapeHtml(x.p.fullName)} ×${x.n}`).join(' · ')}</p>` : ''}
     </div>`;
 }
+
 
 // ---------- Season 3 Stars Tally ----------
 /**
