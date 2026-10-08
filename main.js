@@ -549,7 +549,12 @@ async function renderWeeklyTop() {
 
   try {
     const data = await fetchWeeklyTop();
-    const top = ((data && data.top) || []).slice(0, 3);
+    // Players of the Week: best Forward, Defenseman and Goalie. (Older
+    // saved data without them falls back to the overall top 3.)
+    const pow = data && data.playersOfWeek;
+    const top = pow
+      ? [['Forward', pow.F], ['Defense', pow.D], ['Goalie', pow.G]].filter(([, p]) => p).map(([label, p]) => Object.assign({ award: label }, p))
+      : ((data && data.top) || []).slice(0, 3);
     if (top.length === 0) { section.style.display = 'none'; return; }
 
     const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -562,7 +567,9 @@ async function renderWeeklyTop() {
       return `
       <div class="division-leader-row">
         <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-          <span class="mono" style="color:var(--amber); font-weight:700; width:14px;">${i + 1}</span>
+          ${p.award
+            ? `<span class="mono pow-label">${escapeHtml(p.award)}</span>`
+            : `<span class="mono" style="color:var(--amber); font-weight:700; width:14px;">${i + 1}</span>`}
           ${p.headshotUrl ? `<img class="star-photo" src="${p.headshotUrl}" alt="" loading="lazy">` : `<div class="star-photo star-photo-empty"></div>`}
           <div class="division-leader-info" style="min-width:0;">
             <div class="division-leader-team">${escapeHtml(p.fullName)}</div>
