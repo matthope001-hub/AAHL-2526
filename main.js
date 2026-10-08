@@ -966,13 +966,35 @@ function renderStandingsTable() {
   wireStandingsSort_(el, renderStandingsTable);
 }
 
+/**
+ * How a division winner pick is doing, shown beside it in the team popup:
+ *   leading now:   "✓ Leading" (green)
+ *   not leading:   "2nd · 3 pts back" (behind the current leader)
+ *   season over:   "✓ Won +25" or "✗"
+ */
+function divisionPickStatusHtml_(division, team) {
+  const leaders = (divisionProjection && divisionProjection.leaders) || {};
+  const leader = leaders[division];
+  if (!leader) return '';
+  const final = currentConfig.seasonComplete === true;
+  if (leader === team) {
+    return `<span class="div-pick-status div-pick-yes">✓ ${final ? 'Won +25' : 'Leading'}</span>`;
+  }
+  if (final) return `<span class="div-pick-status div-pick-no">✗</span>`;
+  const mine = currentSeasonStandings[team];
+  const top = currentSeasonStandings[leader];
+  if (!mine || !top) return `<span class="div-pick-status">not leading</span>`;
+  const back = (top.points || 0) - (mine.points || 0);
+  return `<span class="div-pick-status">${mine.rank ? ordinal(mine.rank) + ' · ' : ''}${back > 0 ? back + ' pt' + (back === 1 ? '' : 's') + ' back' : 'tied'}</span>`;
+}
+
 function renderPicksModalBody_(data, ownerLine) {
   const grouped = { F: [], D: [], G: [] };
   (data.picks || []).forEach(p => grouped[p.boxType || 'F'].push(p));
 
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
   const divisionRows = Object.entries(data.divisionPicks || {})
-    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}</span></div>`)
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}${divisionPickStatusHtml_(div, team)}</span></div>`)
     .join('');
 
   return `
@@ -1073,7 +1095,10 @@ async function openTeamPicksModal(entryId, teamName) {
     body.innerHTML = `<p class="mono" style="color:var(--text-dim)">${escapeHtml((data && data.error) || "Couldn't load picks.")}</p>`;
     return;
   }
-  await Promise.all([ensurePlayersLoaded(), loadTonight_()]);
+  await Promise.all([
+    ensurePlayersLoaded(), loadTonight_(), ensureCurrentSeasonStandingsLoaded_(),
+    divisionProjection ? null : fetchDivisionProjection().then(v => { divisionProjection = v; }).catch(() => {})
+  ]);
   data.entryId = data.entryId || entryId;
 
   body.innerHTML = renderPicksModalBody_(data, '');
