@@ -1216,3 +1216,28 @@ a.hero-badge { cursor: pointer; }
 .div-pick-status { font-size: 11px; color: var(--text-dim); margin-left: 8px; white-space: nowrap; }
 .div-pick-yes { color: #3ecf6a; font-weight: 700; }
 .div-pick-no { color: #ff5c5c; font-weight: 700; }
+
+/* Team popup: one tidy card per pick - photo | name / team + tags / stats | points */
+.pick-card {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+}
+.pick-card-photo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); }
+.pick-card-main { min-width: 0; }
+.pick-card-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-card-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-card-meta .ir-badge, .pick-card-meta .tonight-tag { margin-left: 6px; }
+.pick-card-stats { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pick-card-pts { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
+.pick-card-pts-num { font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--ice); line-height: 1; }
+.pick-card-pts-label { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); margin-top: 3px; }
+.modal-pick-wrap { display: flex; margin-bottom: 0; }
+.modal-pick-wrap .pick-card { flex: 1; }
+.pick-card-move { grid-column: 1 / -1; font-family: var(--font-mono); font-size: 10px; color: var(--amber); border-top: 1px solid var(--border); padding-top: 5px; margin-top: 2px; }
+.modal-content h2 { padding-right: 34px; }
