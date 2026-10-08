@@ -1211,3 +1211,8 @@ a.hero-badge { cursor: pointer; }
 .tonight-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-left: 6px; white-space: nowrap; }
 .tonight-live { color: #3ecf6a; font-weight: 700; }
 .tonight-final { color: var(--ice); }
+
+/* Division pick status in the team popup */
+.div-pick-status { font-size: 11px; color: var(--text-dim); margin-left: 8px; white-space: nowrap; }
+.div-pick-yes { color: #3ecf6a; font-weight: 700; }
+.div-pick-no { color: #ff5c5c; font-weight: 700; }
