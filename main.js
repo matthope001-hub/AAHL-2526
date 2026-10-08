@@ -1001,60 +1001,107 @@ if (teamPicksCloseBtn && teamPicksModalEl) {
 
 
 // ---------- IR List (public) ----------
+// Compact, sortable table. Default order: soonest expected return first
+// (players with no return date at the end). Click a heading to sort by
+// it; click again to reverse.
+let irSort = { key: 'back', dir: 'asc' };
+let irRows_ = [];
+
 async function renderIRPanel() {
   const el = document.getElementById('ir-panel');
   el.innerHTML = `<div class="panel">${skeletonLoader_()}</div>`;
   await Promise.all([ensurePlayersLoaded(), ensureInjuriesLoaded_(true), ensurePickCountsLoaded_()]);
   applyInjuriesToPlayers_();
 
-  const rows = Object.keys(injuriesByPlayer).map(id => {
+  irRows_ = Object.keys(injuriesByPlayer).map(id => {
     const inj = injuriesByPlayer[id];
     const p = allPlayers.find(ap => ap.id === id) || {};
     return { id, inj, name: p.fullName || inj.name || id, team: p.team || inj.team || '', pos: p.position || '', headshot: p.headshotUrl || '' };
-  }).sort((a, b) => {
-    const oa = INJURY_ORDER.indexOf(a.inj.code), ob = INJURY_ORDER.indexOf(b.inj.code);
-    return ((oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob)) || a.name.localeCompare(b.name);
+  });
+  drawIRTable_();
+}
+
+function drawIRTable_() {
+  const el = document.getElementById('ir-panel');
+  const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }) + 'T12:00:00');
+  const day = (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
+  const daysUntil = (s) => (s ? Math.round((new Date(s + 'T12:00:00') - today) / 86400000) : null);
+  const showPicked = hasPickCounts_();
+
+  const sortValue = {
+    player: r => r.name.toLowerCase(),
+    status: r => { const o = INJURY_ORDER.indexOf(r.inj.code); return o === -1 ? 99 : o; },
+    back: r => r.inj.returnDate || null,
+    picked: r => pickedCount_(r.id),
+    since: r => r.inj.since || null
+  };
+  const rows = [...irRows_].sort((a, b) => {
+    const va = sortValue[irSort.key](a), vb = sortValue[irSort.key](b);
+    // Blank values (no date) always go to the bottom, whichever direction.
+    if (va == null && vb == null) return a.name.localeCompare(b.name);
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    const diff = va < vb ? -1 : (va > vb ? 1 : 0);
+    return (irSort.dir === 'asc' ? diff : -diff) || a.name.localeCompare(b.name);
   });
 
-  const day = (s) => (s ? new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—');
+  const head = (key, label, cls) => `<th class="sortable-col ${irSort.key === key ? 'sorted-col' : ''} ${cls || ''}" data-ir-sort="${key}">${label}${irSort.key === key ? (irSort.dir === 'asc' ? ' ▲' : ' ▼') : ''}</th>`;
   const updated = injuriesMeta && injuriesMeta.updatedAt
     ? new Date(injuriesMeta.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
     : '';
-  const usedCodes = INJURY_ORDER.filter(code => rows.some(r => r.inj.code === code));
-  const showPicked = hasPickCounts_();
+  const usedCodes = INJURY_ORDER.filter(code => irRows_.some(r => r.inj.code === code));
 
   el.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
       ${rows.length === 0
         ? `<p class="mono" style="color:var(--text-dim)">No pool players are currently injured or unavailable.</p>`
-        : `<table>
-            <thead><tr><th>Player</th><th>NHL</th><th>Pos</th><th>Status</th><th>Details</th><th>Expected Back</th>${showPicked ? '<th>Picked</th>' : ''}<th>Since</th></tr></thead>
+        : `<table class="ir-table">
+            <thead><tr>
+              ${head('player', 'Player')}
+              ${head('status', 'Status')}
+              <th class="ir-hide-sm">Details</th>
+              ${head('back', 'Expected Back')}
+              ${showPicked ? head('picked', 'Picked', 'ir-hide-sm') : ''}
+              ${head('since', 'Since', 'ir-hide-sm')}
+            </tr></thead>
             <tbody>
-              ${rows.map(r => `
+              ${rows.map(r => {
+                const n = daysUntil(r.inj.returnDate);
+                const soon = n == null ? '' : (n <= 0 ? 'any day' : (n === 1 ? 'tomorrow' : `in ${n} days`));
+                return `
                 <tr>
-                  <td><span style="display:inline-flex; align-items:center; gap:8px;">${r.headshot ? `<img class="modal-pick-photo" src="${r.headshot}" alt="" loading="lazy">` : ''}${escapeHtml(r.name)}</span></td>
-                  <td>${escapeHtml(r.team)}</td>
-                  <td>${escapeHtml(r.pos)}</td>
-                  <td><span class="ir-badge" title="${escapeHtml((INJURY_STATUS[r.inj.code] || {}).label || r.inj.code)}">🩹 ${escapeHtml(r.inj.code)}</span></td>
-                  <td>${escapeHtml(r.inj.detail || '—')}</td>
-                  <td>${escapeHtml(day(r.inj.returnDate))}</td>
-                  ${showPicked ? `<td>${pickedCount_(r.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span></td>` : ''}
-                  <td>${escapeHtml(day(r.inj.since))}</td>
-                </tr>`).join('')}
+                  <td>
+                    <div class="ir-player">
+                      ${r.headshot ? `<img src="${r.headshot}" alt="" loading="lazy">` : '<span class="ir-player-nophoto"></span>'}
+                      <div><div class="ir-player-name">${escapeHtml(r.name)}</div><div class="ir-player-meta">${escapeHtml(r.team)} · ${escapeHtml(r.pos)}</div></div>
+                    </div>
+                  </td>
+                  <td><span class="ir-badge" title="${escapeHtml((INJURY_STATUS[r.inj.code] || {}).label || r.inj.code)}">${escapeHtml(r.inj.code)}</span></td>
+                  <td class="ir-hide-sm">${escapeHtml(r.inj.detail || '—')}</td>
+                  <td>${escapeHtml(day(r.inj.returnDate))}${soon ? ` <span class="ir-soon">${soon}</span>` : ''}</td>
+                  ${showPicked ? `<td class="ir-hide-sm">${pickedCount_(r.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span></td>` : ''}
+                  <td class="ir-hide-sm">${escapeHtml(day(r.inj.since))}</td>
+                </tr>`;
+              }).join('')}
             </tbody>
           </table>`}
-      <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">${rows.length} player${rows.length === 1 ? '' : 's'}${updated ? ` · updated ${escapeHtml(updated)}` : ''} · expected-back dates are estimates</p>
+      <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">${rows.length} player${rows.length === 1 ? '' : 's'}${updated ? ` · updated ${escapeHtml(updated)}` : ''} · click a heading to sort · return dates are estimates</p>
     </div>
     ${usedCodes.length ? `
-      <h3 class="mini-title">What the codes mean</h3>
-      <div class="panel">
-        ${usedCodes.map(code => `
-          <div class="activity-row">
-            <span><span class="ir-badge">${escapeHtml(code)}</span> &nbsp;<strong>${escapeHtml(INJURY_STATUS[code].label)}</strong></span>
-            <span style="color:var(--text-dim);">${escapeHtml(INJURY_STATUS[code].note)}</span>
-          </div>`).join('')}
+      <div class="ir-legend mono">
+        ${usedCodes.map(code => `<span><span class="ir-badge">${escapeHtml(code)}</span> ${escapeHtml(INJURY_STATUS[code].label)}</span>`).join('')}
       </div>` : ''}
   `;
+
+  el.querySelectorAll('[data-ir-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.irSort;
+      irSort = irSort.key === key
+        ? { key, dir: irSort.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'picked' ? 'desc' : 'asc' };
+      drawIRTable_();
+    });
+  });
 }
 
 
