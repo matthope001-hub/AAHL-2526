@@ -1189,3 +1189,18 @@ a.hero-badge { cursor: pointer; }
 @media (max-width: 640px) {
   .ir-table .ir-hide-sm { display: none; }
 }
+
+/* One look for every data table (Standings, Players, Last Night, Stars
+   Tally, IR List): compact rows, small player photos, team under name. */
+.data-table { font-size: 12px; }
+.data-table th { padding: 6px 8px; }
+.data-table td { padding: 4px 8px; }
+.dt-player { display: flex; align-items: center; gap: 8px; }
+.dt-player img, .dt-player-nophoto { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); flex-shrink: 0; display: inline-block; }
+.dt-player-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; line-height: 1.1; white-space: nowrap; }
+.dt-player-meta { color: var(--text-dim); font-size: 10px; }
+.standings-full td.team-cell .team-link { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
+
+/* "Updated ..." stamps */
+.updated-stamp { color: var(--text-dim); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.mini-title .updated-stamp { margin-left: auto; }
