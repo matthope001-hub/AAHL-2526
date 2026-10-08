@@ -1024,17 +1024,20 @@ function renderPicksModalBody_(data, ownerLine) {
           const hasMoves = p.moves && p.moves.length > 0;
           return `
           <div class="modal-pick-wrap">
-            ${hasMoves ? p.moves.map(m => `
-              <div class="move-history-line mono">
-                🔁 ${escapeHtml(m.outPlayerName)} banked +${m.bankedAmount.toFixed(2)}pts <span style="color:var(--text-dim);">(${escapeHtml((m.resolvedAt || m.requestedAt || '').slice(0,10))})</span>
+            <div class="pick-card">
+              ${p.headshotUrl ? `<img class="pick-card-photo" src="${p.headshotUrl}" alt="" loading="lazy">` : `<div class="pick-card-photo"></div>`}
+              <div class="pick-card-main">
+                <div class="pick-card-name" title="${escapeHtml(p.playerName)}">${escapeHtml(p.playerName)}</div>
+                <div class="pick-card-meta">${escapeHtml(p.team)}${statusBadge_(p.playerId)}${tonightTagHtml_(p.playerId, p.team)}</div>
+                <div class="pick-card-stats">${statLine}</div>
               </div>
-            `).join('') : ''}
-            <div class="modal-pick-row">
-              ${p.headshotUrl ? `<img class="modal-pick-photo" src="${p.headshotUrl}" alt="">` : `<div class="modal-pick-photo modal-pick-photo-empty"></div>`}
-              <span class="modal-pick-name">${escapeHtml(p.playerName)}${statusBadge_(p.playerId)}${tonightTagHtml_(p.playerId, p.team)}</span>
-              <span class="mono modal-pick-stats">${statLine}</span>
-              <span class="mono modal-pick-pts">${hasMoves ? `+${p.contributionSinceAcquired.toFixed(2)}pts since acquired` : `${p.contributionSinceAcquired.toFixed(2)}pts`}</span>
-              <span class="mono modal-pick-meta">${escapeHtml(p.team)}</span>
+              <div class="pick-card-pts">
+                <span class="pick-card-pts-num">${hasMoves ? '+' : ''}${p.contributionSinceAcquired.toFixed(2)}</span>
+                <span class="pick-card-pts-label">${hasMoves ? 'since acquired' : 'pts'}</span>
+              </div>
+              ${hasMoves ? p.moves.map(mv => `
+                <div class="pick-card-move">🔁 ${escapeHtml(mv.outPlayerName)} banked +${mv.bankedAmount.toFixed(2)}pts · ${escapeHtml((mv.resolvedAt || mv.requestedAt || '').slice(0, 10))}</div>
+              `).join('') : ''}
             </div>
           </div>
         `;}).join('')}
