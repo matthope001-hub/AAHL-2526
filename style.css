@@ -1144,39 +1144,34 @@ a.hero-badge { cursor: pointer; }
 .game-chip-live { color: #3ecf6a; font-weight: 700; }
 .game-chip-final { color: var(--text-dim); font-weight: 700; }
 
-/* Home page: Current Standings stretches to line up with the bottom of
-   the right-hand column (Division Leaders + Top Performers Last Week).
-   The table scrolls inside whatever height that column gives it. */
-@media (min-width: 641px) {
-  .home-grid > div:first-child { display: flex; flex-direction: column; }
-  #home-standings-preview { flex: 1; min-height: 320px; position: relative; }
-  #home-standings-preview .players-table-scroll {
-    position: absolute;
-    inset: 14px;
-    max-height: none !important;
-  }
-}
 
-/* Standings: payouts beside the heading, division dots, compact home table */
-.payout-summary { margin-left: auto; font-weight: 400; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--text-dim); white-space: nowrap; }
-.payout-amount { color: var(--amber); font-weight: 700; }
+/* Standings tables: division dots, numbers right-aligned */
 .div-dots { display: inline-flex; gap: 3px; vertical-align: middle; }
 .div-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid #4a4f55; }
 .div-dot-on { background: var(--amber); border-color: var(--amber); }
-.rank-move { font-family: var(--font-mono); font-size: 10px; margin-left: 5px; }
-.compact-standings { table-layout: fixed; }
-.compact-standings .col-rank { width: 64px; }
-.compact-standings .col-div { width: 70px; }
-.compact-standings .col-today { width: 78px; }
-.compact-standings .col-pts { width: 80px; }
-.compact-standings .num { text-align: right; }
-.compact-standings .team-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.standings-full th.num, .standings-full td.num { text-align: right; }
+.standings-full td.team-cell { width: 34%; }
 @media (max-width: 640px) {
-  .mini-title { flex-wrap: wrap; }
-  .payout-summary { margin-left: 0; }
-  /* Phones: drop "Today" so the team name keeps its room */
-  .compact-standings .col-today { display: none; width: 0; }
-  .compact-standings .col-rank { width: 56px; }
-  .compact-standings .col-div { width: 62px; }
-  .compact-standings .col-pts { width: 72px; }
+  /* Phones: keep rank, team, points and the division dots; drop the rest */
+  .standings-full .col-hide-sm { display: none; }
+  .standings-full td.team-cell { width: auto; white-space: normal; }
 }
+
+/* Division Leaders: four cards with a large team logo */
+.division-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.division-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--amber);
+  padding: 12px 14px;
+  min-width: 0;
+}
+.division-card-logo { width: 52px; height: 52px; object-fit: contain; flex-shrink: 0; }
+.division-card-info { flex: 1; min-width: 0; }
+.division-card-team { font-weight: 700; font-size: 18px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.division-card .division-leader-count { font-size: 26px; }
+@media (max-width: 900px) { .division-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .division-cards { grid-template-columns: 1fr; } }
