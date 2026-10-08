@@ -12,8 +12,6 @@ let playerSort = { column: 'pts', dir: 'desc' };
 
 const PLAYER_COLUMNS = [
   { key: 'name', label: 'Player', title: 'Player Name', sortable: false, filters: ['all', 'F', 'D', 'G'] },
-  { key: 'team', label: 'NHL', title: 'NHL Team', sortable: false, filters: ['all', 'F', 'D', 'G'] },
-  { key: 'position', label: 'Pos', title: 'Position', sortable: false, filters: ['all', 'F', 'D', 'G'] },
   { key: 'gamesPlayed', label: 'GP', title: 'Games Played', sortable: true, filters: ['all', 'F', 'D', 'G'] },
   { key: 'goals', label: 'G', title: 'Goals', sortable: true, filters: ['all', 'F', 'D'] },
   { key: 'assists', label: 'A', title: 'Assists', sortable: true, filters: ['all', 'F', 'D'] },
@@ -87,7 +85,7 @@ function renderPlayersTable(searchQuery) {
   });
 
   const cellRenderers = {
-    name: (p) => `${escapeHtml(p.fullName)}${p.injuryStatus ? ` <span class="ir-badge" title="Status: ${escapeHtml(p.injuryStatus)}">🩹 ${escapeHtml(p.injuryStatus)}</span>` : ''}`,
+    name: (p) => playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.position, p.id),
     team: (p) => escapeHtml(p.team || ''),
     position: (p) => escapeHtml(p.position || ''),
     gamesPlayed: (p) => (p.stats && p.stats.gamesPlayed) || 0,
@@ -107,7 +105,7 @@ function renderPlayersTable(searchQuery) {
 
   el.innerHTML = `
     <div class="players-table-scroll">
-      <table>
+      <table class="data-table">
         <thead>
           <tr>
             ${visibleColumns.map(col => `
@@ -310,7 +308,7 @@ async function renderLastNightStats() {
     const dateFormatted = new Date(stars.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
     el.innerHTML = `
-      <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)}</p>
+      <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)} <span class="updated-stamp" data-stamp="stats" style="margin-left:8px;"></span></p>
       <div id="lastnight-team"></div>
       <h3 class="group-title" style="margin-top:28px;">All Pool Players</h3>
       ${Object.keys(groupTitles).map(g => {
@@ -318,19 +316,18 @@ async function renderLastNightStats() {
         return `
         <h3 class="group-title">${groupTitles[g]}</h3>
         <div class="panel" style="margin-bottom:16px;">
-          <table>
+          <table class="data-table lastnight-table">
             <thead>
               <tr>
-                <th>Player</th><th>NHL</th>
-                ${g === 'G' ? '<th>Dec</th><th>SO</th><th>SV</th>' : `<th>G</th><th>A</th><th>SOG</th>${g === 'D' ? '<th>PIM</th>' : ''}`}
-                <th>Pts</th>
+                <th data-sort="text">Player</th>
+                ${g === 'G' ? '<th data-sort="text">Dec</th><th data-sort="text">SO</th><th data-sort="num">SV</th>' : `<th data-sort="num">G</th><th data-sort="num">A</th><th data-sort="num">SOG</th>${g === 'D' ? '<th data-sort="num">PIM</th>' : ''}`}
+                <th data-sort="num" class="sorted-col">Pts ▼</th>
               </tr>
             </thead>
             <tbody>
               ${grouped[g].map(p => `
                 <tr>
-                  <td>${escapeHtml(p.fullName)}</td>
-                  <td>${escapeHtml(p.team)}</td>
+                  <td data-v="${escapeHtml(p.fullName)}">${playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.isGoalie ? 'G' : p.position, p.playerId)}</td>
                   ${g === 'G'
                     ? `<td>${p.decision || '-'}</td><td>${p.shutout ? 'Y' : '-'}</td><td>${p.saves}</td>`
                     : `<td>${p.goals}</td><td>${p.assists}</td><td>${p.sog || 0}</td>${g === 'D' ? `<td>${p.pim || 0}</td>` : ''}`}
@@ -343,7 +340,14 @@ async function renderLastNightStats() {
       `;}).join('')}
     `;
     renderLastNightTeamPanel_(stars);
+    el.querySelectorAll('.lastnight-table').forEach(tbl => {
+      makeTableSortable_(tbl);
+      const pts = tbl.querySelector('th.sorted-col');
+      if (pts) { pts.dataset.dir = 'desc'; } // already sorted by points
+    });
+    fillUpdatedStamps_();
     el.insertAdjacentHTML('beforeend', await tallyHtmlPromise);
+    makeTableSortable_(el.querySelector('.tally-table'));
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
   }
@@ -760,21 +764,19 @@ async function buildSeasonStarsTallyHtml_() {
     <h3 class="group-title">Season 3 Stars Tally <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(${nights} night${nights === 1 ? '' : 's'} · 1st = 3, 2nd = 2, 3rd = 1)</span></h3>
     <div class="panel" style="margin-bottom:16px;">
       <div class="players-table-scroll" style="max-height:60vh;">
-        <table>
+        <table class="data-table tally-table">
           <thead>
             <tr>
-              <th>#</th><th>Player</th><th>NHL</th><th>Pos</th>
-              <th title="1st Star">1st</th><th title="2nd Star">2nd</th><th title="3rd Star">3rd</th>
-              <th title="Total star selections">Total</th><th title="Weighted score">Score</th>
+              <th>#</th><th data-sort="text">Player</th>
+              <th data-sort="num" title="1st Star">1st</th><th data-sort="num" title="2nd Star">2nd</th><th data-sort="num" title="3rd Star">3rd</th>
+              <th data-sort="num" title="Total star selections">Total</th><th data-sort="num" title="Weighted score">Score</th>
             </tr>
           </thead>
           <tbody>
             ${items.map((t, i) => `
               <tr>
                 <td class="${i === 0 ? 'rank-1' : ''}">${i + 1}</td>
-                <td>${escapeHtml(t.fullName)}</td>
-                <td>${escapeHtml(t.team || '')}</td>
-                <td>${escapeHtml(t.position || '')}</td>
+                <td data-v="${escapeHtml(t.fullName)}">${playerCellHtml_(t.fullName, t.headshotUrl, t.team, t.position, t.playerId)}</td>
                 <td>${t.first || 0}</td>
                 <td>${t.second || 0}</td>
                 <td>${t.third || 0}</td>
@@ -964,4 +966,3 @@ async function renderBoxesReference() {
 
   el.innerHTML = playerBoxesHtml + divisionBoxesHtml;
 }
-
