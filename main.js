@@ -51,6 +51,26 @@ document.querySelectorAll('.nav-link').forEach(link => {
   });
 });
 
+// ---------- "More" menu in the navigation ----------
+(function wireNavMore_() {
+  const btn = document.getElementById('nav-more-btn');
+  const menu = document.getElementById('nav-more-menu');
+  if (!btn || !menu) return;
+  const close = () => { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const open = !menu.classList.contains('open');
+    menu.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  menu.querySelectorAll('.nav-link').forEach(l => l.addEventListener('click', close));
+  document.addEventListener('click', (e) => { if (!menu.contains(e.target) && e.target !== btn) close(); });
+  // Highlight "More" while one of its pages is open.
+  document.querySelectorAll('.nav-link').forEach(l => l.addEventListener('click', () => {
+    setTimeout(() => btn.classList.toggle('active', !!menu.querySelector('.nav-link.active')), 0);
+  }));
+})();
+
 // ---------- Init ----------
 async function init() {
   [allBoxes, allStandings, currentConfig, divisionProjection] = await Promise.all([
