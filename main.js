@@ -561,13 +561,46 @@ setInterval(async () => {
  * players with the most pool points over the last completed Mon-Sun week.
  * Hidden until the weekly ranking exists.
  */
+// ---------- Team of the Week ----------
+/**
+ * Every completed Mon-Sun week's best pool team (most points gained that
+ * week), newest first, worked out from the Points Race history.
+ * Returns [{ weekStart, weekEnd, id, name, gain }].
+ */
+function computeTeamWeeks_(race) {
+  if (!race || !race.dates || !race.dates.length || !race.teams) return [];
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const mondayOf = (s) => { const d = new Date(s + 'T12:00:00Z'); const dow = d.getUTCDay() === 0 ? 7 : d.getUTCDay(); return iso(new Date(d.getTime() - (dow - 1) * 86400000)); };
+  const today = hockeyDay_();
+  const starts = [...new Set(race.dates.map(mondayOf))].sort();
+  const out = [];
+  starts.forEach(start => {
+    const end = iso(new Date(new Date(start + 'T12:00:00Z').getTime() + 6 * 86400000));
+    if (end >= today) return; // week not finished yet
+    let endIdx = -1, baseIdx = -1;
+    race.dates.forEach((d, i) => { if (d <= end) endIdx = i; if (d < start) baseIdx = i; });
+    if (endIdx === -1 || race.dates[endIdx] < start) return;
+    let best = null;
+    Object.keys(race.teams).forEach(id => {
+      const t = race.teams[id];
+      const now = t.pts[endIdx];
+      const base = baseIdx === -1 ? 0 : t.pts[baseIdx];
+      if (now == null || base == null) return;
+      const gain = now - base;
+      if (!best || gain > best.gain) best = { weekStart: start, weekEnd: end, id, name: t.name, gain };
+    });
+    if (best) out.push(best);
+  });
+  return out.reverse();
+}
+
 async function renderWeeklyTop() {
   const section = document.getElementById('weekly-top-section');
   const el = document.getElementById('weekly-top-panel');
   if (!section || !el) return;
 
   try {
-    const data = await fetchWeeklyTop();
+    const [data, race] = await Promise.all([fetchWeeklyTop(), fetchPointsRace().catch(() => null)]);
     // Players of the Week: best Forward, Defenseman and Goalie. (Older
     // saved data without them falls back to the overall top 3.)
     const pow = data && data.playersOfWeek;
@@ -575,6 +608,8 @@ async function renderWeeklyTop() {
       ? [['Forward', pow.F], ['Defense', pow.D], ['Goalie', pow.G]].filter(([, p]) => p).map(([label, p]) => Object.assign({ award: label }, p))
       : ((data && data.top) || []).slice(0, 3);
     if (top.length === 0) { section.style.display = 'none'; return; }
+    // Team of the Week (best pool team over the same week), shown first.
+    const teamWeek = computeTeamWeeks_(race).find(w => w.weekStart === data.weekStart) || null;
 
     const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     document.getElementById('weekly-top-dates').textContent = `${day(data.weekStart)} – ${day(data.weekEnd)}`;
@@ -588,7 +623,7 @@ async function renderWeeklyTop() {
         <div style="display:flex; align-items:center; gap:10px; min-width:0;">
           ${p.award
             ? `<span class="mono pow-label">${escapeHtml(p.award)}</span>`
-            : `<span class="mono" style="color:var(--amber); font-weight:700; width:14px;">${i + 1}</span>`}
+            : `<span class="mono" style="color:var(--text-dim); font-weight:700; width:14px;">${i + 1}</span>`}
           ${p.headshotUrl ? `<img class="star-photo" src="${p.headshotUrl}" alt="" loading="lazy">` : `<div class="star-photo star-photo-empty"></div>`}
           <div class="division-leader-info" style="min-width:0;">
             <div class="division-leader-team">${escapeHtml(p.fullName)}</div>
@@ -601,6 +636,24 @@ async function renderWeeklyTop() {
         </div>
       </div>`;
     }).join('');
+    if (teamWeek) {
+      el.insertAdjacentHTML('afterbegin', `
+      <div class="division-leader-row">
+        <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+          <span class="mono pow-label">Team</span>
+          <div class="star-photo team-week-icon">🏅</div>
+          <div class="division-leader-info" style="min-width:0;">
+            <div class="division-leader-team"><span class="team-link" data-entry-id="${escapeHtml(teamWeek.id)}">${escapeHtml(teamWeek.name)}</span></div>
+            <div class="mono division-leader-record">Team of the Week · most points gained</div>
+          </div>
+        </div>
+        <div class="division-leader-earning">
+          <span class="division-leader-count" style="color:#3ecf6a;">+${teamWeek.gain.toFixed(2)}</span>
+          <span class="mono division-leader-count-label">pts this week</span>
+        </div>
+      </div>`);
+      attachTeamLinkListeners(el);
+    }
     section.style.display = 'block';
   } catch (e) {
     section.style.display = 'none';
@@ -952,6 +1005,7 @@ async function refreshAndRenderStandings() {
   await loadTonight_();
   renderStandingsTable();
   renderPointsRace();
+  renderComparePanel_();
 }
 
 function renderStandingsTable() {
@@ -1283,6 +1337,104 @@ function tonightSummaryHtml_(data) {
   let livePts = live ? live.pts : null;
   if (livePts == null && lp) livePts = picks.reduce((s, p) => s + ((lp.players[p.playerId] || {}).pts || 0), 0);
   return `<p class="mono" style="font-size:12px; margin-bottom:10px; color:var(--text-dim);">🏒 ${playing} of ${picks.length} play tonight${lp ? ` · <span class="game-chip-live">● +${livePts.toFixed(2)} live</span>` : ''}</p>`;
+}
+
+// ---------- Head-to-head compare (Standings page) ----------
+let compareIds_ = { a: null, b: null };
+
+/** Two team pickers; shows both teams' picks box by box, differences highlighted. */
+function renderComparePanel_() {
+  const el = document.getElementById('compare-panel');
+  if (!el) return;
+  const teams = [...allStandings].filter(e => e.entryId).sort((a, b) => a.teamName.localeCompare(b.teamName));
+  if (teams.length < 2) { el.innerHTML = ''; return; }
+  if (!compareIds_.a) {
+    try { compareIds_.a = localStorage.getItem('aahl_lastNightTeam'); } catch (e) { /* ignore */ }
+  }
+  const opts = (sel) => `<option value="">Pick a team...</option>` + teams.map(t => `<option value="${escapeHtml(t.entryId)}" ${t.entryId === sel ? 'selected' : ''}>${escapeHtml(t.teamName)}</option>`).join('');
+  el.innerHTML = `
+    <h3 class="mini-title">⚖️ Compare Two Teams</h3>
+    <div class="panel">
+      <div class="compare-pickers">
+        <select id="compare-a">${opts(compareIds_.a)}</select>
+        <span class="mono" style="color:var(--text-dim);">vs</span>
+        <select id="compare-b">${opts(compareIds_.b)}</select>
+      </div>
+      <div id="compare-body"></div>
+    </div>`;
+  const onChange = () => {
+    compareIds_ = { a: document.getElementById('compare-a').value || null, b: document.getElementById('compare-b').value || null };
+    drawCompare_();
+  };
+  document.getElementById('compare-a').addEventListener('change', onChange);
+  document.getElementById('compare-b').addEventListener('change', onChange);
+  drawCompare_();
+}
+
+async function drawCompare_() {
+  const body = document.getElementById('compare-body');
+  if (!body) return;
+  const { a, b } = compareIds_;
+  if (!a || !b) { body.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:12px; margin-top:10px;">Pick two teams to see their picks side by side.</p>`; return; }
+  if (a === b) { body.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:12px; margin-top:10px;">Pick two different teams.</p>`; return; }
+  body.innerHTML = skeletonLoader_();
+  const want = a + '|' + b;
+  const [ta, tb] = await Promise.all([fetchEntryPicks(a), fetchEntryPicks(b), ensureCurrentSeasonStandingsLoaded_()]);
+  if ((compareIds_.a + '|' + compareIds_.b) !== want) return; // changed while loading
+  if (!ta || ta.error || !tb || tb.error) { body.innerHTML = `<p class="mono" style="color:var(--text-dim);">Couldn't load one of the teams.</p>`; return; }
+
+  const sa = allStandings.find(e => e.entryId === a) || {}, sb = allStandings.find(e => e.entryId === b) || {};
+  const byBox = (t) => { const m = {}; (t.picks || []).forEach(p => { m[p.boxId] = p; }); return m; };
+  const A = byBox(ta), B = byBox(tb);
+  const boxIds = [...new Set([...Object.keys(A), ...Object.keys(B)])].sort((x, y) => Number(x) - Number(y));
+  const groups = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+  let same = 0;
+
+  const cell = (p, other, side) => {
+    if (!p) return '<td>—</td><td></td>';
+    const pts = p.contributionSinceAcquired || 0;
+    const otherPts = other ? (other.contributionSinceAcquired || 0) : -Infinity;
+    const isSame = other && other.playerId === p.playerId;
+    const cls = isSame ? 'cmp-same' : (pts > otherPts ? 'cmp-win' : '');
+    return `<td class="${cls}">${playerCellHtml_(p.playerName, p.headshotUrl, p.team, '', p.playerId)}</td><td class="num mono ${cls}">${pts.toFixed(2)}</td>`;
+  };
+
+  const sections = Object.keys(groups).map(type => {
+    const ids = boxIds.filter(id => ((A[id] || B[id]).boxType || 'F') === type);
+    if (!ids.length) return '';
+    let totA = 0, totB = 0;
+    const rows = ids.map(id => {
+      const pa = A[id], pb = B[id];
+      if (pa && pb && pa.playerId === pb.playerId) same++;
+      totA += pa ? pa.contributionSinceAcquired || 0 : 0;
+      totB += pb ? pb.contributionSinceAcquired || 0 : 0;
+      const label = (pa || pb).boxLabel || ('Box ' + id);
+      return `<tr><td class="mono cmp-box">${escapeHtml(label)}</td>${cell(pa, pb)}${cell(pb, pa)}</tr>`;
+    }).join('');
+    return `<tr class="cmp-group"><td>${groups[type]}</td><td></td><td class="num mono ${totA > totB ? 'cmp-win' : ''}">${totA.toFixed(2)}</td><td></td><td class="num mono ${totB > totA ? 'cmp-win' : ''}">${totB.toFixed(2)}</td></tr>${rows}`;
+  }).join('');
+
+  const divs = DIVISIONS.map(d => {
+    const da = (ta.divisionPicks || {})[d], db = (tb.divisionPicks || {})[d];
+    const c = (abbr) => abbr ? `<td colspan="2"><span class="mono">${escapeHtml(abbr)}</span>${divisionPickStatusHtml_(d, abbr)}</td>` : '<td colspan="2">—</td>';
+    return `<tr class="${da && da === db ? 'cmp-same-row' : ''}"><td class="mono cmp-box">${escapeHtml(d)}</td>${c(da)}${c(db)}</tr>`;
+  }).join('');
+
+  const diff = (sa.pts || 0) - (sb.pts || 0);
+  body.innerHTML = `
+    <p class="mono" style="font-size:12px; color:var(--text-dim); margin:10px 0;">
+      ${escapeHtml(ta.teamName)} <strong style="color:var(--ice);">${(sa.pts || 0).toFixed(2)}</strong> (${sa.rank ? ordinal(sa.rank) : '—'})
+      vs ${escapeHtml(tb.teamName)} <strong style="color:var(--ice);">${(sb.pts || 0).toFixed(2)}</strong> (${sb.rank ? ordinal(sb.rank) : '—'})
+      · ${diff === 0 ? 'tied' : escapeHtml(diff > 0 ? ta.teamName : tb.teamName) + ' leads by ' + Math.abs(diff).toFixed(2)}
+      · ${same} of ${boxIds.length} picks the same
+    </p>
+    <div class="players-table-scroll" style="max-height:none;">
+      <table class="data-table compare-table">
+        <thead><tr><th>Box</th><th>${escapeHtml(ta.teamName)}</th><th class="num">Pts</th><th>${escapeHtml(tb.teamName)}</th><th class="num">Pts</th></tr></thead>
+        <tbody>${sections}<tr class="cmp-group"><td>Division Picks</td><td colspan="4"></td></tr>${divs}</tbody>
+      </table>
+    </div>
+    <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Green = the better pick in that box · faded = both teams picked the same player.</p>`;
 }
 
 // ---------- Shared table helpers ----------
