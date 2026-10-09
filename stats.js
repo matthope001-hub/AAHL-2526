@@ -680,7 +680,7 @@ async function renderRecordsPage() {
   const row = (i, main, sub, value) => `
     <div class="division-leader-row">
       <div style="display:flex; align-items:center; gap:10px; min-width:0;">
-        <span class="mono" style="color:var(--amber); font-weight:700; width:14px;">${i + 1}</span>
+        <span class="mono" style="color:var(--text-dim); font-weight:700; width:14px;">${i + 1}</span>
         <div class="division-leader-info" style="min-width:0;">
           <div class="division-leader-team">${main}</div>
           <div class="mono division-leader-record">${sub}</div>
@@ -736,7 +736,28 @@ async function renderRecordsPage() {
       ${card('📈 Biggest One-Day Climb', '', climbs.filter(r => r.up > 0).slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(day(r.date))} · ${ordinal(r.from)} → ${ordinal(r.to)}`, '▲' + r.up)))}
       ${card('👑 Most Nights in 1st Place', '', firsts.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `of ${race.dates.length} nights so far`, r.days)))}
     </div>
+    ${teamOfWeekHistoryHtml_(computeTeamWeeks_(race))}
     ${playersOfWeekHistoryHtml_(powWeeks || [])}`;
+  attachTeamLinkListeners(el);
+}
+
+/** Records page: every week's Team of the Week (newest first) and who has won most. */
+function teamOfWeekHistoryHtml_(weeks) {
+  if (!weeks.length) return '';
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const wins = {};
+  weeks.forEach(w => { wins[w.id] = wins[w.id] || { name: w.name, n: 0 }; wins[w.id].n++; });
+  const repeat = Object.values(wins).filter(x => x.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
+  return `
+    <h3 class="mini-title" style="margin-top:24px;">🏅 Team of the Week</h3>
+    <div class="panel">
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Team</th><th class="num">Gained</th></tr></thead>
+        <tbody>${weeks.map(w => `<tr><td class="mono" style="white-space:nowrap;">${escapeHtml(day(w.weekStart))} – ${escapeHtml(day(w.weekEnd))}</td><td><span class="team-link" data-entry-id="${escapeHtml(w.id)}">${escapeHtml(w.name)}</span></td><td class="num mono" style="color:#3ecf6a;">+${w.gain.toFixed(2)}</td></tr>`).join('')}</tbody>
+      </table>
+      ${repeat.length ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Most weekly wins: ${repeat.map(x => `${escapeHtml(x.name)} ×${x.n}`).join(' · ')}</p>` : ''}
+      <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:4px;">Weeks before Oct 6 use estimated nightly totals.</p>
+    </div>`;
 }
 
 /**
