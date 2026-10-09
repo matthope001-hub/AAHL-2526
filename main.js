@@ -450,31 +450,36 @@ async function renderStarsOfNight() {
  */
 function gameCardInner_(g) {
   const logo = (abbrev) => `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">`;
-  const hasScore = g.state === 'live' || g.state === 'final';
+  const started = g.state === 'live' || g.state === 'final';
 
+  // Status line: start time -> "● 2ND · 12:34" / "2ND INT" -> "FINAL/OT"
   let status;
   if (g.state === 'final') {
     status = `<span class="game-chip-final">FINAL${g.finalType ? '/' + escapeHtml(g.finalType) : ''}</span>`;
   } else if (g.state === 'live') {
-    const where = g.period ? (g.intermission ? `${g.period} INT` : g.period) : '';
-    status = `<span class="game-chip-live">● LIVE</span>${where ? ' ' + escapeHtml(where) : ''}`;
+    const where = g.period
+      ? (g.intermission ? `${g.period} INT` : (g.clock ? `${g.period} · ${g.clock}` : g.period))
+      : '';
+    status = `<span class="game-chip-live">● ${where ? escapeHtml(where) : 'LIVE'}</span>`;
   } else {
     const start = new Date(g.startTimeUTC);
     status = isNaN(start.getTime()) ? '' : escapeHtml(start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
   }
 
-  const teamRow = (abbrev, record, score, otherScore) => `
+  // Before the game: team records. Once it starts: score, with shots on goal.
+  const teamRow = (abbrev, record, score, otherScore, sog) => `
     <div class="game-chip-team${g.state === 'final' && score < otherScore ? ' game-chip-loser' : ''}">
       ${logo(abbrev)}
       <span class="game-chip-abbrev">${escapeHtml(abbrev)}</span>
-      <span class="mono game-chip-record">${escapeHtml(record || '')}</span>
-      ${hasScore ? `<span class="mono game-chip-score">${score == null ? 0 : score}</span>` : ''}
+      ${started
+        ? `${sog != null ? `<span class="mono game-chip-record" title="Shots on goal">${sog} SOG</span>` : ''}<span class="mono game-chip-score">${score == null ? 0 : score}</span>`
+        : `<span class="mono game-chip-record">${escapeHtml(record || '')}</span>`}
     </div>`;
 
   return `
     <div class="mono game-chip-time">${status}</div>
-    ${teamRow(g.away, g.awayRecord, g.awayScore, g.homeScore)}
-    ${teamRow(g.home, g.homeRecord, g.homeScore, g.awayScore)}`;
+    ${teamRow(g.away, g.awayRecord, g.awayScore, g.homeScore, g.awaySog)}
+    ${teamRow(g.home, g.homeRecord, g.homeScore, g.awayScore, g.homeSog)}`;
 }
 
 /** "● LIVE · scores updated 8:42 PM" while games are on; "Scores updated ..." after. */
