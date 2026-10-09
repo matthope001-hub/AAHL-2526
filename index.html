@@ -24,13 +24,18 @@
       <a href="#" data-view="standings" class="nav-link">Standings</a>
       <a href="#" data-view="players" class="nav-link">Players</a>
       <a href="#" data-view="lastnight" class="nav-link">Last Night</a>
-      <a href="#" data-view="records" class="nav-link">Records</a>
-      <a href="#" data-view="activity" class="nav-link">Activity</a>
-      <a href="#" data-view="rules" class="nav-link">Rules</a>
-      <a href="#" data-view="boxes" class="nav-link">Boxes</a>
-      <a href="#" data-view="ir" class="nav-link">IR List</a>
-      <a href="#" data-view="signup" class="nav-link">Sign Up</a>
       <a href="#" data-view="managemoves" class="nav-link">My Team</a>
+      <div class="nav-more">
+        <button type="button" class="nav-more-btn" id="nav-more-btn" aria-haspopup="true" aria-expanded="false">More ▾</button>
+        <div class="nav-more-menu" id="nav-more-menu">
+          <a href="#" data-view="records" class="nav-link">Records</a>
+          <a href="#" data-view="ir" class="nav-link">IR List</a>
+          <a href="#" data-view="boxes" class="nav-link">Boxes</a>
+          <a href="#" data-view="activity" class="nav-link">Activity</a>
+          <a href="#" data-view="rules" class="nav-link">Rules</a>
+          <a href="#" data-view="signup" class="nav-link">Sign Up</a>
+        </div>
+      </div>
     </nav>
     <a href="#" data-view="admin" class="nav-link admin-gear-btn" title="Commissioner">⚙️</a>
   </div>
@@ -72,16 +77,6 @@
 
     <div id="todays-games" style="display:none; margin-bottom:20px;"></div>
 
-    <div id="stat-ticker" style="display:none; margin-bottom:20px;">
-      <h3 class="mini-title">🔥 Last Night's Performers</h3>
-      <div id="stat-ticker-rows" class="stat-ticker"></div>
-    </div>
-
-    <div style="margin-bottom:20px;">
-      <h3 class="mini-title">⭐ Stars of the Night</h3>
-      <div id="stars-of-night" class="panel"></div>
-    </div>
-
     <div style="margin-bottom:20px;">
       <h3 class="mini-title">Current Standings <span class="mono updated-stamp" data-stamp="stats"></span></h3>
       <div id="home-standings-preview" class="panel"></div>
@@ -92,15 +87,20 @@
       <div id="division-leaders-panel" class="division-cards"></div>
     </div>
 
-    <div class="home-grid" style="margin-top:0;">
+    <div class="home-grid" style="margin:0 0 20px;">
+      <div>
+        <h3 class="mini-title">⭐ Stars of the Night</h3>
+        <div id="stars-of-night" class="panel home-stars"></div>
+      </div>
       <div id="weekly-top-section" style="display:none;">
         <h3 class="mini-title">🏆 Players of the Week <span class="mono" id="weekly-top-dates" style="color:var(--amber); font-weight:400; font-size:12px;"></span></h3>
         <div id="weekly-top-panel" class="panel"></div>
       </div>
-      <div>
-        <h3 class="mini-title">Recent Activity <a href="#" data-view="activity" class="nav-link" style="font-size:12px; text-transform:none; letter-spacing:0; margin-left:8px;">View All →</a></h3>
-        <div id="home-activity-teaser" class="panel"></div>
-      </div>
+    </div>
+
+    <div id="stat-ticker" style="display:none; margin-bottom:20px;">
+      <h3 class="mini-title">🔥 Last Night's Performers</h3>
+      <div id="stat-ticker-rows" class="stat-ticker"></div>
     </div>
   </section>
 
@@ -112,8 +112,8 @@
   <section id="view-standings" class="view">
     <h2 class="section-title">Standings</h2>
     <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">Payout reflects the current prize pool and will grow as more entries join. <span class="mono updated-stamp" data-stamp="stats" style="margin-left:6px;"></span></p>
-    <div id="points-race" style="display:none; margin-bottom:20px;"></div>
     <div id="standings-table" class="panel"></div>
+    <div id="points-race" style="display:none; margin-top:24px;"></div>
     <div id="compare-panel" style="margin-top:24px;"></div>
   </section>
 
