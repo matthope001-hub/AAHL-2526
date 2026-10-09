@@ -284,8 +284,6 @@ async function renderLastNightStats() {
   const el = document.getElementById('lastnight-content');
   el.innerHTML = `${skeletonLoader_()}`;
 
-  // Season tally loads in parallel with last night's stats.
-  const tallyHtmlPromise = buildSeasonStarsTallyHtml_();
 
   try {
     const stars = await fetchStarsOfNight();
@@ -293,7 +291,6 @@ async function renderLastNightStats() {
 
     if (!stars || performers.length === 0) {
       el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
-      el.insertAdjacentHTML('beforeend', await tallyHtmlPromise);
       return;
     }
 
@@ -346,8 +343,7 @@ async function renderLastNightStats() {
       if (pts) { pts.dataset.dir = 'desc'; } // already sorted by points
     });
     fillUpdatedStamps_();
-    el.insertAdjacentHTML('beforeend', await tallyHtmlPromise);
-    makeTableSortable_(el.querySelector('.tally-table'));
+
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
   }
@@ -667,7 +663,7 @@ async function renderRecordsPage() {
   if (!el) return;
   el.innerHTML = skeletonLoader_();
 
-  const [race, tally, powWeeks] = await Promise.all([fetchPointsRace().catch(() => null), fetchStarsTally_(), fetchPlayersOfWeekHistory().catch(() => [])]);
+  const [race, tally, powWeeks, tallyHtml] = await Promise.all([fetchPointsRace().catch(() => null), fetchStarsTally_(), fetchPlayersOfWeekHistory().catch(() => []), buildSeasonStarsTallyHtml_().catch(() => '')]);
   const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const card = (title, note, rows) => `
     <div>
@@ -730,15 +726,18 @@ async function renderRecordsPage() {
 
   el.innerHTML = `
     <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">The best of the season so far. Updated every morning.</p>
+    ${teamOfWeekHistoryHtml_(computeTeamWeeks_(race))}
+    ${playersOfWeekHistoryHtml_(powWeeks || [])}
+    <div style="margin-top:24px;">${tallyHtml || ''}</div>
+    <h3 class="mini-title" style="margin-top:24px;">📊 Season Bests</h3>
     <div class="home-grid" style="margin-top:0;">
       ${card('🔥 Best Night by a Team', `Counting from ${escapeHtml(day(RECORDS_TEAM_NIGHT_START))}.`, teamNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), escapeHtml(day(r.date)), '+' + r.gain.toFixed(2))))}
       ${card('⭐ Best Night by a Player', '', playerNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(r.team || '')} · ${escapeHtml(day(r.date))}`, '+' + r.pts.toFixed(2))))}
       ${card('📈 Biggest One-Day Climb', '', climbs.filter(r => r.up > 0).slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(day(r.date))} · ${ordinal(r.from)} → ${ordinal(r.to)}`, '▲' + r.up)))}
       ${card('👑 Most Nights in 1st Place', '', firsts.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `of ${race.dates.length} nights so far`, r.days)))}
-    </div>
-    ${teamOfWeekHistoryHtml_(computeTeamWeeks_(race))}
-    ${playersOfWeekHistoryHtml_(powWeeks || [])}`;
+    </div>`;
   attachTeamLinkListeners(el);
+  makeTableSortable_(el.querySelector('.tally-table'));
 }
 
 /** Records page: every week's Team of the Week (newest first) and who has won most. */
@@ -749,7 +748,7 @@ function teamOfWeekHistoryHtml_(weeks) {
   weeks.forEach(w => { wins[w.id] = wins[w.id] || { name: w.name, n: 0 }; wins[w.id].n++; });
   const repeat = Object.values(wins).filter(x => x.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
   return `
-    <h3 class="mini-title" style="margin-top:24px;">🏅 Team of the Week</h3>
+    <h3 class="mini-title">🏅 Team of the Week</h3>
     <div class="panel">
       <table class="data-table">
         <thead><tr><th>Week</th><th>Team</th><th class="num">Gained</th></tr></thead>
