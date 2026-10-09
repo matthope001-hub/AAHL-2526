@@ -1330,3 +1330,9 @@ a.hero-badge { cursor: pointer; }
   .hero-badge { padding: 5px 9px; }
   .hero-badge-value { font-size: 14px; }
 }
+
+/* Home: Stars of the Night and Players of the Week boxes match in height */
+.home-grid > div { display: flex !important; flex-direction: column; }
+.home-grid > div[style*="display: none"] { display: none !important; }
+.home-grid > div > .panel { flex: 1; display: flex; flex-direction: column; }
+#weekly-top-panel > .division-leader-row { flex: 1; align-items: center; }
