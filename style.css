@@ -1275,3 +1275,29 @@ a.hero-badge { cursor: pointer; }
 .move-history-line, .pick-card-move { color: var(--ice); border-left-color: var(--ice); }
 .ir-badge { color: #ff5c5c; }
 .compare-table .cmp-group td.cmp-win { color: #3ecf6a; }
+
+/* Navigation "More" menu */
+.nav-more { position: relative; display: inline-flex; }
+.nav-more-btn {
+  background: none; border: none; margin: 0; padding: 0 0 4px;
+  color: var(--text-dim); font-family: var(--font-display); font-weight: 600; font-size: 16px;
+  letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.nav-more-btn:hover, .nav-more-btn.active { color: var(--ice); border-color: var(--ice); opacity: 1; }
+.nav-more-menu {
+  display: none; position: absolute; top: 100%; right: 0; z-index: 40; margin-top: 8px;
+  min-width: 170px; background: var(--bg-panel); border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 6px 0; flex-direction: column;
+}
+.nav-more-menu.open { display: flex; }
+.nav-more-menu .nav-link { padding: 8px 14px; border-bottom: none; white-space: nowrap; }
+.nav-more-menu .nav-link:hover, .nav-more-menu .nav-link.active { background: var(--bg-panel-alt); }
+@media (max-width: 640px) {
+  .nav-more-btn { font-size: 13px !important; width: auto !important; padding: 0 0 4px !important; }
+  .nav-more-menu { right: auto; left: 0; }
+}
+
+/* Home: Stars of the Night stacked beside Players of the Week */
+.home-stars .stars-cards-row { flex-direction: column; }
+.home-stars .star-date { padding: 4px 0 0; }
