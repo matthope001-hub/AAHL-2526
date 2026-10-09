@@ -1241,3 +1241,37 @@ a.hero-badge { cursor: pointer; }
 .modal-pick-wrap .pick-card { flex: 1; }
 .pick-card-move { grid-column: 1 / -1; font-family: var(--font-mono); font-size: 10px; color: var(--amber); border-top: 1px solid var(--border); padding-top: 5px; margin-top: 2px; }
 .modal-content h2 { padding-right: 34px; }
+
+/* Team of the Week icon */
+.team-week-icon { display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--bg-panel-alt); }
+
+/* Head-to-head compare */
+.compare-pickers { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.compare-pickers select { flex: 1; min-width: 180px; margin: 0; }
+.compare-table .cmp-box { color: var(--text-dim); font-size: 10px; white-space: nowrap; }
+.compare-table .cmp-win { color: #3ecf6a; }
+.compare-table td.cmp-win .dt-player-name { color: #3ecf6a; }
+.compare-table .cmp-same, .compare-table .cmp-same-row td { opacity: 0.45; }
+.compare-table .cmp-group td { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--ice); padding-top: 12px; border-bottom: 1px solid var(--border); }
+
+/* ============================================================
+   Colour roles - one job per colour
+   gold      = 1st place and awards
+   red-pink  = money and bonuses (payouts, prize pool, division +25)
+   ice blue  = points and stats
+   green     = gains and live
+   red       = injuries and drops
+   ============================================================ */
+.rank-1 { color: #d4a017; }
+.star-card { border-color: #d4a017; }
+.star-badge { background: #d4a017; color: #111; }
+.star-pts { color: var(--ice); }
+.pow-label { color: #d4a017; }
+.hat-trick { color: #d4a017; }
+.division-leader-count { color: var(--ice); }
+.stat-source { color: var(--text-dim); }
+.ticker-chip .ticker-pts { color: #3ecf6a; }
+.game-chip-time { color: var(--text-dim); }
+.move-history-line, .pick-card-move { color: var(--ice); border-left-color: var(--ice); }
+.ir-badge { color: #ff5c5c; }
+.compare-table .cmp-group td.cmp-win { color: #3ecf6a; }
