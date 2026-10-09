@@ -1301,3 +1301,32 @@ a.hero-badge { cursor: pointer; }
 /* Home: Stars of the Night stacked beside Players of the Week */
 .home-stars .stars-cards-row { flex-direction: column; }
 .home-stars .star-date { padding: 4px 0 0; }
+
+/* Compact hero stats: one slim strip of "value + label" chips */
+.hero-header-row { padding: 20px 24px; gap: 12px; }
+.hero-title-new { font-size: 34px; }
+.hero-badges-row { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; grid-template-columns: none; }
+.hero-badge {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 12px;
+  min-width: 0;
+  border-top-width: 0;
+  border-left-width: 3px;
+  background: rgba(20, 20, 20, 0.85);
+}
+.hero-badge-blue { border-left-color: var(--ice); }
+.hero-badge-amber { border-left-color: var(--amber); }
+.hero-badge-gold { border-left-color: #d4a017; }
+.hero-badge-value { font-size: 16px; }
+.hero-badge-label { font-size: 10px; margin-top: 0; white-space: nowrap; }
+.hero-badge-sub { font-size: 10px; margin-top: 0; }
+.hero-badge-sub:not(:empty)::before { content: '· '; }
+@media (max-width: 640px) {
+  .hero-header-row { padding: 16px; }
+  .hero-title-new { font-size: 28px; }
+  .hero-badges-row { gap: 6px; }
+  .hero-badge { padding: 5px 9px; }
+  .hero-badge-value { font-size: 14px; }
+}
