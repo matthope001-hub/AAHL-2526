@@ -59,8 +59,8 @@ function openWhoHasModal_(playerId) {
   body.innerHTML = `
     <h2 style="margin-bottom:4px;">${escapeHtml(p ? p.fullName : 'Player')}</h2>
     <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">On ${teams.length} of ${pickCounts ? pickCounts.total : 0} rosters right now (players traded away don't count). Tap a team to see its picks.</p>
-    <div class="panel">${teams.length
-      ? teams.map(t => `<div class="activity-row"><span class="team-link" data-entry-id="${escapeHtml(t.id)}">${escapeHtml(t.name)}</span></div>`).join('')
+    <div class="panel" style="${teams.length ? 'display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:16px;' : ''}">${teams.length
+      ? teams.map(t => `<div class="activity-row" style="min-width:0;"><span class="team-link" data-entry-id="${escapeHtml(t.id)}" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</span></div>`).join('')
       : `<span class="mono" style="color:var(--text-dim);">${pickCounts && pickCounts.playerTeams ? 'No teams have this player.' : 'Team list available after the next refresh.'}</span>`}</div>`;
   body.querySelectorAll('.team-link').forEach(el => {
     el.addEventListener('click', () => openTeamPicksModal(el.dataset.entryId, el.textContent));
