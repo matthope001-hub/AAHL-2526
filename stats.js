@@ -36,10 +36,46 @@ async function ensurePickCountsLoaded_() {
 }
 function hasPickCounts_() { return !!(pickCounts && pickCounts.total > 0); }
 function pickedCount_(playerId) { return (hasPickCounts_() && pickCounts.players && pickCounts.players[playerId]) || 0; }
-/** " · 18 of 47 picked" for the Boxes page ('' until counts exist). */
-function pickedSuffix_(count) {
-  return hasPickCounts_() ? ` <span style="color:var(--amber); white-space:nowrap; margin-left:6px;">${count} of ${pickCounts.total} picked</span>` : '';
+/** " · 18 of 47 picked" for the Boxes page ('' until counts exist).
+ *  Pass playerId to make it clickable (lists the teams). */
+function pickedSuffix_(count, playerId) {
+  if (!hasPickCounts_()) return '';
+  const inner = `${count} of ${pickCounts.total} picked`;
+  return ` <span style="color:var(--amber); white-space:nowrap; margin-left:6px;">${playerId && count ? pickedLink_(playerId, inner) : inner}</span>`;
 }
+
+/** Wraps a pick count so clicking it lists the teams with that player. */
+function pickedLink_(playerId, innerHtml) {
+  return `<span class="pick-count-link" data-pick-player="${escapeHtml(String(playerId))}" title="See which teams have this player" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;">${innerHtml}</span>`;
+}
+
+/** Opens the shared popup listing every team that currently has a player. */
+function openWhoHasModal_(playerId) {
+  const modal = document.getElementById('team-picks-modal');
+  const body = document.getElementById('team-picks-body');
+  if (!modal || !body) return;
+  const p = (typeof allPlayers !== 'undefined' ? allPlayers : []).find(x => String(x.id) === String(playerId));
+  const teams = (pickCounts && pickCounts.playerTeams && pickCounts.playerTeams[playerId]) || [];
+  body.innerHTML = `
+    <h2 style="margin-bottom:4px;">${escapeHtml(p ? p.fullName : 'Player')}</h2>
+    <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">On ${teams.length} of ${pickCounts ? pickCounts.total : 0} rosters right now (players traded away don't count). Tap a team to see its picks.</p>
+    <div class="panel">${teams.length
+      ? teams.map(t => `<div class="activity-row"><span class="team-link" data-entry-id="${escapeHtml(t.id)}">${escapeHtml(t.name)}</span></div>`).join('')
+      : `<span class="mono" style="color:var(--text-dim);">${pickCounts && pickCounts.playerTeams ? 'No teams have this player.' : 'Team list available after the next refresh.'}</span>`}</div>`;
+  body.querySelectorAll('.team-link').forEach(el => {
+    el.addEventListener('click', () => openTeamPicksModal(el.dataset.entryId, el.textContent));
+  });
+  modal.style.display = 'flex';
+}
+
+// One listener for every pick count on every page.
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest && ev.target.closest('[data-pick-player]');
+  if (!el) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  openWhoHasModal_(el.dataset.pickPlayer);
+}, true);
 
 function playerColumnValue(p, key) {
   if (key === 'pts') return computePlayerPoints(p, currentConfig);
@@ -99,7 +135,7 @@ function renderPlayersTable(searchQuery) {
     shutouts: (p) => (p.stats && p.stats.shutouts) || 0,
     saves: (p) => (p.stats && p.stats.saves) || 0,
     hatTricks: (p) => (p.stats && p.stats.hatTricks) ? `<span class="hat-trick">${p.stats.hatTricks}</span>` : '—',
-    picked: (p) => `${pickedCount_(p.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span>`,
+    picked: (p) => { const n = pickedCount_(p.id); const html = `${n}<span style="color:var(--text-dim);">/${pickCounts.total}</span>`; return n ? pickedLink_(p.id, html) : html; },
     pts: (p) => `<span class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</span>`
   };
 
@@ -968,7 +1004,7 @@ async function renderBoxesReference() {
                   ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                 </span>
                 <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Status: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
-                <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts${pickedSuffix_(pickedCount_(p.playerId))}</span>
+                <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts${pickedSuffix_(pickedCount_(p.playerId), p.playerId)}</span>
                 <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
               </div>
             `;}).join('')}
