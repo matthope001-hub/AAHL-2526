@@ -702,6 +702,26 @@ async function renderRecentActivity() {
   }
 }
 
+/**
+ * Short ET timestamp, e.g. "Oct 7, 8:00 AM".
+ */
+function fmtEtStamp_(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-US', { timeZone: 'America/Toronto', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ * Date column for an activity row. In-season trades show both when they
+ * were submitted and when the commissioner approved them, for transparency.
+ */
+function activityDateHtml_(a) {
+  if (a.type === 'move' && !a.preSeason && a.requestedAt) {
+    return `Submitted ${escapeHtml(fmtEtStamp_(a.requestedAt))}` +
+      (a.approvedAt ? `<br>Approved ${escapeHtml(fmtEtStamp_(a.approvedAt))}` : '');
+  }
+  return escapeHtml((a.date || '').slice(0, 10));
+}
+
 function renderHomeActivityTeaser_() {
   const el = document.getElementById('home-activity-teaser');
   if (!el) return;
@@ -715,7 +735,7 @@ function renderHomeActivityTeaser_() {
   el.innerHTML = allActivity.slice(0, 3).map(a => `
     <div class="activity-row">
       <span>${typeIcons[a.type] || '•'} ${escapeHtml(a.description)}</span>
-      <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.date || '').slice(0,10))}</span>
+      <span class="mono" style="color:var(--text-dim); font-size:12px; text-align:right;">${activityDateHtml_(a)}</span>
     </div>
   `).join('');
 }
@@ -754,7 +774,7 @@ function renderActivityList_() {
         : filtered.map(a => `
           <div class="activity-row">
             <span>${typeIcons[a.type] || '•'} ${escapeHtml(a.description)}</span>
-            <span class="mono" style="color:var(--text-dim); font-size:12px;">${escapeHtml((a.date || '').slice(0,10))}</span>
+            <span class="mono" style="color:var(--text-dim); font-size:12px; text-align:right;">${activityDateHtml_(a)}</span>
           </div>
         `).join('')}
     </div>
@@ -1115,7 +1135,7 @@ function renderPicksModalBody_(data, ownerLine) {
                 <span class="pick-card-pts-label">${hasMoves ? 'since acquired' : 'pts'}</span>
               </div>
               ${hasMoves ? p.moves.map(mv => `
-                <div class="pick-card-move">🔁 ${escapeHtml(mv.outPlayerName)} banked +${mv.bankedAmount.toFixed(2)}pts · ${escapeHtml((mv.resolvedAt || mv.requestedAt || '').slice(0, 10))}</div>
+                <div class="pick-card-move">🔁 ${escapeHtml(mv.outPlayerName)} banked +${mv.bankedAmount.toFixed(2)}pts · submitted ${escapeHtml(fmtEtStamp_(mv.requestedAt))}${mv.resolvedAt ? ` · approved ${escapeHtml(fmtEtStamp_(mv.resolvedAt))}` : ''}</div>
               `).join('') : ''}
             </div>
           </div>
