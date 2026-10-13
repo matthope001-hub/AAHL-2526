@@ -257,8 +257,19 @@ async function loadAdminPendingMoves() {
   if (!container) return;
   container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading pending moves...</p>`;
 
-  const result = await adminGetPendingMoves(adminPassword);
-  if (!result.success || !result.data || result.data.length === 0) {
+  let result;
+  try {
+    result = await adminGetPendingMoves(adminPassword);
+  } catch (err) {
+    result = { success: false, error: err.message };
+  }
+
+  // Show real failures instead of masking them as "No pending moves."
+  if (!result || !result.success) {
+    container.innerHTML = `<p class="status-msg error" style="margin-bottom:16px;">Pending moves failed to load: ${escapeHtml((result && result.error) || 'Unknown error')}</p>`;
+    return;
+  }
+  if (!result.data || result.data.length === 0) {
     container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">No pending moves.</p>`;
     return;
   }
@@ -270,26 +281,43 @@ async function loadAdminPendingMoves() {
         <div class="activity-row">
           <span><strong>${escapeHtml(m.teamName)}</strong> — ${escapeHtml(m.boxLabel)}: ${escapeHtml(m.outPlayerName)} → ${escapeHtml(m.inPlayerName)}</span>
           <span>
-            <button class="admin-btn admin-approve-move" data-id="${m.moveId}">Approve</button>
-            <button class="admin-btn admin-reject-move" data-id="${m.moveId}">Reject</button>
+            <button class="admin-btn admin-approve-move" data-id="${escapeHtml(m.moveId)}">Approve</button>
+            <button class="admin-btn admin-reject-move" data-id="${escapeHtml(m.moveId)}">Reject</button>
           </span>
         </div>
       `).join('')}
+      <div id="admin-moves-status" class="status-msg"></div>
     </div>
   `;
 
+  const statusEl = document.getElementById('admin-moves-status');
+  const allBtns = container.querySelectorAll('.admin-approve-move, .admin-reject-move');
+
+  async function act_(btn, fn, label) {
+    allBtns.forEach(b => { b.disabled = true; }); // block double-clicks
+    btn.textContent = label + '...';
+    let res;
+    try { res = await fn(adminPassword, btn.dataset.id); }
+    catch (err) { res = { success: false, error: err.message }; }
+    if (!res || !res.success) {
+      statusEl.textContent = `${label} failed: ${(res && res.error) || 'Unknown error'}`;
+      statusEl.className = 'status-msg error';
+      allBtns.forEach(b => { b.disabled = false; });
+      btn.textContent = label === 'Approving' ? 'Approve' : 'Reject';
+      return;
+    }
+    loadAdminPendingMoves();
+    loadAdminEntries();
+  }
+
   container.querySelectorAll('.admin-approve-move').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      await adminApproveMove(adminPassword, btn.dataset.id);
-      loadAdminPendingMoves();
-      loadAdminEntries();
-    });
+    btn.addEventListener('click', () => act_(btn, adminApproveMove, 'Approving'));
   });
 
   container.querySelectorAll('.admin-reject-move').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      await adminRejectMove(adminPassword, btn.dataset.id);
-      loadAdminPendingMoves();
+    btn.addEventListener('click', () => {
+      if (!confirm('Reject this move? The player will stay as-is and the move will not count.')) return;
+      act_(btn, adminRejectMove, 'Rejecting');
     });
   });
 }
