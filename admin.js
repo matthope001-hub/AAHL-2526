@@ -83,6 +83,7 @@ function renderAdminEntries(entries) {
 
   const ctaVisible = currentConfig.showSignupCta !== false;
   const toggleHtml = `
+    <div id="admin-pending-moves"></div>
     <div class="panel" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
       <span>Sign Up button on Home page</span>
       <label class="toggle-switch">
@@ -117,10 +118,7 @@ function renderAdminEntries(entries) {
       <div id="admin-inj-status" class="status-msg"></div>
       <div id="admin-inj-overrides" style="margin-top:10px;"></div>
     </div>
-    <div id="admin-pending-moves"></div>
   `;
-
-  loadAdminPendingMoves();
 
   if (entries.length === 0) {
     el.innerHTML = toggleHtml + `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
@@ -129,6 +127,7 @@ function renderAdminEntries(entries) {
     wireAdminCreateLateLinkButton_();
     wireAdminWeeklyImageButton_();
     wireAdminInjuryPanel_();
+    loadAdminPendingMoves(); // after innerHTML so the container exists
     return;
   }
 
@@ -250,6 +249,7 @@ function renderAdminEntries(entries) {
   wireAdminCreateLateLinkButton_();
   wireAdminWeeklyImageButton_();
   wireAdminInjuryPanel_();
+  loadAdminPendingMoves(); // after innerHTML so the container exists
 }
 
 async function loadAdminPendingMoves() {
