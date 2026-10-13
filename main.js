@@ -980,6 +980,20 @@ function wireStandingsSort_(el, redraw) {
   });
 }
 
+/**
+ * Standings "Trades" cell: used/max, plus pending count if any.
+ * e.g. "1/2", "0/2 ⏳1", full detail in the tooltip.
+ */
+function tradesCellHtml_(e) {
+  const used = e.tradesUsed || 0;
+  const pending = e.tradesPending || 0;
+  const max = e.tradesMax || 2;
+  const left = Math.max(0, max - used - pending);
+  const title = `${used} used, ${left} left${pending ? `, ${pending} pending approval` : ''}`;
+  const color = left === 0 ? 'var(--amber)' : (used || pending ? 'var(--ice)' : 'var(--text-dim)');
+  return `<span title="${escapeHtml(title)}" style="color:${color}; white-space:nowrap;">${used}/${max}${pending ? ` <span style="color:var(--amber);">⏳${pending}</span>` : ''}</span>`;
+}
+
 function standingsTableHtml_(sorted, deltaLabel) {
   const hasDiv = !!(divisionProjection && divisionProjection.byEntry);
   const final = currentConfig.seasonComplete === true;
@@ -1005,7 +1019,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
              ${sortHead('div', 'Div' + (final ? '' : '*'), '', 'Division winner picks leading now, +25 each - click to sort')}
              ${sortHead('projected', final ? 'Total' : 'Projected*', 'num col-hide-sm', 'Players plus the division bonus - click to sort')}`
           : '<th class="num">Points</th>'}
-        <th class="num col-hide-sm">${escapeHtml(deltaLabel)}</th><th class="col-hide-sm">Move</th><th class="col-hide-sm">Payout</th>
+        <th class="num col-hide-sm">${escapeHtml(deltaLabel)}</th><th class="col-hide-sm">Move</th><th class="num" title="In-season trades used out of the season limit">Trades</th><th class="col-hide-sm">Payout</th>
       </tr></thead>
       <tbody>
         ${sorted.map(e => {
@@ -1022,12 +1036,14 @@ function standingsTableHtml_(sorted, deltaLabel) {
               : `<td class="pts num">${e.pts.toFixed(2)}</td>`}
             <td class="num col-hide-sm">${ptsDeltaHtml(e)}</td>
             <td class="col-hide-sm">${rankMovementHtml(e)}</td>
+            <td class="num mono">${tradesCellHtml_(e)}</td>
             <td class="col-hide-sm">${payoutHtml(e.rank, lastRank != null && e.rank === lastRank)}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
     ${live ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;"><span class="game-chip-live">●</span> Tonight = live points from tonight's games so far (number of players who've played in brackets). An estimate, updated every 10 minutes; the official points come in the 4am update.</p>` : ''}
+    <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">Trades = in-season trades used out of ${sorted[0] && sorted[0].tradesMax ? sorted[0].tradesMax : 2}. ⏳ = waiting for commissioner approval.</p>
     ${hasDiv && !final ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">* <span class="div-dot div-dot-on"></span> = a division pick that is leading now. Projected = players + 25 for each one, if the season ended today. Not counted in the ranking until the season ends.</p>` : ''}`;
 }
 
