@@ -1149,7 +1149,10 @@ a.hero-badge { cursor: pointer; }
 .div-dots { display: inline-flex; gap: 3px; vertical-align: middle; }
 .div-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid #4a4f55; }
 .div-dot-on { background: var(--amber); border-color: var(--amber); }
-.standings-full th.num, .standings-full td.num { text-align: right; }
+/* Standings: every column centred under its header, except Team (left). */
+.standings-full th, .standings-full td,
+.standings-full th.num, .standings-full td.num { text-align: center; }
+.standings-full th:nth-child(2), .standings-full td.team-cell { text-align: left; }
 .standings-full td.team-cell { width: 34%; }
 @media (max-width: 640px) {
   /* Phones: keep rank, team, points and the division dots; drop the rest */
