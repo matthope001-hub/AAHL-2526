@@ -543,6 +543,7 @@ function renderManageMoves() {
     if (result.success) {
       statusEl.textContent = '';
       myTeamEntry = result.data;
+      myTeamCreds = { entryId, email }; // lock creds to the looked-up team
       renderMyTeamMovesPanel();
     } else {
       statusEl.textContent = result.error || 'Not found';
@@ -551,7 +552,19 @@ function renderManageMoves() {
   });
 }
 
+let myTeamCreds = null; // { entryId, email } captured at lookup
 let stagedMoves = {}; // boxId -> { oldPlayerId, newPlayerId }
+
+// True once the season has started AND the trade deadline has passed.
+function tradeDeadlinePassed_() {
+  if (!myTeamEntry || !myTeamEntry.seasonStarted) return false;
+  const dl = (typeof currentConfig !== 'undefined' && currentConfig.tradeDeadline) || DEFAULT_TRADE_DEADLINE;
+  return new Date() >= new Date(dl);
+}
+
+function canRequestMoves_() {
+  return myTeamEntry && myTeamEntry.movesRemaining > 0 && !tradeDeadlinePassed_();
+}
 let stagedDivisionChanges = {}; // division -> { oldTeam, newTeam }
 
 function renderMyTeamMovesPanel() {
@@ -588,10 +601,10 @@ function renderMyTeamMovesPanel() {
       <div class="box-grid" id="my-team-division-grid"></div>
     ` : ''}
 
-    ${myTeamEntry.movesRemaining > 0 ? `
+    ${canRequestMoves_() ? `
       <h4 class="group-title">Request Moves <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(pick as many box changes as you want, then submit together at the bottom)</span></h4>
       <div class="box-grid" id="my-team-box-grid"></div>
-    ` : `<p class="mono" style="color:var(--text-dim);">No moves remaining.</p>`}
+    ` : `<p class="mono" style="color:var(--text-dim);">${tradeDeadlinePassed_() ? 'Trade deadline has passed - no more moves this season.' : 'No moves remaining.'}</p>`}
 
     <div id="unified-changes-summary" style="margin-top:24px;"></div>
   `;
@@ -600,7 +613,7 @@ function renderMyTeamMovesPanel() {
     renderMyTeamDivisionPicker();
   }
 
-  if (myTeamEntry.movesRemaining > 0) {
+  if (canRequestMoves_()) {
     renderMyTeamBoxPicker();
   }
 
@@ -714,7 +727,7 @@ function renderUnifiedChangesSummary_() {
     return;
   }
 
-  const seasonStarted = currentConfig.seasonStartDate && new Date() >= new Date(currentConfig.seasonStartDate);
+  const seasonStarted = !!myTeamEntry.seasonStarted;
   const overLimit = seasonStarted && stagedBoxIds.length > myTeamEntry.movesRemaining;
 
   el.innerHTML = `
@@ -777,8 +790,8 @@ function renderUnifiedChangesSummary_() {
 }
 
 async function submitAllUnifiedChanges_() {
-  const entryId = document.getElementById('moves-entryid-input').value.trim();
-  const email = document.getElementById('moves-email-input').value.trim();
+  if (!myTeamCreds) { alert('Look up your team again before submitting.'); return; }
+  const { entryId, email } = myTeamCreds;
   const boxIds = Object.keys(stagedMoves);
   const divisions = Object.keys(stagedDivisionChanges);
   const totalStaged = boxIds.length + divisions.length;
