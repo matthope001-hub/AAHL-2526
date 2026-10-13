@@ -1341,7 +1341,7 @@ function drawIRTable_() {
                   <td><span class="ir-badge" title="${escapeHtml((INJURY_STATUS[r.inj.code] || {}).label || r.inj.code)}">${escapeHtml(r.inj.code)}</span></td>
                   <td class="ir-hide-sm">${escapeHtml(r.inj.detail || '—')}</td>
                   <td>${escapeHtml(day(r.inj.returnDate))}${soon ? ` <span class="ir-soon">${soon}</span>` : ''}</td>
-                  ${showPicked ? `<td class="ir-hide-sm">${pickedCount_(r.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span></td>` : ''}
+                  ${showPicked ? `<td class="ir-hide-sm">${pickedCount_(r.id) ? pickedLink_(r.id, `${pickedCount_(r.id)}<span style="color:var(--text-dim);">/${pickCounts.total}</span>`) : `0<span style="color:var(--text-dim);">/${pickCounts.total}</span>`}</td>` : ''}
                   <td class="ir-hide-sm">${escapeHtml(day(r.inj.since))}</td>
                 </tr>`;
               }).join('')}
