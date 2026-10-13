@@ -1166,7 +1166,29 @@ function renderPicksModalBody_(data, ownerLine) {
     `;}).join('')}
     <h3 class="group-title">Division Picks</h3>
     <div class="panel">${divisionRows || '<span class="mono" style="color:var(--text-dim)">None</span>'}</div>
+    ${teamHistoryHtml_(data)}
   `;
+}
+
+/**
+ * Bottom of the team popup: joined date, then every pick change / trade
+ * with submitted + approved times (oldest first).
+ */
+function teamHistoryHtml_(data) {
+  const h = data.history || [];
+  if (h.length === 0) return '';
+  const rows = h.map(x => {
+    if (x.type === 'join') {
+      return `<div class="activity-row"><span>🆕 Joined the pool</span><span class="mono" style="color:var(--text-dim); font-size:12px; text-align:right;">${escapeHtml(fmtEtStamp_(x.at))}</span></div>`;
+    }
+    const label = x.type === 'trade' ? '🔄 Trade' : '✏️ Pre-season pick change';
+    const banked = x.type === 'trade' ? ` <span class="mono" style="color:var(--amber);">(banked +${(x.bankedAmount || 0).toFixed(2)})</span>` : '';
+    const when = x.type === 'trade'
+      ? `Submitted ${escapeHtml(fmtEtStamp_(x.requestedAt))}${x.approvedAt ? `<br>Approved ${escapeHtml(fmtEtStamp_(x.approvedAt))}` : ''}`
+      : escapeHtml(fmtEtStamp_(x.requestedAt));
+    return `<div class="activity-row"><span>${label} · ${escapeHtml(x.boxLabel)}: ${escapeHtml(x.outPlayerName)} → ${escapeHtml(x.inPlayerName)}${banked}</span><span class="mono" style="color:var(--text-dim); font-size:12px; text-align:right;">${when}</span></div>`;
+  }).join('');
+  return `<h3 class="group-title">Team History</h3><div class="panel">${rows}</div>`;
 }
 
 async function openAdminPicksModal(entryId) {
