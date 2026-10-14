@@ -24,7 +24,10 @@ function cardCfg_(k, d) {
 }
 
 // Season pool points from raw stats, using the pool's scoring config.
-function cardSeasonPts_(s, type) {
+function cardSeasonPts_(s, type, player) {
+  if (player && typeof computePlayerPoints === 'function') {
+    try { return computePlayerPoints(player, (typeof currentConfig !== 'undefined' && currentConfig) || {}); } catch (e) { /* fall through */ }
+  }
   s = s || {};
   if (type === 'G') {
     return (s.wins || 0) * cardCfg_('winPtsG', 3) + (s.otl || 0) * cardCfg_('otlPtsG', 1.5)
@@ -122,7 +125,7 @@ async function openPlayerCard(playerId, extra) {
         <div class="aahl-fc-hs">${hs ? `<img src="${escapeHtml(hs)}" alt="" onerror="this.remove()">` : ''}</div>
       </div>
       <div class="aahl-fc-pool">
-        <div><small>SEASON POOL PTS</small><br><b>${cardF2_(cardSeasonPts_(s, type))}</b></div>
+        <div><small>SEASON POOL PTS</small><br><b>${cardF2_(cardSeasonPts_(s, type, p.id ? p : null))}</b></div>
         ${forTeam != null ? `<div style="text-align:right"><small>${moved ? 'SINCE ACQUIRED' : 'FOR THIS TEAM'}</small><br><b style="font-size:20px">${moved ? '+' : ''}${forTeam}</b></div>` : ''}
       </div>
       <div class="aahl-fc-strip" style="grid-template-columns:repeat(${stats.length},1fr)">
@@ -143,10 +146,10 @@ function closePlayerCard() {
 document.addEventListener('click', e => {
   const mc = e.target.closest('.aahl-mc');
   if (mc) { openPlayerCard(mc.dataset.playerId, cardPickStore_[mc.dataset.pickKey]); return; }
-  const cell = e.target.closest('.dt-player[data-player-id]');
+  const cell = e.target.closest('.dt-player[data-player-id], .aahl-pc[data-player-id]');
   if (cell && cell.dataset.playerId) openPlayerCard(cell.dataset.playerId);
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closePlayerCard();
-  if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('aahl-mc')) e.target.click();
+  if (e.key === 'Enter' && e.target.classList && (e.target.classList.contains('aahl-mc') || e.target.classList.contains('aahl-pc'))) e.target.click();
 });
