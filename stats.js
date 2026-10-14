@@ -419,11 +419,18 @@ async function renderLastNightStats() {
     el.innerHTML = `
       <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)} <span class="updated-stamp" data-stamp="stats" style="margin-left:8px;"></span></p>
       <div id="lastnight-team"></div>
-      <h3 class="group-title" style="margin-top:28px;">All Pool Players</h3>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:28px; flex-wrap:wrap;">
+        <h3 class="group-title" style="margin:0;">All Pool Players</h3>
+        <div class="pc-view-toggle" id="lastnight-view-toggle">
+          <button class="filter-tab ${playerView === 'cards' ? 'active' : ''}" data-view="cards">Cards</button>
+          <button class="filter-tab ${playerView === 'table' ? 'active' : ''}" data-view="table">Table</button>
+        </div>
+      </div>
       ${Object.keys(groupTitles).map(g => {
         if (grouped[g].length === 0) return '';
         return `
         <h3 class="group-title">${groupTitles[g]}</h3>
+        ${playerView === 'cards' ? `<div class="aahl-pc-grid" style="margin-bottom:16px;">${grouped[g].map(lastNightCardHtml_).join('')}</div>` : `
         <div class="panel" style="margin-bottom:16px;">
           <table class="data-table lastnight-table">
             <thead>
@@ -445,9 +452,16 @@ async function renderLastNightStats() {
               `).join('')}
             </tbody>
           </table>
-        </div>
+        </div>`}
       `;}).join('')}
     `;
+    el.querySelectorAll('#lastnight-view-toggle [data-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        playerView = btn.dataset.view;
+        try { localStorage.setItem('aahl_player_view', playerView); } catch (e) { /* fine */ }
+        renderLastNightStats();
+      });
+    });
     renderLastNightTeamPanel_(stars);
     el.querySelectorAll('.lastnight-table').forEach(tbl => {
       makeTableSortable_(tbl);
@@ -459,6 +473,36 @@ async function renderLastNightStats() {
   } catch (e) {
     el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
   }
+}
+
+/**
+ * Last Night card: same look as the Players page cards, but the stat strip
+ * shows last night's line (G/A/SOG/HT, +PIM for D; DEC/SO/SV for goalies)
+ * and the pool points earned last night. Tap opens the full season card.
+ */
+function lastNightCardHtml_(p) {
+  const g = p.isGoalie;
+  const pos = g ? 'G' : (p.position || '');
+  const [first, last] = cardSplitName_(p.fullName);
+  const goals = p.goals || 0;
+  const stats = g
+    ? [[p.decision || '-', 'DEC'], [p.shutout ? 'Y' : '-', 'SO', p.shutout ? 'ht' : ''], [p.saves || 0, 'SV']]
+    : [[goals, 'G'], [p.assists || 0, 'A'], [p.sog || 0, 'SOG'], ...(pos === 'D' ? [[p.pim || 0, 'PIM']] : []), [goals >= 3 ? 'Y' : '-', 'HT', goals >= 3 ? 'ht' : '']];
+  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.playerId)}" role="button" tabindex="0">
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    <div class="aahl-pc-top">
+      <div class="aahl-pc-info">
+        <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
+        <div class="aahl-pc-meta">${escapeHtml(p.team || '')} · ${escapeHtml(pos)}${statusBadge_(p.playerId)}</div>
+        ${hasPickCounts_() && pickedCount_(p.playerId) ? `<div class="aahl-pc-picked">${pickedLink_(p.playerId, `${pickedCount_(p.playerId)}/${pickCounts.total} picked`)}</div>` : ''}
+      </div>
+      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+    </div>
+    <div class="aahl-pc-strip" style="grid-template-columns:repeat(${stats.length + 1},1fr)">
+      ${stats.map(t => `<div><b class="${t[2] || ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
+      <div class="aahl-pc-pts"><b>${(p.pts || 0).toFixed(2)}</b><small>PTS</small></div>
+    </div>
+  </div>`;
 }
 
 // ---------- Last Night: How Each Team Did ----------
