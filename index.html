@@ -212,9 +212,9 @@
 <script>
 // ---------- Install as app (PWA) ----------
 // Registers sw.js, then offers a small "Install AAHL" banner: a real
-// Install button on Android/Chrome, or a Share -> Add to Home Screen hint
-// on iPhone. Dismissing hides it for 30 days. Never shown inside the
-// installed app itself.
+// Install button on Android/Chrome (dismiss hides it for 30 days), or a
+// one-time Share -> Add to Home Screen hint on iPhone. Never shown inside
+// the installed app itself.
 (function () {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
@@ -246,7 +246,13 @@
   });
 
   const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-  if (isIOS) {
+  // iPhone: Safari can't tell if the app is already installed, so the hint
+  // shows only once ever on this device (whether dismissed or not).
+  const IOS_KEY = 'aahl_ios_hint_shown';
+  let iosShown = false;
+  try { iosShown = !!localStorage.getItem(IOS_KEY); } catch (e) {}
+  if (isIOS && !iosShown) {
+    try { localStorage.setItem(IOS_KEY, '1'); } catch (e) {}
     setTimeout(() => banner('<b style="font-family:var(--font-display);font-size:16px">Add AAHL to your home screen</b><br><span style="color:var(--text-dim)">Tap Share, then "Add to Home Screen".</span>'), 2500);
   }
 })();
