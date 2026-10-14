@@ -59,9 +59,13 @@ main{max-width:960px;margin:0 auto;padding:16px}
 .fc .ir{display:inline-block;background:var(--down);color:#fff;font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;margin-top:4px}
 .fc .hs{width:160px;align-self:flex-end;position:relative}
 .fc .hs img{width:160px;display:block}
-.fc .strip{margin:0 12px 12px;border:1px solid #1e2a33;border-radius:12px;display:grid;grid-template-columns:repeat(4,1fr);padding:12px 0;background:#10161c;position:relative}
+.fc .strip{margin:0 12px 12px;border:1px solid #1e2a33;border-radius:12px;display:grid;padding:12px 4px;background:#10161c;position:relative;row-gap:10px}
+.fc .pool{display:flex;justify-content:space-between;align-items:baseline;margin:0 12px 8px;padding:10px 14px;border:1px solid var(--ice);border-radius:12px;background:#0f1a24;position:relative}
+.fc .pool small{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.5px}
+.fc .pool b{font-family:var(--mono);font-size:26px;color:var(--ice);font-weight:500}
 .fc .strip div{text-align:center}
-.fc .strip b{display:block;font-family:var(--mono);font-size:22px;font-weight:500}
+.fc .strip b{display:block;font-family:var(--mono);font-size:20px;font-weight:500}
+.fc .strip b.ht{color:var(--gold)}
 .fc .strip b.ice{color:var(--ice)}
 .fc .strip small{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.5px}
 @media(max-width:520px){.srow{grid-template-columns:30px 1fr 70px 52px 20px}.fc .hs,.fc .hs img{width:120px}.fc .nm{font-size:26px}}
@@ -78,7 +82,21 @@ main{max-width:960px;margin:0 auto;padding:16px}
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const logo = t => t ? `https://assets.nhle.com/logos/nhl/svg/${t}_light.svg` : '';
 const f2 = n => (Number(n) || 0).toFixed(2);
-let players = [], standings = [], openId = null, picksCache = {};
+let players = [], standings = [], cfg = {}, openId = null, picksCache = {};
+const cv = (k, d) => (cfg && cfg[k] != null ? Number(cfg[k]) : d);
+function seasonPts(s, type) {
+  s = s || {};
+  if (type === 'G') return (s.wins || 0) * cv('winPtsG', 3) + (s.otl || 0) * cv('otlPtsG', 1.5) + (s.losses || 0) * cv('lossPtsG', 1) + (s.shutouts || 0) * cv('shutoutPtsG', 2) + (s.saves || 0) * cv('savePtsG', 0.02);
+  return (s.goals || 0) * cv('goalPtsF', 1) + (s.assists || 0) * cv('assistPtsF', 1) + (s.sog || 0) * cv('sogPtsF', 0.11) + (s.hatTricks || 0) * cv('hatTrickBonus', 3) + (type === 'D' ? (s.pim || 0) * cv('pimPtsD', 0.25) : 0);
+}
+function statList(s, type) {
+  s = s || {};
+  if (type === 'G') return [[gp(s), 'GP'], [s.wins || 0, 'W'], [s.losses || 0, 'L'], [s.otl || 0, 'OTL'], [s.shutouts || 0, 'SO'], [s.saves || 0, 'SV']];
+  const a = [[gp(s), 'GP'], [s.goals || 0, 'G'], [s.assists || 0, 'A'], [s.sog || 0, 'SOG'], [s.hatTricks || 0, 'HT', 'ht']];
+  if (type === 'D') a.push([s.pim || 0, 'PIM']);
+  return a;
+}
+const typeOf = (p, x) => (x && x.boxType) || (isG(p) ? 'G' : (p.position === 'D' ? 'D' : 'F'));
 
 const pById = id => players.find(p => String(p.id) === String(id)) || {};
 const isG = p => p.isGoalie || p.position === 'G';
@@ -96,14 +114,14 @@ function openCard(playerId, extra) {
   const name = p.fullName || x.playerName || '';
   const team = p.team || x.team || '';
   const s = p.stats || {};
-  const g = isG(p) || x.boxType === 'G';
+  const type = typeOf(p, x);
+  const g = type === 'G';
   const [first, last] = splitName(name);
   const hs = p.headshotUrl || x.headshotUrl || '';
   const num = p.sweaterNumber || p.number || '';
-  const stats = g
-    ? [[gp(s), 'GP'], [s.wins || 0, 'W'], [s.shutouts || 0, 'SO'], [s.saves || 0, 'SV']]
-    : [[gp(s), 'GP'], [s.goals || 0, 'G'], [s.assists || 0, 'A'], [(s.goals || 0) + (s.assists || 0), 'PTS']];
+  const stats = statList(s, type);
   const poolPts = x.contributionSinceAcquired != null ? f2(x.contributionSinceAcquired) : null;
+  const season = f2(seasonPts(s, type));
   document.getElementById('fcwrap').innerHTML = `
     <div class="fc">
       ${team ? `<img class="wm" src="${logo(team)}" alt="" onerror="this.remove()">` : ''}
@@ -111,14 +129,17 @@ function openCard(playerId, extra) {
       <div class="top">
         <div class="info">
           <div class="nm">${esc(first)}<br>${esc(last)}</div>
-          <div class="meta">${team ? `<img src="${logo(team)}" alt="" onerror="this.remove()">` : ''}${esc(team)} · ${g ? 'G' : esc(p.position || x.boxType || '')}${num ? ' · #' + esc(num) : ''}</div>
+          <div class="meta">${team ? `<img src="${logo(team)}" alt="" onerror="this.remove()">` : ''}${esc(team)} · ${esc(g ? 'G' : (p.position || type))}${num ? ' · #' + esc(num) : ''}</div>
           ${x.boxId ? `<div class="sub">BOX ${esc(x.boxId)}</div>` : ''}
-          ${poolPts != null ? `<div class="sub" style="color:var(--ice)">${poolPts} POOL PTS</div>` : ''}
           ${p.injury || p.ir ? `<span class="ir">IR</span>` : ''}
         </div>
         <div class="hs">${hs ? `<img src="${esc(hs)}" alt="" onerror="this.remove()">` : ''}</div>
       </div>
-      <div class="strip">${stats.map((t, i) => `<div><b class="${i === 3 ? 'ice' : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}</div>
+      <div class="pool">
+        <div><small>SEASON POOL PTS</small><br><b>${season}</b></div>
+        ${poolPts != null ? `<div style="text-align:right"><small>FOR THIS TEAM</small><br><b style="font-size:20px">${poolPts}</b></div>` : ''}
+      </div>
+      <div class="strip" style="grid-template-columns:repeat(${stats.length},1fr)">${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}</div>
     </div>`;
   document.getElementById('ov').classList.add('on');
 }
@@ -203,15 +224,10 @@ function drawPlayers() {
   const q = pq.toLowerCase();
   const posOk = p => ppos === 'all' || (ppos === 'G' ? isG(p) : ppos === 'D' ? p.position === 'D' : (!isG(p) && p.position !== 'D'));
   const list = players.filter(p => posOk(p) && ((p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q)))
-    .sort((a, b) => {
-      const sa = a.stats || {}, sb = b.stats || {};
-      const va = isG(a) ? (sa.wins || 0) * 2 : (sa.goals || 0) + (sa.assists || 0);
-      const vb = isG(b) ? (sb.wins || 0) * 2 : (sb.goals || 0) + (sb.assists || 0);
-      return vb - va;
-    }).slice(0, 60);
+    .sort((a, b) => seasonPts(b.stats, typeOf(b)) - seasonPts(a.stats, typeOf(a))).slice(0, 60);
   document.getElementById('pgrid').innerHTML = list.length ? list.map(p => {
-    const s = p.stats || {};
-    return miniCard({ playerId: p.id, playerName: p.fullName, team: p.team, headshotUrl: p.headshotUrl, boxType: isG(p) ? 'G' : p.position, contributionSinceAcquired: isG(p) ? (s.wins || 0) : (s.goals || 0) + (s.assists || 0) });
+    const t = typeOf(p);
+    return miniCard({ playerId: p.id, playerName: p.fullName, team: p.team, headshotUrl: p.headshotUrl, boxType: t, contributionSinceAcquired: seasonPts(p.stats, t) });
   }).join('') : '<p class="msg" style="grid-column:1/-1">No players match.</p>';
 }
 
@@ -225,7 +241,8 @@ document.querySelectorAll('nav button[data-v]').forEach(b => b.addEventListener(
 
 (async () => {
   try {
-    [players, standings] = await Promise.all([fetchPlayers(), fetchStandings()]);
+    [players, standings, cfg] = await Promise.all([fetchPlayers(), fetchStandings(), fetchConfig().catch(() => ({}))]);
+    cfg = cfg || {};
     renderStandings();
   } catch (e) {
     document.getElementById('view').innerHTML = `<p class="msg">Couldn't load data.</p>`;
