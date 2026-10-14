@@ -357,7 +357,12 @@ async function wireAdminTradePanel_() {
     .filter(e => e.approved)
     .map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.teamName)} — ${escapeHtml(e.ownerName || '')}</option>`).join('');
 
-  await ensureBoxesLoaded_();
+  // Fresh IR data each time the panel loads, so tags match the IR List.
+  await Promise.all([ensureBoxesLoaded_(), ensureInjuriesLoaded_(true)]);
+  const irTag = pid => {
+    const inj = injuriesByPlayer[pid];
+    return inj ? `  🩹 ${inj.code}` : '';
+  };
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
   const nameOf = (box, pid) => {
@@ -378,7 +383,7 @@ async function wireAdminTradePanel_() {
     const cur = tradeEntry.picks[box.id];
     playerSel.innerHTML = `<option value="">New player...</option>` + box.players
       .filter(p => p.playerId !== cur)
-      .map(p => `<option value="${escapeHtml(p.playerId)}">${escapeHtml(p.name)} (${escapeHtml(p.team)})</option>`).join('');
+      .map(p => `<option value="${escapeHtml(p.playerId)}">${escapeHtml(p.name)} (${escapeHtml(p.team)})${escapeHtml(irTag(p.playerId))}</option>`).join('');
   }
 
   teamSel.addEventListener('change', async () => {
@@ -404,7 +409,7 @@ async function wireAdminTradePanel_() {
     boxSel.innerHTML = `<option value="">Box...</option>` + REQUIRED_BOX_IDS.map(id => {
       const box = boxById[id];
       if (!box) return '';
-      return `<option value="${escapeHtml(box.id)}">${escapeHtml(box.boxLabel)}: ${escapeHtml(nameOf(box, tradeEntry.picks[box.id]))}</option>`;
+      return `<option value="${escapeHtml(box.id)}">${escapeHtml(box.boxLabel)}: ${escapeHtml(nameOf(box, tradeEntry.picks[box.id]))}${escapeHtml(irTag(tradeEntry.picks[box.id]))}</option>`;
     }).join('');
     boxSel.disabled = false;
   });
