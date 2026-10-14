@@ -1383,3 +1383,27 @@ a.hero-badge { cursor: pointer; }
   .aahl-fc-hs, .aahl-fc-hs img { width: 120px; }
   .aahl-fc-nm { font-size: 26px; }
 }
+
+/* ---------- Players page card view (stats.js) ---------- */
+.pc-controls { display: flex; gap: 8px; align-items: center; margin: 8px 0 12px; flex-wrap: wrap; }
+.pc-controls select { flex: 1; min-width: 160px; margin: 0; }
+.pc-view-toggle { display: flex; gap: 4px; }
+.aahl-pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.aahl-pc { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; cursor: pointer; transition: border-color .15s, transform .15s; }
+.aahl-pc:hover, .aahl-pc:focus { border-color: var(--ice); transform: translateY(-2px); outline: none; }
+.aahl-pc-wm { position: absolute; right: -24px; top: -18px; width: 150px; height: 150px; opacity: .13; pointer-events: none; }
+.aahl-pc-top { display: flex; position: relative; min-height: 132px; }
+.aahl-pc-info { flex: 1; padding: 14px 0 10px 14px; min-width: 0; }
+.aahl-pc-nm { font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: .95; text-transform: uppercase; letter-spacing: .5px; }
+.aahl-pc-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aahl-pc-meta .ir-badge { margin-left: 6px; }
+.aahl-pc-picked { font-family: var(--font-mono); font-size: 11px; color: var(--ice); }
+.aahl-pc-hs { width: 112px; align-self: flex-end; position: relative; }
+.aahl-pc-hs img { width: 112px; display: block; }
+.aahl-pc-strip { margin: 0 8px 8px; border: 1px solid var(--border); border-radius: 10px; display: grid; padding: 8px 2px; background: var(--bg-panel); position: relative; }
+.aahl-pc-strip div { text-align: center; min-width: 0; }
+.aahl-pc-strip b { display: block; font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
+.aahl-pc-strip b.ht { color: var(--amber); }
+.aahl-pc-strip small { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
+.aahl-pc-pts { border-left: 1px solid var(--border); }
+.aahl-pc-pts b { color: var(--ice); font-weight: 700; }
