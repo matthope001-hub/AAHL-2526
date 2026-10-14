@@ -84,6 +84,18 @@ function renderAdminEntries(entries) {
   const ctaVisible = currentConfig.showSignupCta !== false;
   const toggleHtml = `
     <div id="admin-pending-moves"></div>
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:6px;">🔁 Process Trade (on behalf of a team)</h3>
+      <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">Same as the owner doing it from My Team: counts as one of their moves, banks the outgoing player's points, logs it in Activity, and emails the owner. In-season it's auto-approved.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <select id="admin-trade-team" style="flex:2; min-width:200px; margin:0;"><option value="">Select team...</option></select>
+        <select id="admin-trade-box" style="flex:2; min-width:200px; margin:0;" disabled><option value="">Box...</option></select>
+        <select id="admin-trade-player" style="flex:2; min-width:200px; margin:0;" disabled><option value="">New player...</option></select>
+        <button id="admin-trade-btn" style="margin:0;" disabled>Process Trade</button>
+      </div>
+      <div id="admin-trade-info" class="mono" style="font-size:12px; margin-top:8px;"></div>
+      <div id="admin-trade-status" class="status-msg"></div>
+    </div>
     <div class="panel" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
       <span>Sign Up button on Home page</span>
       <label class="toggle-switch">
@@ -127,6 +139,7 @@ function renderAdminEntries(entries) {
     wireAdminCreateLateLinkButton_();
     wireAdminWeeklyImageButton_();
     wireAdminInjuryPanel_();
+    wireAdminTradePanel_();
     loadAdminPendingMoves(); // after innerHTML so the container exists
     return;
   }
@@ -249,6 +262,7 @@ function renderAdminEntries(entries) {
   wireAdminCreateLateLinkButton_();
   wireAdminWeeklyImageButton_();
   wireAdminInjuryPanel_();
+  wireAdminTradePanel_();
   loadAdminPendingMoves(); // after innerHTML so the container exists
 }
 
@@ -319,6 +333,124 @@ async function loadAdminPendingMoves() {
       if (!confirm('Reject this move? The player will stay as-is and the move will not count.')) return;
       act_(btn, adminRejectMove, 'Rejecting');
     });
+  });
+}
+
+/**
+ * Admin trade: runs the exact same server path an owner uses from My Team
+ * (submitBatchTeamChanges with the team's own entryId + email), then, if the
+ * season has started and the move landed in Pending, approves it right away
+ * via the normal approve path - which banks points and writes the activity.
+ */
+async function wireAdminTradePanel_() {
+  const teamSel = document.getElementById('admin-trade-team');
+  if (!teamSel) return;
+  const boxSel = document.getElementById('admin-trade-box');
+  const playerSel = document.getElementById('admin-trade-player');
+  const btn = document.getElementById('admin-trade-btn');
+  const infoEl = document.getElementById('admin-trade-info');
+  const statusEl = document.getElementById('admin-trade-status');
+  let tradeEntry = null;   // findEntryForMoves result
+  let tradeCreds = null;   // { entryId, email, teamName }
+
+  teamSel.innerHTML = `<option value="">Select team...</option>` + adminEntriesCache
+    .filter(e => e.approved)
+    .map(e => `<option value="${escapeHtml(e.id)}">${escapeHtml(e.teamName)} — ${escapeHtml(e.ownerName || '')}</option>`).join('');
+
+  await ensureBoxesLoaded_();
+  const boxById = {};
+  allBoxes.forEach(b => { boxById[b.id] = b; });
+  const nameOf = (box, pid) => {
+    const o = (box && box.players || []).find(p => p.playerId === pid);
+    return o ? o.name : pid;
+  };
+
+  function setStatus_(msg, isErr) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status-msg' + (isErr ? ' error' : '');
+  }
+
+  function refreshPlayers_() {
+    const box = boxById[boxSel.value];
+    playerSel.disabled = !box;
+    btn.disabled = true;
+    if (!box) { playerSel.innerHTML = `<option value="">New player...</option>`; return; }
+    const cur = tradeEntry.picks[box.id];
+    playerSel.innerHTML = `<option value="">New player...</option>` + box.players
+      .filter(p => p.playerId !== cur)
+      .map(p => `<option value="${escapeHtml(p.playerId)}">${escapeHtml(p.name)} (${escapeHtml(p.team)})</option>`).join('');
+  }
+
+  teamSel.addEventListener('change', async () => {
+    tradeEntry = null; tradeCreds = null;
+    boxSel.disabled = true; playerSel.disabled = true; btn.disabled = true;
+    boxSel.innerHTML = `<option value="">Box...</option>`;
+    playerSel.innerHTML = `<option value="">New player...</option>`;
+    infoEl.textContent = ''; setStatus_('', false);
+    const entry = adminEntriesCache.find(e => e.id === teamSel.value);
+    if (!entry) return;
+
+    infoEl.textContent = 'Loading team...';
+    const res = await findEntryForMoves(entry.id, entry.email);
+    if (!res.success) { infoEl.textContent = ''; setStatus_(res.error || 'Team lookup failed', true); return; }
+    tradeEntry = res.data;
+    tradeCreds = { entryId: entry.id, email: entry.email, teamName: entry.teamName };
+
+    infoEl.innerHTML = tradeEntry.seasonStarted
+      ? `<span style="color:${tradeEntry.movesRemaining > 0 ? 'var(--ice)' : '#ff5c5c'}">${tradeEntry.movesRemaining} move${tradeEntry.movesRemaining === 1 ? '' : 's'} remaining</span>`
+      : `<span style="color:var(--ice)">Pre-season: change is instant and free</span>`;
+    if (tradeEntry.seasonStarted && tradeEntry.movesRemaining <= 0) return;
+
+    boxSel.innerHTML = `<option value="">Box...</option>` + REQUIRED_BOX_IDS.map(id => {
+      const box = boxById[id];
+      if (!box) return '';
+      return `<option value="${escapeHtml(box.id)}">${escapeHtml(box.boxLabel)}: ${escapeHtml(nameOf(box, tradeEntry.picks[box.id]))}</option>`;
+    }).join('');
+    boxSel.disabled = false;
+  });
+
+  boxSel.addEventListener('change', refreshPlayers_);
+  playerSel.addEventListener('change', () => { btn.disabled = !playerSel.value; });
+
+  btn.addEventListener('click', async () => {
+    if (!tradeEntry || !tradeCreds || !boxSel.value || !playerSel.value) return;
+    const box = boxById[boxSel.value];
+    const outName = nameOf(box, tradeEntry.picks[box.id]);
+    const inName = nameOf(box, playerSel.value);
+    if (!confirm(`Process official trade for ${tradeCreds.teamName}?\n\n${box.boxLabel}: ${outName} → ${inName}\n\n${outName}'s points get banked. This uses one of their moves.`)) return;
+
+    btn.disabled = true; teamSel.disabled = true; boxSel.disabled = true; playerSel.disabled = true;
+    setStatus_('Submitting trade...', false);
+
+    try {
+      const res = await submitBatchTeamChanges(tradeCreds.entryId, tradeCreds.email,
+        [{ boxId: box.id, newPlayerId: playerSel.value }], []);
+      if (!res.success) {
+        const msg = (res.errors && res.errors.length) ? res.errors.join('\n') : (res.error || 'Unknown error');
+        throw new Error(msg);
+      }
+
+      if (tradeEntry.seasonStarted) {
+        setStatus_('Approving trade...', false);
+        const pend = await adminGetPendingMoves(adminPassword);
+        const mv = (pend.success ? pend.data : []).find(m =>
+          m.teamName === tradeCreds.teamName && m.inPlayerName === inName && m.outPlayerName === outName);
+        if (!mv) {
+          alert('Trade submitted but could not auto-approve. Approve it under Pending Moves.');
+        } else {
+          const ap = await adminApproveMove(adminPassword, mv.moveId);
+          if (!ap.success) throw new Error('Submitted, but approve failed: ' + (ap.error || 'Unknown error') + ' - approve it under Pending Moves.');
+          alert(`Trade done: ${tradeCreds.teamName} — ${outName} → ${inName}. Points banked.`);
+        }
+      } else {
+        alert(`Pre-season change done: ${tradeCreds.teamName} — ${outName} → ${inName}.`);
+      }
+      if (typeof refreshAndRenderHome === 'function') refreshAndRenderHome();
+      loadAdminEntries();
+    } catch (err) {
+      setStatus_('Trade failed: ' + err.message, true);
+      teamSel.disabled = false; boxSel.disabled = false; playerSel.disabled = false; btn.disabled = false;
+    }
   });
 }
 
