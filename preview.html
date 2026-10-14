@@ -40,6 +40,10 @@ main{max-width:960px;margin:0 auto;padding:16px}
 .mc .n{font-size:16px;line-height:1.05;margin-top:4px;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mc .m{font-family:var(--mono);font-size:10px;color:var(--dim)}
 .mc .p{position:absolute;bottom:8px;right:8px;font-family:var(--mono);font-size:16px;color:var(--ice)}
+.mc .tr{position:absolute;top:6px;right:6px;font-family:var(--mono);font-size:10px;color:var(--gold);background:#2a1f05;border:1px solid var(--gold);border-radius:4px;padding:0 4px}
+.bank{font-family:var(--mono);font-size:12px;color:var(--gold);background:#1a1405;border:1px solid #3a2c08;border-radius:8px;padding:8px 10px;margin:8px 0 4px}
+.fc .moves{margin:0 12px 12px;font-family:var(--mono);font-size:11px;color:var(--gold);position:relative}
+.fc .moves div{padding:6px 10px;border:1px solid #3a2c08;background:#1a1405;border-radius:8px;margin-top:6px}
 .mc .bx{position:absolute;bottom:10px;left:8px;font-family:var(--mono);font-size:10px;color:var(--gold)}
 .tools{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 .tools input,.tools select{background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:13px;padding:8px 10px;border-radius:6px}
@@ -137,9 +141,10 @@ function openCard(playerId, extra) {
       </div>
       <div class="pool">
         <div><small>SEASON POOL PTS</small><br><b>${season}</b></div>
-        ${poolPts != null ? `<div style="text-align:right"><small>FOR THIS TEAM</small><br><b style="font-size:20px">${poolPts}</b></div>` : ''}
+        ${poolPts != null ? `<div style="text-align:right"><small>${x.moves && x.moves.length ? 'SINCE ACQUIRED' : 'FOR THIS TEAM'}</small><br><b style="font-size:20px">${x.moves && x.moves.length ? '+' : ''}${poolPts}</b></div>` : ''}
       </div>
       <div class="strip" style="grid-template-columns:repeat(${stats.length},1fr)">${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}</div>
+      ${x.moves && x.moves.length ? `<div class="moves">${x.moves.map(mv => `<div>⇄ Replaced ${esc(mv.outPlayerName)} · banked +${f2(mv.bankedAmount)}${mv.resolvedAt || mv.requestedAt ? ' · ' + esc(String(mv.resolvedAt || mv.requestedAt).slice(0, 10)) : ''}</div>`).join('')}</div>` : ''}
     </div>`;
   document.getElementById('ov').classList.add('on');
 }
@@ -159,7 +164,8 @@ function miniCard(pk) {
     <div class="n">${esc(splitName(pk.playerName || p.fullName)[1])}</div>
     <div class="m">${esc(team)} · ${esc(pk.boxType || p.position || '')}</div>
     ${pk.boxId ? `<div class="bx">#${esc(pk.boxId)}</div>` : ''}
-    <div class="p">${f2(pk.contributionSinceAcquired)}</div>
+    ${pk.moves && pk.moves.length ? `<div class="tr" title="Traded in">⇄</div>` : ''}
+    <div class="p">${pk.moves && pk.moves.length ? '+' : ''}${f2(pk.contributionSinceAcquired)}</div>
   </div>`;
 }
 
@@ -188,11 +194,14 @@ async function renderStandings() {
 function drawerHtml(data) {
   if (!data || data.error) return `<p class="msg">${esc((data && data.error) || "Couldn't load picks.")}</p>`;
   const groups = { F: 'Forwards', D: 'Defence', G: 'Goalies' };
-  return Object.keys(groups).map(t => {
+  const banked = p => (p.moves || []).reduce((b, m) => b + (m.bankedAmount || 0), 0);
+  const outs = (data.picks || []).flatMap(p => p.moves || []).filter(m => m.bankedAmount);
+  const bankHtml = data.pointBank ? `<div class="bank">⇄ Banked from trades: +${f2(data.pointBank)}${outs.length ? ' (' + outs.map(m => esc(m.outPlayerName) + ' +' + f2(m.bankedAmount)).join(', ') + ')' : ''}</div>` : '';
+  return bankHtml + Object.keys(groups).map(t => {
     const list = (data.picks || []).filter(p => (p.boxType || 'F') === t)
       .sort((a, b) => (b.contributionSinceAcquired || 0) - (a.contributionSinceAcquired || 0));
     if (!list.length) return '';
-    const tot = list.reduce((s, p) => s + (p.contributionSinceAcquired || 0), 0);
+    const tot = list.reduce((s, p) => s + (p.contributionSinceAcquired || 0) + banked(p), 0);
     return `<div class="grp">${groups[t].toUpperCase()}<span>${f2(tot)}</span></div><div class="mgrid">${list.map(miniCard).join('')}</div>`;
   }).join('');
 }
