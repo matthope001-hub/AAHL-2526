@@ -1161,34 +1161,8 @@ function renderPicksModalBody_(data, ownerLine) {
       }, 0);
       return `
       <h3 class="group-title">${groupTitles[type]} <span class="mono" style="color:var(--ice); font-size:14px; font-weight:400; text-transform:none; letter-spacing:0; margin-left:8px;">${groupTotal.toFixed(2)} pts</span></h3>
-      <div class="modal-pick-list">
-        ${grouped[type].map(p => {
-          const s = allPlayers.find(ap => ap.id === p.playerId);
-          const stats = (s && s.stats) || {};
-          const gp = `${gamesPlayedOf_(stats) || 0}GP &middot; `;
-          const statLine = p.boxType === 'G'
-            ? `${gp}${stats.wins || 0}W ${stats.losses || 0}L ${stats.otl || 0}OTL &middot; ${stats.shutouts || 0}SO &middot; ${stats.saves || 0}SV`
-            : `${gp}${stats.goals || 0}G ${stats.assists || 0}A ${stats.sog || 0}SOG${p.boxType === 'D' ? ` ${stats.pim || 0}PIM` : ''}${stats.hatTricks ? ` &middot; ${stats.hatTricks}HT` : ''}`;
-          const hasMoves = p.moves && p.moves.length > 0;
-          return `
-          <div class="modal-pick-wrap">
-            <div class="pick-card">
-              ${p.headshotUrl ? `<img class="pick-card-photo" src="${p.headshotUrl}" alt="" loading="lazy">` : `<div class="pick-card-photo"></div>`}
-              <div class="pick-card-main">
-                <div class="pick-card-name" title="${escapeHtml(p.playerName)}">${escapeHtml(p.playerName)}</div>
-                <div class="pick-card-meta">${escapeHtml(p.team)}${statusBadge_(p.playerId)}${tonightTagHtml_(p.playerId, p.team)}</div>
-                <div class="pick-card-stats">${statLine}</div>
-              </div>
-              <div class="pick-card-pts">
-                <span class="pick-card-pts-num">${hasMoves ? '+' : ''}${p.contributionSinceAcquired.toFixed(2)}</span>
-                <span class="pick-card-pts-label">${hasMoves ? 'since acquired' : 'pts'}</span>
-              </div>
-              ${hasMoves ? p.moves.map(mv => `
-                <div class="pick-card-move">🔁 ${escapeHtml(mv.outPlayerName)} banked +${mv.bankedAmount.toFixed(2)}pts · submitted ${escapeHtml(fmtEtStamp_(mv.requestedAt))}${mv.resolvedAt ? ` · approved ${escapeHtml(fmtEtStamp_(mv.resolvedAt))}` : ''}</div>
-              `).join('') : ''}
-            </div>
-          </div>
-        `;}).join('')}
+      <div class="aahl-mgrid">
+        ${[...grouped[type]].sort((a, b) => (b.contributionSinceAcquired || 0) - (a.contributionSinceAcquired || 0)).map(miniPickCardHtml_).join('')}
       </div>
     `;}).join('')}
     <h3 class="group-title">Division Picks</h3>
@@ -1559,7 +1533,7 @@ async function drawCompare_() {
  * marker), and "TEAM · POS" underneath.
  */
 function playerCellHtml_(name, headshot, team, pos, playerId) {
-  return `<div class="dt-player">
+  return `<div class="dt-player"${playerId ? ` data-player-id="${escapeHtml(playerId)}"` : ''}>
     ${headshot ? `<img src="${headshot}" alt="" loading="lazy">` : '<span class="dt-player-nophoto"></span>'}
     <div><div class="dt-player-name">${escapeHtml(name)}${playerId ? statusBadge_(playerId) : ''}</div>
     <div class="dt-player-meta">${escapeHtml(team || '')}${pos ? ' · ' + escapeHtml(pos) : ''}</div></div>
