@@ -9,6 +9,7 @@
 // ---------- Players ----------
 let playerFilter = 'all';
 let playerSort = { column: 'pts', dir: 'desc' };
+let playerView = (() => { try { return localStorage.getItem('aahl_player_view') || 'cards'; } catch (e) { return 'cards'; } })();
 
 const PLAYER_COLUMNS = [
   { key: 'name', label: 'Player', title: 'Player Name', sortable: false, filters: ['all', 'F', 'D', 'G'] },
@@ -84,9 +85,9 @@ function playerColumnValue(p, key) {
   return s[key] || 0;
 }
 
-document.querySelectorAll('.filter-tab').forEach(btn => {
+document.querySelectorAll('#player-filter-tabs .filter-tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#player-filter-tabs .filter-tab').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     playerFilter = btn.dataset.filter;
     renderPlayersTable(document.getElementById('player-search').value);
@@ -119,6 +120,14 @@ function renderPlayersTable(searchQuery) {
     const diff = playerColumnValue(b, playerSort.column) - playerColumnValue(a, playerSort.column);
     return playerSort.dir === 'asc' ? -diff : diff;
   });
+
+  syncPlayerControls_(visibleColumns);
+  if (playerView === 'cards') {
+    el.innerHTML = list.length
+      ? `<div class="aahl-pc-grid">${list.map(playerBigCardHtml_).join('')}</div>`
+      : `<p class="mono" style="color:var(--text-dim)">No players match.</p>`;
+    return;
+  }
 
   const cellRenderers = {
     name: (p) => playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.position, p.id),
@@ -172,6 +181,62 @@ function renderPlayersTable(searchQuery) {
     });
   });
 }
+
+/**
+ * Players page card view: one card per player, mockup style (watermark
+ * logo, headshot, name, team/pos/picked, full scoring stat strip + pool
+ * points). Tapping a card opens the full player card (cards.js).
+ */
+function playerBigCardHtml_(p) {
+  const type = cardType_(p);
+  const s = p.stats || {};
+  const [first, last] = cardSplitName_(p.fullName);
+  const pts = computePlayerPoints(p, currentConfig);
+  const n = hasPickCounts_() ? pickedCount_(p.id) : null;
+  const picked = n == null ? '' : (n ? pickedLink_(p.id, `${n}/${pickCounts.total} picked`) : `0/${pickCounts.total} picked`);
+  const stats = cardStatList_(s, type);
+  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0">
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    <div class="aahl-pc-top">
+      <div class="aahl-pc-info">
+        <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
+        <div class="aahl-pc-meta">${escapeHtml(p.team || '')} · ${escapeHtml(p.position || type)}${statusBadge_(p.id)}</div>
+        ${picked ? `<div class="aahl-pc-picked">${picked}</div>` : ''}
+      </div>
+      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+    </div>
+    <div class="aahl-pc-strip" style="grid-template-columns:repeat(${stats.length + 1},1fr)">
+      ${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
+      <div class="aahl-pc-pts"><b>${pts.toFixed(1)}</b><small>PTS</small></div>
+    </div>
+  </div>`;
+}
+
+// Sort dropdown (card view) + Cards/Table toggle, kept in sync with state.
+function syncPlayerControls_(visibleColumns) {
+  const sel = document.getElementById('player-sort-select');
+  if (sel) {
+    sel.innerHTML = visibleColumns.filter(c => c.sortable).map(c =>
+      `<option value="${c.key}" ${playerSort.column === c.key ? 'selected' : ''}>Sort: ${escapeHtml(c.title)}</option>`).join('');
+    sel.style.display = playerView === 'cards' ? '' : 'none';
+  }
+  document.querySelectorAll('.pc-view-toggle [data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === playerView));
+}
+
+const playerSortSelect_ = document.getElementById('player-sort-select');
+if (playerSortSelect_) {
+  playerSortSelect_.addEventListener('change', (e) => {
+    playerSort = { column: e.target.value, dir: 'desc' };
+    renderPlayersTable(document.getElementById('player-search').value);
+  });
+}
+document.querySelectorAll('.pc-view-toggle [data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    playerView = btn.dataset.view;
+    try { localStorage.setItem('aahl_player_view', playerView); } catch (e) { /* fine */ }
+    renderPlayersTable(document.getElementById('player-search').value);
+  });
+});
 
 document.getElementById('player-search').addEventListener('input', (e) => {
   renderPlayersTable(e.target.value);
