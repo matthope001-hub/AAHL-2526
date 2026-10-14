@@ -186,16 +186,24 @@ function renderRulesPage() {
   const potTierNote = pot < 1000
     ? `Current pot is <strong>$${pot.toFixed(0)}</strong> — under $1,000 tier applies (40% / 10% split).`
     : `Current pot is <strong>$${pot.toFixed(0)}</strong> — $1,000+ tier applies (30% / 15% / 5% split).`;
+  const pv = (v, d) => escapeHtml(String(v ?? d));
+  const tdRaw = c.tradeDeadline || DEFAULT_TRADE_DEADLINE;
+  const tdDate = (typeof parseMilestoneDate_ === 'function') ? parseMilestoneDate_(tdRaw) : new Date(tdRaw);
+  const tradeDeadlineText = tdDate && !isNaN(tdDate)
+    ? tdDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Toronto' })
+    : 'the NHL trade deadline';
 
   const sections = [
     { title: '💰 Entry & Payments', html: `
       <p style="margin-bottom:6px;">Entry fee: <strong>$${c.entryFee ?? 10}</strong> per entry (unlimited entries allowed).</p>
       <p style="margin-bottom:6px;">Payment: E-transfer to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong>. Please include your first and last name in the transfer notes.</p>
       <p style="margin-bottom:0;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
+      <p style="margin-bottom:0; margin-top:6px;">Late entries: after the deadline, the commissioner can still add a team. Late teams get full points from opening night, not from the day they join.</p>
     ` },
     { title: '📋 How to Play', html: `
       <p style="margin-bottom:6px;">Make 31 total picks: 1 choice from each of the 27 player boxes (16 Forwards, 5 Defense, 6 Goalies), plus 4 division winners.</p>
-      <p style="margin-bottom:0;">Standings update regularly all season via this live tracking site once games begin.</p>
+      <p style="margin-bottom:6px;">Only NHL regular-season games count (no preseason or playoffs).</p>
+      <p style="margin-bottom:0;">During games, the Standings page shows live points (an estimate). Official points and standings update every night at about 4:00 AM ET.</p>
     ` },
     { title: '📊 Point System', html: `
       <div class="scoring-grid" style="margin-bottom:0;">
@@ -203,11 +211,11 @@ function renderRulesPage() {
           <div class="scoring-card-title">Skaters</div>
           <table class="scoring-table">
             <tbody>
-              <tr><td>Goal</td><td class="pts scoring-value">1</td></tr>
-              <tr><td>Assist</td><td class="pts scoring-value">1</td></tr>
-              <tr><td>Shots on Goal</td><td class="pts scoring-value">0.11</td></tr>
-              <tr><td>Hat Trick</td><td class="pts scoring-value hat-trick">+3</td></tr>
-              <tr><td>PIM (D only)</td><td class="pts scoring-value">0.25</td></tr>
+              <tr><td>Goal</td><td class="pts scoring-value">${pv(c.goalPtsF, 1)}</td></tr>
+              <tr><td>Assist</td><td class="pts scoring-value">${pv(c.assistPtsF, 1)}</td></tr>
+              <tr><td>Shots on Goal</td><td class="pts scoring-value">${pv(c.sogPtsF, 0.11)}</td></tr>
+              <tr><td>Hat Trick (3+ goals in a game)</td><td class="pts scoring-value hat-trick">+${pv(c.hatTrickBonus, 3)}</td></tr>
+              <tr><td>PIM (D only, per minute)</td><td class="pts scoring-value">${pv(c.pimPtsD, 0.25)}</td></tr>
             </tbody>
           </table>
         </div>
@@ -215,11 +223,11 @@ function renderRulesPage() {
           <div class="scoring-card-title">Goalies</div>
           <table class="scoring-table">
             <tbody>
-              <tr><td>Win</td><td class="pts scoring-value">3</td></tr>
-              <tr><td>OT / SO Loss</td><td class="pts scoring-value">1.5</td></tr>
-              <tr><td>Loss</td><td class="pts scoring-value">1</td></tr>
-              <tr><td>Shutout</td><td class="pts scoring-value">2</td></tr>
-              <tr><td>Saves</td><td class="pts scoring-value">0.02</td></tr>
+              <tr><td>Win</td><td class="pts scoring-value">${pv(c.winPtsG, 3)}</td></tr>
+              <tr><td>OT / SO Loss</td><td class="pts scoring-value">${pv(c.otlPtsG, 1.5)}</td></tr>
+              <tr><td>Loss</td><td class="pts scoring-value">${pv(c.lossPtsG, 1)}</td></tr>
+              <tr><td>Shutout*</td><td class="pts scoring-value">${pv(c.shutoutPtsG, 2)}</td></tr>
+              <tr><td>Save (each)</td><td class="pts scoring-value">${pv(c.savePtsG, 0.02)}</td></tr>
             </tbody>
           </table>
         </div>
@@ -232,6 +240,7 @@ function renderRulesPage() {
           </table>
         </div>
       </div>
+      <p style="margin:10px 0 0; color:var(--text-dim); font-size:13px;">* Shutouts only count when one goalie plays the whole game. A shared shutout earns no shutout points.</p>
     ` },
     { title: '🏆 Payouts (50/50 Split)', html: `
       <p style="margin-bottom:8px;">50% of the total pot goes to the bride &amp; groom; 50% goes to the participant prize pool.</p>
@@ -270,15 +279,17 @@ function renderRulesPage() {
       <p style="margin-bottom:4px;">• You get exactly 2 roster moves total for the rest of the season (player boxes only — division picks lock permanently once the season begins)</p>
       <p style="margin-bottom:4px;">• Every move needs commissioner approval before it counts — you'll get a confirmation email once it's finalized</p>
       <p style="margin-bottom:4px;">• Scored fairly regardless of approval speed: the swap takes effect at the moment you request it, not when it's approved</p>
-      <p style="margin-bottom:16px;">• Hard deadline: no move requests accepted after the NHL trade deadline — <strong>Monday, March 1, 2027</strong></p>
+      <p style="margin-bottom:4px;">• Points your old player earned stay banked on your team. Your new player only scores from the moment of the swap.</p>
+      <p style="margin-bottom:4px;">• The commissioner can also record an official trade for you. It counts as one of your 2 moves and banks points the same way.</p>
+      <p style="margin-bottom:16px;">• Hard deadline: no move requests accepted after the NHL trade deadline — <strong>${escapeHtml(tradeDeadlineText)}</strong></p>
       <p style="margin-bottom:0; color:var(--text-dim); font-size:13px;">Manage your picks and request moves on the <a href="#" data-view="managemoves" class="rules-inline-link">My Team page</a>, using the Entry ID from your confirmation email.</p>
     ` },
     { title: '⚖️ Tiebreaker', html: `
-      <p style="margin-bottom:4px;">1. Highest combined goals + assists across your roster.</p>
-      <p style="margin-bottom:0;">2. If still tied: total goalie saves.</p>
+      <p style="margin-bottom:4px;">1. Highest combined goals + assists across your current picks.</p>
+      <p style="margin-bottom:0;">2. If still tied: total goalie saves across your current picks.</p>
     ` },
     { title: '📖 Roster Reference', html: `
-      <p style="margin-bottom:0;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically each night from live NHL data.</p>
+      <p style="margin-bottom:0;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically on the IR List several times a day, with commissioner corrections when needed.</p>
     ` },
     { title: "👀 Viewing Other Teams' Picks", html: `
       <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick, including full move history and points banked from any swaps. Before lock, picks stay private to keep strategy fair.</p>
