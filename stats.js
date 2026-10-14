@@ -1,1409 +1,1133 @@
-:root {
-  --bg: #0a0a0a;
-  --bg-panel: #141414;
-  --bg-panel-alt: #1c1c1c;
-  --border: #2a2a2a;
-  --ice: #4C8FC4;
-  --amber: #A13F5C;
-  --text: #e8edf1;
-  --text-dim: #A2AAAD;
-  --font-display: 'Barlow Condensed', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+/**
+ * stats.js
+ * Players table, Rules, Last Night, Season 3 Stars Tally, Boxes reference.
+ * Plain script (shared global scope with data.js, main.js, stats.js,
+ * signup.js, admin.js). Load order in index.html: data.js, stats.js,
+ * signup.js, admin.js, main.js (main.js LAST - it calls init()).
+ */
+
+// ---------- Players ----------
+let playerFilter = 'all';
+let playerSort = { column: 'pts', dir: 'desc' };
+let playerView = (() => { try { return localStorage.getItem('aahl_player_view') || 'cards'; } catch (e) { return 'cards'; } })();
+
+const PLAYER_COLUMNS = [
+  { key: 'name', label: 'Player', title: 'Player Name', sortable: false, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'gamesPlayed', label: 'GP', title: 'Games Played', sortable: true, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'goals', label: 'G', title: 'Goals', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'assists', label: 'A', title: 'Assists', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'sog', label: 'SOG', title: 'Shots on Goal', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'pim', label: 'PIM', title: 'Penalty Minutes', sortable: true, filters: ['all', 'D'] },
+  { key: 'wins', label: 'W', title: 'Wins', sortable: true, filters: ['all', 'G'] },
+  { key: 'losses', label: 'L', title: 'Losses', sortable: true, filters: ['all', 'G'] },
+  { key: 'otl', label: 'OTL', title: 'Overtime Losses', sortable: true, filters: ['all', 'G'] },
+  { key: 'shutouts', label: 'SO', title: 'Shutouts', sortable: true, filters: ['all', 'G'] },
+  { key: 'saves', label: 'SV', title: 'Saves', sortable: true, filters: ['all', 'G'] },
+  { key: 'hatTricks', label: '🎩', title: 'Hat Tricks', sortable: true, filters: ['all', 'F', 'D'] },
+  { key: 'picked', label: 'Picked', title: 'Pool teams that picked this player', sortable: true, filters: ['all', 'F', 'D', 'G'] },
+  { key: 'pts', label: 'Pts', title: 'Fantasy Points', sortable: true, filters: ['all', 'F', 'D', 'G'] }
+];
+
+// How many pool teams picked each player / division winner (PickCounts.gs).
+// null until loaded; total is 0 until picks are locked.
+let pickCounts = null;
+async function ensurePickCountsLoaded_() {
+  if (pickCounts) return;
+  try { pickCounts = await fetchPickCounts(); } catch (e) { pickCounts = null; }
+}
+function hasPickCounts_() { return !!(pickCounts && pickCounts.total > 0); }
+function pickedCount_(playerId) { return (hasPickCounts_() && pickCounts.players && pickCounts.players[playerId]) || 0; }
+/** " · 18 of 47 picked" for the Boxes page ('' until counts exist).
+ *  Pass playerId to make it clickable (lists the teams). */
+function pickedSuffix_(count, playerId) {
+  if (!hasPickCounts_()) return '';
+  const inner = `${count} of ${pickCounts.total} picked`;
+  return ` <span style="color:var(--amber); white-space:nowrap; margin-left:6px;">${playerId && count ? pickedLink_(playerId, inner) : inner}</span>`;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-display);
-  min-height: 100vh;
+/** Wraps a pick count so clicking it lists the teams with that player. */
+function pickedLink_(playerId, innerHtml) {
+  return `<span class="pick-count-link" data-pick-player="${escapeHtml(String(playerId))}" title="See which teams have this player" style="cursor:pointer; text-decoration:underline dotted; text-underline-offset:3px;">${innerHtml}</span>`;
 }
 
-.mono { font-family: var(--font-mono); }
-.accent { color: var(--ice); }
-
-/* Header */
-.site-header {
-  background: var(--bg-panel);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-.admin-gear-btn {
-  font-size: 20px;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.admin-gear-btn:hover,
-.admin-gear-btn.active {
-  border-color: var(--border);
-  color: inherit;
+/** Opens the shared popup listing every team that currently has a player. */
+function openWhoHasModal_(playerId) {
+  const modal = document.getElementById('team-picks-modal');
+  const body = document.getElementById('team-picks-body');
+  if (!modal || !body) return;
+  const p = (typeof allPlayers !== 'undefined' ? allPlayers : []).find(x => String(x.id) === String(playerId));
+  const teams = (pickCounts && pickCounts.playerTeams && pickCounts.playerTeams[playerId]) || [];
+  body.innerHTML = `
+    <h2 style="margin-bottom:4px;">${escapeHtml(p ? p.fullName : 'Player')}</h2>
+    <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">On ${teams.length} of ${pickCounts ? pickCounts.total : 0} rosters right now (players traded away don't count). Tap a team to see its picks.</p>
+    <div class="panel" style="${teams.length ? 'display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); column-gap:16px;' : ''}">${teams.length
+      ? teams.map(t => `<div class="activity-row" style="min-width:0;"><span class="team-link" data-entry-id="${escapeHtml(t.id)}" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(t.name)}">${escapeHtml(t.name)}</span></div>`).join('')
+      : `<span class="mono" style="color:var(--text-dim);">${pickCounts && pickCounts.playerTeams ? 'No teams have this player.' : 'Team list available after the next refresh.'}</span>`}</div>`;
+  body.querySelectorAll('.team-link').forEach(el => {
+    el.addEventListener('click', () => openTeamPicksModal(el.dataset.entryId, el.textContent));
+  });
+  modal.style.display = 'flex';
 }
 
-.header-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.brand {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 28px;
-  letter-spacing: 0.5px;
-}
-.brand-year { color: var(--text-dim); font-weight: 600; }
+// One listener for every pick count on every page.
+document.addEventListener('click', (ev) => {
+  const el = ev.target.closest && ev.target.closest('[data-pick-player]');
+  if (!el) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  openWhoHasModal_(el.dataset.pickPlayer);
+}, true);
 
-.main-nav { display: flex; gap: 24px; }
-.nav-link {
-  color: var(--text-dim);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 16px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding-bottom: 4px;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-}
-.nav-link:hover, .nav-link.active {
-  color: var(--ice);
-  border-color: var(--ice);
+function playerColumnValue(p, key) {
+  if (key === 'pts') return computePlayerPoints(p, currentConfig);
+  if (key === 'picked') return pickedCount_(p.id);
+  const s = p.stats || {};
+  return s[key] || 0;
 }
 
-/* Main */
-#app { max-width: 1100px; margin: 0 auto; padding: 20px 24px 50px; }
-.view { display: none; }
-.view.active { display: block; }
+document.querySelectorAll('#player-filter-tabs .filter-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#player-filter-tabs .filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    playerFilter = btn.dataset.filter;
+    renderPlayersTable(document.getElementById('player-search').value);
+  });
+});
 
-.hero { padding: 24px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
-.hero-clock {
-  display: inline-flex;
-  flex-direction: column;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--amber);
-  padding: 8px 16px;
-  margin-bottom: 14px;
-}
-.hero-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
-.hero-value { font-size: 20px; color: var(--amber); font-weight: 500; }
-.hero-title { font-size: 44px; font-weight: 800; line-height: 1.0; letter-spacing: -0.5px; }
-.hero-sub { color: var(--text-dim); font-size: 18px; margin-top: 8px; }
+function renderPlayersTable(searchQuery) {
+  const el = document.getElementById('players-table');
+  let list = allPlayers.filter(p => poolPlayerIds.has(p.id));
 
-.section-title {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 14px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  padding: 14px;
-}
-
-/* Tables */
-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 14px; }
-th {
-  text-align: left;
-  color: var(--text-dim);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-td { padding: 8px 10px; border-bottom: 1px solid var(--bg-panel-alt); }
-tr:hover td { background: var(--bg-panel-alt); }
-.rank-1 { color: var(--amber); font-weight: 700; }
-.pts { color: var(--ice); font-weight: 700; }
-
-.search-input {
-  width: 100%;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 10px 14px;
-  font-size: 15px;
-  margin-bottom: 12px;
-}
-.search-input:focus { outline: none; border-color: var(--ice); }
-
-/* Forms */
-label { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin: 12px 0 5px; }
-input[type="text"], input[type="email"], select {
-  width: 100%;
-  background: var(--bg-panel-alt);
-  border: 1px solid var(--border);
-  color: var(--text);
-  padding: 10px 12px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-}
-button {
-  background: var(--ice);
-  color: #ffffff;
-  border: none;
-  padding: 10px 22px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  margin-top: 14px;
-}
-button:hover { opacity: 0.85; }
-
-.skeleton-wrap { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
-.skeleton-bar {
-  height: 14px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--bg-panel-alt) 25%, var(--border) 50%, var(--bg-panel-alt) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-pulse 1.4s ease-in-out infinite;
-}
-@keyframes skeleton-pulse {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-.rules-accordion { display: flex; flex-direction: column; gap: 8px; }
-.rules-accordion-item { background: var(--bg-panel); border: 1px solid var(--border); }
-.rules-accordion-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-panel-alt);
-  color: var(--text);
-  border: none;
-  padding: 12px 16px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
-  text-align: left;
-  cursor: pointer;
-  margin: 0;
-}
-.rules-accordion-header:hover { color: var(--ice); }
-.rules-accordion-chevron { transition: transform 0.2s; color: var(--text-dim); font-size: 14px; }
-.rules-accordion-item.open .rules-accordion-chevron { transform: rotate(180deg); }
-.rules-accordion-body { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
-.rules-accordion-item.open .rules-accordion-body { max-height: 2000px; }
-.rules-accordion-body-inner { padding: 14px 16px; }
-
-.picks-count {
-  font-size: 14px;
-  color: var(--text-dim);
-  margin: 12px 0 6px;
-  padding: 6px 10px;
-  background: var(--bg-panel-alt);
-  display: inline-block;
-}
-
-.jump-to-missing-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 50;
-  background: var(--ice);
-  color: #fff;
-  border: none;
-  padding: 12px 18px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-  margin: 0;
-}
-.jump-to-missing-btn:hover { opacity: 0.9; }
-@media (max-width: 640px) {
-  .jump-to-missing-btn { bottom: 16px; right: 16px; left: 16px; width: auto; font-size: 13px; padding: 12px; }
-}
-
-.group-title {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 16px 0 8px;
-  color: var(--ice);
-}
-
-.box-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 8px;
-}
-@media (max-width: 900px) {
-  .box-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 640px) {
-  .box-grid { grid-template-columns: 1fr; }
-}
-
-.box-picker { border: 1px solid var(--border); margin-bottom: 0; }
-.box-picker-label {
-  background: var(--bg-panel-alt);
-  padding: 4px 8px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-}
-.box-picker-options { display: flex; flex-direction: column; }
-.box-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-  border-bottom: 1px solid var(--bg-panel-alt);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.3;
-  flex-wrap: wrap;
-}
-.box-option:last-child { border-bottom: none; }
-.box-option:hover { background: var(--bg-panel-alt); }
-.box-option-current { background: rgba(76, 143, 196, 0.1); }
-.box-option input[type="radio"] { accent-color: var(--ice); flex-shrink: 0; }
-.box-option-photo-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-.player-nhl-link { display: block; line-height: 0; cursor: pointer; }
-.box-option-photo {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  object-fit: cover;
-  background: var(--bg-panel-alt);
-  display: block;
-}
-.box-option-photo-empty {
-  border: 1px solid var(--border);
-}
-
-.player-hover-card {
-  display: none;
-  position: absolute;
-  left: 28px;
-  top: -6px;
-  z-index: 20;
-  width: 190px;
-  background: var(--bg-panel);
-  border: 1px solid var(--ice);
-  padding: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-}
-.box-option-photo-wrap:hover .player-hover-card { display: block; }
-.player-hover-photo {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-  margin-bottom: 6px;
-}
-.player-hover-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
-.player-hover-team { color: var(--text-dim); font-size: 11px; margin: 2px 0 6px; }
-.player-hover-stats { font-size: 12px; margin-bottom: 4px; }
-.player-hover-pts { color: var(--ice); font-weight: 700; font-size: 13px; }
-.stat-source { color: var(--amber); font-size: 10px; }
-.box-option-name { flex: 1; min-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.box-option-meta { color: var(--text-dim); flex-shrink: 0; }
-.box-option-stats {
-  color: var(--ice);
-  font-size: 10px;
-  width: 100%;
-  order: 5;
-  padding-left: 28px;
-  line-height: 1.2;
-}
-
-.pw-field-wrap {
-  position: relative;
-  max-width: 300px;
-  margin-bottom: 14px;
-}
-.pw-field-wrap input {
-  max-width: none;
-  width: 100%;
-  padding-right: 40px;
-  box-sizing: border-box;
-}
-.pw-eye-btn {
-  position: absolute;
-  right: 2px;
-  top: 2px;
-  bottom: 2px;
-  width: 36px;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--text-dim);
-  border: none;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.pw-eye-btn:hover, .pw-eye-btn-active { color: var(--ice); opacity: 1; }
-
-.team-link {
-  cursor: pointer;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  transition: text-decoration-color 0.15s;
-}
-.team-link:hover {
-  color: var(--ice);
-  text-decoration-color: var(--ice);
-}
-
-.modal-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.75);
-  z-index: 100;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-.modal-content {
-  background: var(--bg);
-  border: 1px solid var(--ice);
-  max-width: 700px;
-  width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: 24px;
-  position: relative;
-}
-.modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: none;
-  border: none;
-  color: var(--text-dim);
-  font-size: 28px;
-  cursor: pointer;
-  margin-top: 0;
-  padding: 0;
-  line-height: 1;
-}
-.modal-close:hover { color: var(--ice); }
-
-.modal-pick-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 6px;
-  margin-bottom: 8px;
-}
-@media (max-width: 600px) {
-  .modal-pick-list { grid-template-columns: 1fr; }
-}
-.modal-pick-wrap { margin-bottom: 6px; }
-.move-history-line {
-  color: var(--amber);
-  font-size: 10px;
-  padding: 3px 8px;
-  background: var(--bg-panel-alt);
-  border-left: 2px solid var(--amber);
-  margin-bottom: 2px;
-}
-.modal-pick-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  flex-wrap: wrap;
-}
-.modal-pick-photo {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-.modal-pick-photo-empty { background: var(--bg-panel-alt); border: 1px solid var(--border); }
-.modal-pick-name { flex: 1; min-width: 90px; }
-.modal-pick-stats { color: var(--text-dim); }
-.modal-pick-pts { color: var(--ice); font-weight: 700; }
-.modal-pick-meta { color: var(--text-dim); flex-shrink: 0; }
-
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-  flex-shrink: 0;
-}
-.toggle-switch input { opacity: 0; width: 0; height: 0; }
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--bg-panel-alt);
-  border: 1px solid var(--border);
-  transition: 0.2s;
-}
-.toggle-slider::before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
-  bottom: 3px;
-  background: var(--text-dim);
-  transition: 0.2s;
-}
-.toggle-switch input:checked + .toggle-slider {
-  background: var(--ice);
-  border-color: var(--ice);
-}
-.toggle-switch input:checked + .toggle-slider::before {
-  transform: translateX(20px);
-  background: #ffffff;
-}
-
-.admin-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(100px, 1fr));
-  gap: 4px;
-}
-.admin-btn {
-  background: var(--bg-panel-alt);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 5px 10px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  text-transform: none;
-  letter-spacing: 0;
-  margin: 0;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.admin-btn:hover { border-color: var(--ice); }
-.admin-delete:hover { border-color: #ff5c5c; color: #ff5c5c; }
-
-.status-msg { margin-top: 12px; font-family: var(--font-mono); font-size: 14px; }
-.status-msg.error { color: #ff5c5c; }
-.status-msg.success { color: var(--ice); }
-
-.brand-logo, .brand-mascot {
-  height: 28px;
-  vertical-align: middle;
-  margin: 0 6px;
-}
-.brand-mascot {
-  animation: mascot-bounce 1.8s ease-in-out infinite;
-}
-@keyframes mascot-bounce {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-3px) rotate(-4deg); }
-}
-.stat-ticker {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  overflow: hidden;
-  white-space: nowrap;
-  padding: 4px 0;
-}
-.stat-ticker-row { overflow: hidden; padding: 4px 0; }
-.stat-ticker-row + .stat-ticker-row { border-top: 1px solid var(--bg-panel-alt); }
-.stat-ticker-track {
-  display: flex;
-  gap: 32px;
-  width: max-content;
-  animation: ticker-scroll linear infinite;
-}
-@keyframes ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(calc(-50% - 16px)); }
-}
-.ticker-chip {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  white-space: nowrap;
-  color: var(--text);
-}
-.ticker-chip .ticker-name { font-weight: 700; color: var(--ice); }
-.ticker-chip .ticker-stats { color: var(--text-dim); }
-.ticker-chip .ticker-pts { color: var(--amber); font-weight: 700; }
-
-.brand { display: inline-flex; align-items: center; }
-
-.hero-cta-btn {
-  display: inline-block;
-  background: var(--amber);
-  color: #ffffff !important;
-  border: 2px solid var(--amber) !important;
-  padding: 18px 44px;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 22px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  text-decoration: none;
-  cursor: pointer;
-  margin: 16px 0 8px;
-  animation: cta-pulse-glow 2s ease-in-out infinite;
-}
-.hero-cta-btn:hover { opacity: 0.9; color: #ffffff; transform: scale(1.03); animation: none; }
-.hero-cta-btn.hero-cta-hidden { display: none; }
-@keyframes cta-pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(161, 63, 92, 0.6); }
-  50% { box-shadow: 0 0 0 12px rgba(161, 63, 92, 0); }
-}
-
-.hero-stats-row { display: flex; gap: 10px; margin-top: 0; }
-.hero-stat {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--ice);
-  padding: 8px 16px;
-  display: flex;
-  flex-direction: column;
-}
-.hero-stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
-.hero-stat-value { font-size: 20px; color: var(--ice); font-weight: 500; }
-
-.home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
-.mini-title {
-  font-size: 16px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.star-row {
-  display: grid;
-  grid-template-columns: 1fr 60px 70px;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--bg-panel-alt);
-  font-size: 13px;
-}
-.star-row span:nth-child(2), .star-row span:nth-child(3) { text-align: right; }
-
-.activity-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--bg-panel-alt);
-  font-size: 13px;
-}
-.activity-row span:last-child { text-align: right; }
-
-.star-row:last-child, .activity-row:last-child { border-bottom: none; }
-
-.filter-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
-.filter-tab {
-  background: var(--bg-panel);
-  color: var(--text-dim);
-  border: 1px solid var(--border);
-  padding: 8px 16px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 14px;
-  text-transform: uppercase;
-  cursor: pointer;
-  margin-top: 0;
-}
-.filter-tab.active { color: var(--ice); border-color: var(--ice); }
-.filter-tab:hover { color: var(--ice); }
-
-@media (max-width: 640px) {
-  .home-grid { grid-template-columns: 1fr; }
-  .hero-stats-row { flex-wrap: wrap; }
-}
-
-.scoring-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-@media (max-width: 900px) {
-  .scoring-grid { grid-template-columns: repeat(2, 1fr); }
-}
-@media (max-width: 640px) {
-  .scoring-grid { grid-template-columns: 1fr; }
-}
-
-.scoring-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-}
-.scoring-card-title {
-  background: var(--bg-panel-alt);
-  padding: 8px 12px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--ice);
-  border-bottom: 1px solid var(--border);
-}
-.scoring-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-.scoring-table td {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--bg-panel-alt);
-}
-.scoring-table tr:last-child td { border-bottom: none; }
-.scoring-value {
-  text-align: right;
-  width: 90px;
-}
-
-.ir-badge {
-  color: #ff5c5c;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.players-table-scroll {
-  max-height: 70vh;
-  overflow-y: auto;
-}
-.players-table-scroll thead th {
-  position: sticky;
-  top: 0;
-  background: var(--bg-panel);
-  z-index: 2;
-}
-.sortable-col { cursor: pointer; user-select: none; }
-.sortable-col:hover { color: var(--ice); }
-.sorted-col { color: var(--ice); }
-
-.box-missing {
-  border-color: #ff5c5c !important;
-  animation: box-missing-pulse 1.2s ease-in-out 2;
-}
-@keyframes box-missing-pulse {
-  0%, 100% { box-shadow: none; }
-  50% { box-shadow: 0 0 0 3px rgba(255, 92, 92, 0.4); }
-}
-
-.team-logo {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-
-.star-row-full {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--bg-panel-alt);
-}
-.star-row-full:last-child { border-bottom: none; }
-.star-rank-label {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--amber);
-}
-.star-name { font-size: 14px; font-weight: 600; }
-.star-stats { font-size: 12px; color: var(--ice); }
-
-.box-option-readonly { cursor: default; padding-left: 10px; }
-
-.stars-cards-row {
-  display: flex;
-  align-items: stretch;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.star-card {
-  flex: 1;
-  min-width: 220px;
-  background: var(--bg-panel-alt);
-  border: 1px solid var(--amber);
-  border-radius: 4px;
-  padding: 10px 12px;
-  position: relative;
-}
-.star-badge {
-  display: inline-block;
-  background: var(--amber);
-  color: #ffffff;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  padding: 2px 8px;
-  border-radius: 2px;
-  margin-bottom: 8px;
-}
-.star-card-body {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.star-photo {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-.star-photo-empty { background: var(--bg-panel); border: 1px solid var(--border); }
-.star-info { flex: 1; min-width: 0; }
-.star-player-name {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.star-player-meta { color: var(--text-dim); font-size: 11px; margin-bottom: 4px; }
-.star-chips { display: flex; gap: 4px; flex-wrap: wrap; }
-.stat-chip {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--ice);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 3px;
-}
-.star-pts-wrap {
-  text-align: right;
-  flex-shrink: 0;
-}
-.star-pts {
-  display: block;
-  color: var(--amber);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 22px;
-  line-height: 1;
-}
-.star-pts-label { color: var(--text-dim); font-size: 10px; }
-.star-date {
-  color: var(--text-dim);
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  padding-left: 4px;
-  white-space: nowrap;
-}
-@media (max-width: 900px) {
-  .stars-cards-row { flex-direction: column; }
-  .star-date { padding-top: 4px; }
-}
-
-.hero-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 16px;
-  padding: 32px 24px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
-  background:
-    linear-gradient(90deg, rgba(10,10,10,0.94) 0%, rgba(10,10,10,0.75) 45%, rgba(10,10,10,0.5) 100%),
-    url('Gemini_Generated_Image_xxsfkaxxsfkaxxsf.jpg');
-  background-size: cover;
-  background-position: right center;
-  border-radius: 4px;
-}
-.hero-eyebrow {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--amber);
-  margin-bottom: 4px;
-}
-.hero-title-new {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 40px;
-  line-height: 1.0;
-}
-.hero-em { font-style: italic; color: var(--ice); }
-
-.hero-badges-row {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  width: 100%;
-}
-@media (max-width: 900px) { .hero-badges-row { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 640px) { .hero-badges-row { grid-template-columns: repeat(2, 1fr); } }
-.hero-badge-sub { font-size: 10px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; }
-.hero-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-top-width: 3px;
-  padding: 12px 10px;
-  min-width: 0;
-  text-align: center;
-  text-decoration: none;
-  cursor: default;
-}
-a.hero-badge { cursor: pointer; }
-.hero-badge-blue { border-top-color: var(--ice); }
-.hero-badge-amber { border-top-color: var(--amber); }
-.hero-badge-gold { border-top-color: #d4a017; }
-.hero-badge-value { font-size: 20px; font-weight: 700; color: var(--text); }
-.hero-badge-blue .hero-badge-value { color: var(--ice); }
-.hero-badge-amber .hero-badge-value { color: var(--amber); }
-.hero-badge-gold .hero-badge-value { color: #d4a017; }
-.hero-badge-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
-.division-leader-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--bg-panel-alt);
-}
-.division-leader-row:last-child { border-bottom: none; }
-.division-leader-name-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-}
-.division-leader-team {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 15px;
-  margin: 2px 0;
-}
-.division-leader-record { font-size: 11px; color: var(--text-dim); }
-.division-leader-earning { text-align: right; }
-.division-leader-count {
-  display: block;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 20px;
-  color: var(--amber);
-}
-.division-leader-count-label { font-size: 10px; color: var(--text-dim); }
-
-.rules-inline-link { color: var(--ice); text-decoration: underline; cursor: pointer; }
-
-.hat-trick { color: var(--amber); font-weight: 700; }
-
-.site-footer {
-  text-align: center;
-  padding: 24px;
-  color: var(--text-dim);
-  font-size: 12px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-}
-.footer-email-btn {
-  display: inline-block;
-  color: var(--ice);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  border: 1px solid var(--border);
-  padding: 8px 18px;
-  background: var(--bg-panel);
-}
-.footer-email-btn:hover { border-color: var(--ice); }
-
-@media (max-width: 640px) {
-  .hero-title { font-size: 36px; }
-  .main-nav { gap: 14px; }
-  .nav-link { font-size: 13px; }
-}
-
-/* ============================================================
-   MOBILE OPTIMIZATION
-   ============================================================ */
-@media (max-width: 640px) {
-  /* Header: stack brand and nav, let nav scroll horizontally
-     instead of squishing or overflowing off-screen */
-  .header-inner {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 12px 16px;
-    gap: 10px;
-    position: relative;
-  }
-  .admin-gear-btn {
-    position: absolute;
-    top: 12px;
-    right: 16px;
-  }
-  .brand { font-size: 22px; }
-  .brand-logo, .brand-mascot { height: 22px; }
-
-  .main-nav {
-    width: 100%;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    row-gap: 8px;
-  }
-  .nav-link {
-    font-size: 13px;
-    white-space: nowrap;
+  if (playerFilter !== 'all') {
+    const posGroups = { F: ['C', 'L', 'R'], D: ['D'], G: ['G'] };
+    list = list.filter(p => posGroups[playerFilter].includes(p.position));
   }
 
-  /* Any table gets a horizontal scroll safety net inside its panel
-     instead of crushing columns unreadably small */
-  .panel {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 12px;
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    list = list.filter(p => (p.fullName || '').toLowerCase().includes(q) || (p.team || '').toLowerCase().includes(q));
   }
-  table { font-size: 13px; }
-  th, td { padding: 8px; white-space: nowrap; }
 
-  /* Box picker: single column already kicks in at 640px via the
-     existing box-grid rule - bump text back up since there's room */
-  .box-option {
-    font-size: 13px;
-    padding: 8px 10px;
-    gap: 8px;
+  const visibleColumns = PLAYER_COLUMNS.filter(col => col.filters.includes(playerFilter) && (col.key !== 'picked' || hasPickCounts_()));
+
+  // If sorting by a column that's no longer visible after switching filters
+  // (e.g. was sorting by Saves, then switched to Forwards), fall back to Pts.
+  if (!visibleColumns.some(c => c.key === playerSort.column)) {
+    playerSort = { column: 'pts', dir: 'desc' };
   }
-  .box-option-photo { width: 28px; height: 28px; }
-  .box-option-stats { font-size: 12px; padding-left: 36px; }
-  .box-picker-label { font-size: 12px; padding: 6px 10px; }
 
-  /* Modal: full-width on small screens, readable pick rows */
-  .modal-content {
-    width: 95vw;
-    max-height: 90vh;
-    padding: 16px;
+  list.sort((a, b) => {
+    const diff = playerColumnValue(b, playerSort.column) - playerColumnValue(a, playerSort.column);
+    return playerSort.dir === 'asc' ? -diff : diff;
+  });
+
+  syncPlayerControls_(visibleColumns);
+  if (playerView === 'cards') {
+    el.innerHTML = list.length
+      ? `<div class="aahl-pc-grid">${list.map(playerBigCardHtml_).join('')}</div>`
+      : `<p class="mono" style="color:var(--text-dim)">No players match.</p>`;
+    return;
   }
-  .modal-pick-list { grid-template-columns: 1fr; }
-  .modal-pick-row { font-size: 13px; padding: 8px; }
 
-  /* Admin entries table: a 7-column table has no good narrow layout, so
-     turn each row into a stacked card instead of a horizontal scroll -
-     select/team/owner/etc each get their own labeled block, actions grid
-     spans full width at the bottom of the card. */
-  .admin-entries-table thead { display: none; }
-  .admin-entries-table, .admin-entries-table tbody, .admin-entries-table tr {
-    display: block;
-    width: 100%;
+  const cellRenderers = {
+    name: (p) => playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.position, p.id),
+    team: (p) => escapeHtml(p.team || ''),
+    position: (p) => escapeHtml(p.position || ''),
+    gamesPlayed: (p) => (p.stats && p.stats.gamesPlayed) || 0,
+    goals: (p) => (p.stats && p.stats.goals) || 0,
+    assists: (p) => (p.stats && p.stats.assists) || 0,
+    sog: (p) => (p.stats && p.stats.sog) || 0,
+    pim: (p) => (p.stats && p.stats.pim) || 0,
+    wins: (p) => (p.stats && p.stats.wins) || 0,
+    losses: (p) => (p.stats && p.stats.losses) || 0,
+    otl: (p) => (p.stats && p.stats.otl) || 0,
+    shutouts: (p) => (p.stats && p.stats.shutouts) || 0,
+    saves: (p) => (p.stats && p.stats.saves) || 0,
+    hatTricks: (p) => (p.stats && p.stats.hatTricks) ? `<span class="hat-trick">${p.stats.hatTricks}</span>` : '—',
+    picked: (p) => { const n = pickedCount_(p.id); const html = `${n}<span style="color:var(--text-dim);">/${pickCounts.total}</span>`; return n ? pickedLink_(p.id, html) : html; },
+    pts: (p) => `<span class="pts">${computePlayerPoints(p, currentConfig).toFixed(2)}</span>`
+  };
+
+  el.innerHTML = `
+    <div class="players-table-scroll">
+      <table class="data-table">
+        <thead>
+          <tr>
+            ${visibleColumns.map(col => `
+              <th class="${col.sortable ? 'sortable-col' : ''} ${playerSort.column === col.key ? 'sorted-col' : ''}" data-key="${col.key}" title="${escapeHtml(col.title)}">
+                ${escapeHtml(col.label)}${playerSort.column === col.key ? (playerSort.dir === 'desc' ? ' ▼' : ' ▲') : ''}
+              </th>
+            `).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${list.map(p => `
+            <tr>
+              ${visibleColumns.map(col => `<td>${cellRenderers[col.key](p)}</td>`).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  el.querySelectorAll('.sortable-col').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (playerSort.column === key) {
+        playerSort.dir = playerSort.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        playerSort = { column: key, dir: 'desc' };
+      }
+      renderPlayersTable(document.getElementById('player-search').value);
+    });
+  });
+}
+
+/**
+ * Players page card view: one card per player, mockup style (watermark
+ * logo, headshot, name, team/pos/picked, full scoring stat strip + pool
+ * points). Tapping a card opens the full player card (cards.js).
+ */
+function playerBigCardHtml_(p) {
+  const type = cardType_(p);
+  const s = p.stats || {};
+  const [first, last] = cardSplitName_(p.fullName);
+  const pts = computePlayerPoints(p, currentConfig);
+  const n = hasPickCounts_() ? pickedCount_(p.id) : null;
+  const picked = n == null ? '' : (n ? pickedLink_(p.id, `${n}/${pickCounts.total} picked`) : `0/${pickCounts.total} picked`);
+  const stats = cardStatList_(s, type);
+  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0">
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    <div class="aahl-pc-top">
+      <div class="aahl-pc-info">
+        <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
+        <div class="aahl-pc-meta">${escapeHtml(p.team || '')} · ${escapeHtml(p.position || type)}${statusBadge_(p.id)}</div>
+        ${picked ? `<div class="aahl-pc-picked">${picked}</div>` : ''}
+      </div>
+      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+    </div>
+    <div class="aahl-pc-strip" style="grid-template-columns:repeat(${stats.length + 1},1fr)">
+      ${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
+      <div class="aahl-pc-pts"><b>${pts.toFixed(1)}</b><small>PTS</small></div>
+    </div>
+  </div>`;
+}
+
+// Sort dropdown (card view) + Cards/Table toggle, kept in sync with state.
+function syncPlayerControls_(visibleColumns) {
+  const sel = document.getElementById('player-sort-select');
+  if (sel) {
+    sel.innerHTML = visibleColumns.filter(c => c.sortable).map(c =>
+      `<option value="${c.key}" ${playerSort.column === c.key ? 'selected' : ''}>Sort: ${escapeHtml(c.title)}</option>`).join('');
+    sel.style.display = playerView === 'cards' ? '' : 'none';
   }
-  .admin-entries-table tr {
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    margin-bottom: 10px;
-    padding: 10px 12px;
+  document.querySelectorAll('.pc-view-toggle [data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === playerView));
+}
+
+const playerSortSelect_ = document.getElementById('player-sort-select');
+if (playerSortSelect_) {
+  playerSortSelect_.addEventListener('change', (e) => {
+    playerSort = { column: e.target.value, dir: 'desc' };
+    renderPlayersTable(document.getElementById('player-search').value);
+  });
+}
+document.querySelectorAll('.pc-view-toggle [data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    playerView = btn.dataset.view;
+    try { localStorage.setItem('aahl_player_view', playerView); } catch (e) { /* fine */ }
+    renderPlayersTable(document.getElementById('player-search').value);
+  });
+});
+
+document.getElementById('player-search').addEventListener('input', (e) => {
+  renderPlayersTable(e.target.value);
+});
+
+// ---------- Scoring ----------
+// ---------- Rules ----------
+function renderRulesPage() {
+  const el = document.getElementById('rules-content');
+  const c = currentConfig;
+  const pot = totalPot();
+  const potTierNote = pot < 1000
+    ? `Current pot is <strong>$${pot.toFixed(0)}</strong> — under $1,000 tier applies (40% / 10% split).`
+    : `Current pot is <strong>$${pot.toFixed(0)}</strong> — $1,000+ tier applies (30% / 15% / 5% split).`;
+  const pv = (v, d) => escapeHtml(String(v ?? d));
+  const tdRaw = c.tradeDeadline || DEFAULT_TRADE_DEADLINE;
+  const tdDate = (typeof parseMilestoneDate_ === 'function') ? parseMilestoneDate_(tdRaw) : new Date(tdRaw);
+  const tradeDeadlineText = tdDate && !isNaN(tdDate)
+    ? tdDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'America/Toronto' })
+    : 'the NHL trade deadline';
+
+  const sections = [
+    { title: '💰 Entry & Payments', html: `
+      <p style="margin-bottom:6px;">Entry fee: <strong>$${c.entryFee ?? 10}</strong> per entry (unlimited entries allowed).</p>
+      <p style="margin-bottom:6px;">Payment: E-transfer to <strong>${escapeHtml(c.commissionerEmail || 'matt.hope@rocketmail.com')}</strong>. Please include your first and last name in the transfer notes.</p>
+      <p style="margin-bottom:0;">Deadline: All entries and payments are due before puck drop on <strong>Tuesday, September 29, 2026, at 5:00 PM</strong> (Panthers vs. Hurricanes).</p>
+      <p style="margin-bottom:0; margin-top:6px;">Late entries: after the deadline, the commissioner can still add a team. Late teams get full points from opening night, not from the day they join.</p>
+    ` },
+    { title: '📋 How to Play', html: `
+      <p style="margin-bottom:6px;">Make 31 total picks: 1 choice from each of the 27 player boxes (16 Forwards, 5 Defense, 6 Goalies), plus 4 division winners.</p>
+      <p style="margin-bottom:6px;">Only NHL regular-season games count (no preseason or playoffs).</p>
+      <p style="margin-bottom:0;">During games, the Standings page shows live points (an estimate). Official points and standings update every night at about 4:00 AM ET.</p>
+    ` },
+    { title: '📊 Point System', html: `
+      <div class="scoring-grid" style="margin-bottom:0;">
+        <div class="scoring-card">
+          <div class="scoring-card-title">Skaters</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>Goal</td><td class="pts scoring-value">${pv(c.goalPtsF, 1)}</td></tr>
+              <tr><td>Assist</td><td class="pts scoring-value">${pv(c.assistPtsF, 1)}</td></tr>
+              <tr><td>Shots on Goal</td><td class="pts scoring-value">${pv(c.sogPtsF, 0.11)}</td></tr>
+              <tr><td>Hat Trick (3+ goals in a game)</td><td class="pts scoring-value hat-trick">+${pv(c.hatTrickBonus, 3)}</td></tr>
+              <tr><td>PIM (D only, per minute)</td><td class="pts scoring-value">${pv(c.pimPtsD, 0.25)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scoring-card">
+          <div class="scoring-card-title">Goalies</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>Win</td><td class="pts scoring-value">${pv(c.winPtsG, 3)}</td></tr>
+              <tr><td>OT / SO Loss</td><td class="pts scoring-value">${pv(c.otlPtsG, 1.5)}</td></tr>
+              <tr><td>Loss</td><td class="pts scoring-value">${pv(c.lossPtsG, 1)}</td></tr>
+              <tr><td>Shutout*</td><td class="pts scoring-value">${pv(c.shutoutPtsG, 2)}</td></tr>
+              <tr><td>Save (each)</td><td class="pts scoring-value">${pv(c.savePtsG, 0.02)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scoring-card">
+          <div class="scoring-card-title">Division Winners</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>Correct 1st-place pick (season end)</td><td class="pts scoring-value hat-trick">+25</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p style="margin:10px 0 0; color:var(--text-dim); font-size:13px;">* Shutouts only count when one goalie plays the whole game. A shared shutout earns no shutout points.</p>
+    ` },
+    { title: '🏆 Payouts (50/50 Split)', html: `
+      <p style="margin-bottom:8px;">50% of the total pot goes to the bride &amp; groom; 50% goes to the participant prize pool.</p>
+      <p style="margin-bottom:12px; color:var(--amber);">${potTierNote}</p>
+      <div class="scoring-grid" style="margin-bottom:12px;">
+        <div class="scoring-card">
+          <div class="scoring-card-title">Pot under $1,000</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>🥇 1st Place</td><td class="pts scoring-value">40% of pot</td></tr>
+              <tr><td>🥈 2nd Place</td><td class="pts scoring-value">10% of pot</td></tr>
+              <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scoring-card">
+          <div class="scoring-card-title">Pot $1,000 or more</div>
+          <table class="scoring-table">
+            <tbody>
+              <tr><td>🥇 1st Place</td><td class="pts scoring-value" style="line-height:1.3;">30% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(50% of player pool)</span></td></tr>
+              <tr><td>🥈 2nd Place</td><td class="pts scoring-value" style="line-height:1.3;">15% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(40% of player pool)</span></td></tr>
+              <tr><td>🥉 3rd Place</td><td class="pts scoring-value" style="line-height:1.3;">5% of pot<br><span style="font-size:10px; color:var(--text-dim); font-weight:400;">(10% of player pool)</span></td></tr>
+              <tr><td>💩 Last Place</td><td class="pts scoring-value" style="font-size:12px;">Free entry next year</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p style="margin-bottom:0; color:var(--text-dim); font-size:13px;">Live payout amounts based on the current pot are shown on the <a href="#" data-view="standings" class="rules-inline-link">Standings page</a>.</p>
+    ` },
+    { title: '🔄 Roster Moves', html: `
+      <p style="margin-bottom:6px;"><strong>Before the season starts</strong> (before puck drop, Sep 29, 2026, 5:00 PM):</p>
+      <p style="margin-bottom:4px;">• Unlimited changes to your player picks and division picks</p>
+      <p style="margin-bottom:4px;">• Instant — no approval needed, applies immediately</p>
+      <p style="margin-bottom:16px;">• Doesn't use up any of your season moves</p>
+      <p style="margin-bottom:6px;"><strong>Once the season starts:</strong></p>
+      <p style="margin-bottom:4px;">• You get exactly 2 roster moves total for the rest of the season (player boxes only — division picks lock permanently once the season begins)</p>
+      <p style="margin-bottom:4px;">• Every move needs commissioner approval before it counts — you'll get a confirmation email once it's finalized</p>
+      <p style="margin-bottom:4px;">• Scored fairly regardless of approval speed: the swap takes effect at the moment you request it, not when it's approved</p>
+      <p style="margin-bottom:4px;">• Points your old player earned stay banked on your team. Your new player only scores from the moment of the swap.</p>
+      <p style="margin-bottom:4px;">• The commissioner can also record an official trade for you. It counts as one of your 2 moves and banks points the same way.</p>
+      <p style="margin-bottom:16px;">• Hard deadline: no move requests accepted after the NHL trade deadline — <strong>${escapeHtml(tradeDeadlineText)}</strong></p>
+      <p style="margin-bottom:0; color:var(--text-dim); font-size:13px;">Manage your picks and request moves on the <a href="#" data-view="managemoves" class="rules-inline-link">My Team page</a>, using the Entry ID from your confirmation email.</p>
+    ` },
+    { title: '⚖️ Tiebreaker', html: `
+      <p style="margin-bottom:4px;">1. Highest combined goals + assists across your current picks.</p>
+      <p style="margin-bottom:0;">2. If still tied: total goalie saves across your current picks.</p>
+    ` },
+    { title: '📖 Roster Reference', html: `
+      <p style="margin-bottom:0;">The players available in each box, with current-season stats, are on the <a href="#" data-view="boxes" class="rules-inline-link">Boxes page</a>. Injured players are flagged automatically on the IR List several times a day, with commissioner corrections when needed.</p>
+    ` },
+    { title: "👀 Viewing Other Teams' Picks", html: `
+      <p style="margin-bottom:0;">Once picks lock, any team name on the Standings page becomes clickable — showing that team's full roster and stat line for every pick, including full move history and points banked from any swaps. Before lock, picks stay private to keep strategy fair.</p>
+    ` }
+  ];
+
+  el.innerHTML = `
+    <p style="margin-bottom:20px; color:var(--amber); font-weight:700; font-size:16px;">🏒 2026–2027 Wedding Fundraiser NHL Box Pool 🏒</p>
+    <p style="margin-bottom:20px;">Help support Mackenzie and Dan (the bride and groom) with their wedding costs while competing for cash!</p>
+    <div class="rules-accordion">
+      ${sections.map((s, i) => `
+        <div class="rules-accordion-item ${i === 0 ? 'open' : ''}">
+          <button class="rules-accordion-header" type="button">
+            <span>${s.title}</span>
+            <span class="rules-accordion-chevron">▾</span>
+          </button>
+          <div class="rules-accordion-body"><div class="rules-accordion-body-inner">${s.html}</div></div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  el.querySelectorAll('.rules-accordion-header').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.rules-accordion-item').classList.toggle('open');
+    });
+  });
+
+  el.querySelectorAll('.rules-inline-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelector(`.nav-link[data-view="${link.dataset.view}"]`).click();
+    });
+  });
+}
+
+// ---------- Last Night's Stats ----------
+async function renderLastNightStats() {
+  const el = document.getElementById('lastnight-content');
+  el.innerHTML = `${skeletonLoader_()}`;
+
+
+  try {
+    const stars = await fetchStarsOfNight();
+    const performers = (stars && stars.allPerformers || []).filter(p => poolPlayerIds.has(p.playerId));
+
+    if (!stars || performers.length === 0) {
+      el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
+      return;
+    }
+
+    const grouped = { F: [], D: [], G: [] };
+    performers.forEach(p => {
+      const group = p.isGoalie ? 'G' : (p.position === 'D' ? 'D' : 'F');
+      grouped[group].push(p);
+    });
+    Object.keys(grouped).forEach(g => grouped[g].sort((a, b) => b.pts - a.pts));
+
+    const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+    const dateFormatted = new Date(stars.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+
+    el.innerHTML = `
+      <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)} <span class="updated-stamp" data-stamp="stats" style="margin-left:8px;"></span></p>
+      <div id="lastnight-team"></div>
+      <h3 class="group-title" style="margin-top:28px;">All Pool Players</h3>
+      ${Object.keys(groupTitles).map(g => {
+        if (grouped[g].length === 0) return '';
+        return `
+        <h3 class="group-title">${groupTitles[g]}</h3>
+        <div class="panel" style="margin-bottom:16px;">
+          <table class="data-table lastnight-table">
+            <thead>
+              <tr>
+                <th data-sort="text">Player</th>
+                ${g === 'G' ? '<th data-sort="text">Dec</th><th data-sort="text">SO</th><th data-sort="num">SV</th>' : `<th data-sort="num">G</th><th data-sort="num">A</th><th data-sort="num">SOG</th>${g === 'D' ? '<th data-sort="num">PIM</th>' : ''}`}
+                <th data-sort="num" class="sorted-col">Pts ▼</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grouped[g].map(p => `
+                <tr>
+                  <td data-v="${escapeHtml(p.fullName)}">${playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.isGoalie ? 'G' : p.position, p.playerId)}</td>
+                  ${g === 'G'
+                    ? `<td>${p.decision || '-'}</td><td>${p.shutout ? 'Y' : '-'}</td><td>${p.saves}</td>`
+                    : `<td>${p.goals}</td><td>${p.assists}</td><td>${p.sog || 0}</td>${g === 'D' ? `<td>${p.pim || 0}</td>` : ''}`}
+                  <td class="pts">${p.pts.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;}).join('')}
+    `;
+    renderLastNightTeamPanel_(stars);
+    el.querySelectorAll('.lastnight-table').forEach(tbl => {
+      makeTableSortable_(tbl);
+      const pts = tbl.querySelector('th.sorted-col');
+      if (pts) { pts.dataset.dir = 'desc'; } // already sorted by points
+    });
+    fillUpdatedStamps_();
+
+  } catch (e) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim)">No games played yet.</p>`;
   }
-  .admin-entries-table td {
-    display: block;
-    border-bottom: none;
-    padding: 4px 0;
-    white-space: normal;
+}
+
+// ---------- Last Night: How Each Team Did ----------
+let lastNightTeamId = null;
+
+/**
+ * "How Did Your Team Do?" panel at the top of Last Night: pick a team and
+ * see which of its players played, what they did, and the team's total
+ * for the night. Also lists the night's top teams (click one to open it).
+ * The chosen team is remembered on this device.
+ */
+function renderLastNightTeamPanel_(stars) {
+  const wrap = document.getElementById('lastnight-team');
+  if (!wrap) return;
+
+  const teams = (allStandings || []).filter(e => e.entryId);
+  if (teams.length === 0) { wrap.innerHTML = ''; return; }
+
+  if (!lastNightTeamId) {
+    try { lastNightTeamId = localStorage.getItem('aahl_lastNightTeam'); } catch (e) { /* ignore */ }
   }
-  .admin-entries-table td[data-label]::before {
-    content: attr(data-label);
-    display: inline-block;
-    min-width: 70px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-dim);
-    margin-right: 8px;
+  if (!teams.some(t => t.entryId === lastNightTeamId)) lastNightTeamId = null;
+
+  const byName = [...teams].sort((a, b) => (a.teamName || '').localeCompare(b.teamName || ''));
+  const topNights = [...teams].filter(t => (t.ptsDelta || 0) > 0)
+    .sort((a, b) => b.ptsDelta - a.ptsDelta).slice(0, 5);
+
+  wrap.innerHTML = `
+    <h3 class="group-title">How Did Your Team Do?</h3>
+    <div class="panel" style="margin-bottom:16px;">
+      <select id="lastnight-team-select" style="max-width:320px; margin:0 0 4px 0;">
+        <option value="">Pick a team...</option>
+        ${byName.map(t => `<option value="${escapeHtml(t.entryId)}" ${t.entryId === lastNightTeamId ? 'selected' : ''}>${escapeHtml(t.teamName)}</option>`).join('')}
+      </select>
+      <div id="lastnight-team-detail"></div>
+    </div>
+    ${topNights.length ? `
+      <h3 class="group-title">Best Team Nights</h3>
+      <div class="panel" style="margin-bottom:16px;">
+        ${topNights.map((t, i) => `
+          <div class="activity-row">
+            <span><span class="mono" style="color:var(--text-dim); margin-right:8px;">${i + 1}</span><span class="team-link" data-night-team="${escapeHtml(t.entryId)}">${escapeHtml(t.teamName)}</span></span>
+            <span class="mono" style="color:#3ecf6a; font-weight:700;">+${t.ptsDelta.toFixed(2)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+  `;
+
+  const select = document.getElementById('lastnight-team-select');
+  const choose = (id) => {
+    lastNightTeamId = id || null;
+    try {
+      if (id) localStorage.setItem('aahl_lastNightTeam', id);
+      else localStorage.removeItem('aahl_lastNightTeam');
+    } catch (e) { /* ignore */ }
+    select.value = id || '';
+    renderLastNightTeamDetail_(stars);
+  };
+  select.addEventListener('change', () => choose(select.value));
+  wrap.querySelectorAll('[data-night-team]').forEach(link => {
+    link.addEventListener('click', () => {
+      choose(link.dataset.nightTeam);
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  renderLastNightTeamDetail_(stars);
+}
+
+async function renderLastNightTeamDetail_(stars) {
+  const el = document.getElementById('lastnight-team-detail');
+  if (!el) return;
+  if (!lastNightTeamId) { el.innerHTML = ''; return; }
+
+  const requestedId = lastNightTeamId;
+  el.innerHTML = skeletonLoader_();
+  const data = await fetchEntryPicks(requestedId);
+  if (requestedId !== lastNightTeamId) return; // a different team was picked meanwhile
+
+  if (!data || data.error) {
+    el.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px; margin-top:12px;">${escapeHtml((data && data.error) || "Couldn't load this team.")}</p>`;
+    return;
   }
-  .admin-entries-table td[data-label="Select"] {
-    position: absolute;
-    top: 10px;
-    right: 12px;
+
+  const perfById = {};
+  (stars.allPerformers || []).forEach(p => { perfById[p.playerId] = p; });
+
+  const picks = data.picks || [];
+  const played = picks.filter(p => perfById[p.playerId])
+    .map(p => ({ pick: p, perf: perfById[p.playerId] }))
+    .sort((a, b) => b.perf.pts - a.perf.pts);
+  const idle = picks.filter(p => !perfById[p.playerId]);
+  const total = played.reduce((sum, x) => sum + (x.perf.pts || 0), 0);
+
+  const chipsFor = (perf, boxType) => (perf.isGoalie
+    ? [perf.decision === 'W' ? 'W' : perf.decision === 'L' ? 'L' : (perf.decision ? 'OTL' : null), perf.shutout ? 'SO' : null, `${perf.saves || 0} SV`]
+    : [`${perf.goals || 0} G`, `${perf.assists || 0} A`, `${perf.sog || 0} SOG`, boxType === 'D' ? `${perf.pim || 0} PIM` : null]
+  ).filter(Boolean);
+
+  el.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap; margin:14px 0 10px; padding-bottom:10px; border-bottom:1px solid var(--border, rgba(255,255,255,0.1));">
+      <div>
+        <div style="font-size:22px; font-weight:700;">${escapeHtml(data.teamName)}</div>
+        <div class="mono" style="color:var(--text-dim); font-size:12px;">${played.length} of ${picks.length} players played</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="mono" style="color:var(--ice); font-size:28px; font-weight:700; line-height:1;">+${total.toFixed(2)}</div>
+        <div class="mono" style="color:var(--text-dim); font-size:11px;">pts last night</div>
+      </div>
+    </div>
+    ${played.length === 0
+      ? `<p class="mono" style="color:var(--text-dim); font-size:13px;">None of this team's players played last night.</p>`
+      : played.map(({ pick, perf }) => `
+        <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border, rgba(255,255,255,0.06));">
+          ${pick.headshotUrl ? `<img class="modal-pick-photo" style="width:36px; height:36px;" src="${pick.headshotUrl}" alt="" loading="lazy">` : `<div class="modal-pick-photo modal-pick-photo-empty" style="width:36px; height:36px;"></div>`}
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700;">${escapeHtml(pick.playerName)} <span class="mono" style="color:var(--text-dim); font-size:11px; font-weight:400;">${escapeHtml(perf.team || pick.team || '')} · ${escapeHtml(pick.boxType || '')}</span></div>
+            <div class="star-chips" style="margin-top:4px;">${chipsFor(perf, pick.boxType).map(c => `<span class="stat-chip">${escapeHtml(c)}</span>`).join('')}</div>
+          </div>
+          <div class="mono" style="color:var(--ice); font-weight:700; white-space:nowrap;">+${(perf.pts || 0).toFixed(2)}</div>
+        </div>`).join('')}
+    ${idle.length ? `
+      <details style="margin-top:12px;">
+        <summary class="mono" style="color:var(--text-dim); font-size:12px; cursor:pointer;">${idle.length} didn't play</summary>
+        <p class="mono" style="color:var(--text-dim); font-size:12px; line-height:1.7; margin-top:6px;">${idle.map(p => escapeHtml(p.playerName) + statusBadge_(p.playerId)).join(' · ')}</p>
+      </details>` : ''}
+  `;
+}
+
+// ---------- Points Race chart (Standings page) ----------
+// Line chart of how far each team is behind 1st place, night by night.
+// Current top 5 in colour, every other team in faint grey, plus one team
+// of your choice in white (remembered with the Last Night team picker).
+const RACE_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181'];
+let pointsRaceData_ = null;
+let pointsRaceResizeWired_ = false;
+
+async function renderPointsRace() {
+  const wrap = document.getElementById('points-race');
+  if (!wrap) return;
+  try {
+    pointsRaceData_ = await fetchPointsRace();
+    drawPointsRace_();
+    if (!pointsRaceResizeWired_) {
+      pointsRaceResizeWired_ = true;
+      let timer = null;
+      window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(drawPointsRace_, 150); });
+    }
+  } catch (e) {
+    wrap.style.display = 'none';
   }
-  .admin-entries-table td[data-label="Select"]::before { content: none; }
-  .admin-entries-table tr { position: relative; padding-right: 44px; }
-  .admin-entries-table td[data-label="Team"] { font-weight: 700; font-size: 15px; }
-  .admin-entries-table td[data-label="Actions"]::before { display: block; margin-bottom: 4px; }
-  .admin-entries-table td[data-label="Actions"] .admin-actions { margin-top: 4px; }
+}
 
-  /* Ticker: bigger text, since it's the main readability complaint */
-  .ticker-chip { font-size: 15px; }
+function drawPointsRace_() {
+  const wrap = document.getElementById('points-race');
+  const data = pointsRaceData_;
+  if (!wrap) return;
+  if (!data || !data.dates || data.dates.length < 2) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
 
-  /* Scoring cards: single column, roomier */
-  .scoring-grid { grid-template-columns: 1fr; }
-  .scoring-table { font-size: 14px; }
+  const dates = data.dates;
+  const n = dates.length;
+  const last = n - 1;
 
-  /* Forms */
-  input[type="text"], input[type="email"], select {
-    font-size: 16px; /* prevents iOS auto-zoom on focus */
-    padding: 12px;
+  // Gap to the leader on each night (0 = in first place).
+  const leader = dates.map((_, d) => Math.max(...Object.values(data.teams).map(t => (t.pts[d] == null ? -Infinity : t.pts[d]))));
+  const teams = Object.keys(data.teams).map(id => {
+    const t = data.teams[id];
+    return { id, name: t.name, pts: t.pts, gap: t.pts.map((v, d) => (v == null ? null : v - leader[d])) };
+  }).filter(t => t.pts[last] != null).sort((a, b) => b.pts[last] - a.pts[last]);
+  if (teams.length === 0) { wrap.style.display = 'none'; return; }
+
+  let myId = null;
+  try { myId = localStorage.getItem('aahl_lastNightTeam'); } catch (e) { /* ignore */ }
+  const top = teams.slice(0, 5);
+  const mine = teams.find(t => t.id === myId) || null;
+  const mineInTop = mine && top.includes(mine);
+  const shown = mine && !mineInTop ? top.concat([mine]) : top;
+  const colorOf = (t) => (top.includes(t) ? RACE_COLORS[top.indexOf(t)] : '#e8edf1');
+
+  // Layout. Names sit to the right of the chart on wide screens, below it on phones.
+  wrap.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+      <h3 class="mini-title" style="margin:0;">Points Race <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">points behind 1st place</span></h3>
+      <select id="points-race-team" style="max-width:240px; margin:0;">
+        <option value="">Highlight a team...</option>
+        ${[...teams].sort((a, b) => a.name.localeCompare(b.name)).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === myId ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="panel" style="padding:10px; position:relative; overflow:hidden;">
+      <div id="points-race-plot"></div>
+      <div id="points-race-tip" class="mono" style="display:none; position:absolute; pointer-events:none; background:var(--bg-panel-alt); border:1px solid var(--border); padding:8px 10px; font-size:11px; z-index:3; white-space:nowrap;"></div>
+      <div id="points-race-legend"></div>
+    </div>`;
+
+  const plot = document.getElementById('points-race-plot');
+  const W = Math.max(280, plot.clientWidth);
+  const wide = W >= 700;
+  const H = wide ? 360 : 260;
+  const L = 40, R = wide ? 230 : 12, T = 12, B = 26;
+
+  const worst = Math.max(5, ...shown.map(t => Math.max(...t.gap.map(g => (g == null ? 0 : -g)))));
+  const step = [5, 10, 20, 25, 50, 100, 200].find(s => worst / s <= 5) || 500;
+  const yMax = Math.ceil(worst / step) * step;
+  const X = (d) => L + (W - L - R) * (n === 1 ? 0 : d / last);
+  const Y = (g) => T + (H - T - B) * (-g / yMax);
+  const path = (t) => {
+    let out = '', pen = false;
+    t.gap.forEach((g, d) => {
+      if (g == null) { pen = false; return; }
+      out += `${pen ? 'L' : 'M'}${X(d).toFixed(1)},${Y(g).toFixed(1)} `;
+      pen = true;
+    });
+    return out;
+  };
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  let grid = '';
+  for (let v = 0; v <= yMax; v += step) {
+    grid += `<line x1="${L}" x2="${W - R}" y1="${Y(-v)}" y2="${Y(-v)}" stroke="#2a2a2a"/><text x="${L - 6}" y="${Y(-v) + 4}" text-anchor="end" class="race-ax">${v === 0 ? '0' : '-' + v}</text>`;
   }
-  button:not(.pw-eye-btn):not(.admin-btn):not(.toggle-switch *):not(.jump-to-missing-btn) { width: 100%; padding: 14px; font-size: 15px; }
-  .pw-field-wrap { max-width: none; }
-  .admin-actions { grid-template-columns: repeat(2, 1fr); }
+  const tickCount = Math.min(n, wide ? 6 : 4);
+  for (let i = 0; i < tickCount; i++) {
+    const d = tickCount === 1 ? 0 : Math.round(i * last / (tickCount - 1));
+    grid += `<text x="${X(d)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : (i === tickCount - 1 ? 'end' : 'middle')}" class="race-ax">${escapeHtml(day(dates[d]))}</text>`;
+  }
 
-  .hero-title { font-size: 32px; }
-  .hero-sub { font-size: 15px; }
-  .section-title { font-size: 22px; }
-  .group-title { font-size: 18px; }
+  const field = teams.filter(t => !shown.includes(t))
+    .map(t => `<path d="${path(t)}" fill="none" stroke="#5a6066" stroke-width="1" opacity="0.35"/>`).join('');
+  const lines = [...shown].reverse().map(t => {
+    const isMine = t === mine;
+    return `<path d="${path(t)}" fill="none" stroke="${colorOf(t)}" stroke-width="${isMine ? 3 : 2}" stroke-linejoin="round" ${isMine && !mineInTop ? 'stroke-dasharray="6 4"' : ''}/>
+      <circle cx="${X(last)}" cy="${Y(t.gap[last])}" r="4" fill="${colorOf(t)}" stroke="#141414" stroke-width="2"/>`;
+  }).join('');
+
+  // Names at the line ends (wide screens), nudged apart so they never overlap.
+  let endLabels = '';
+  if (wide) {
+    const ys = shown.map(t => Y(t.gap[last]));
+    const order = shown.map((_, i) => i).sort((a, b) => ys[a] - ys[b]);
+    let prev = -Infinity;
+    order.forEach(i => { ys[i] = Math.max(ys[i], prev + 17); prev = ys[i]; });
+    endLabels = shown.map((t, i) => `
+      <circle cx="${W - R + 14}" cy="${ys[i]}" r="4" fill="${colorOf(t)}"/>
+      <text x="${W - R + 24}" y="${ys[i] + 4}" class="race-lb">${escapeHtml((teams.indexOf(t) + 1) + '. ' + (t.name.length > 21 ? t.name.slice(0, 20) + '…' : t.name))}</text>
+      <text x="${W - 4}" y="${ys[i] + 4}" text-anchor="end" class="race-pt">${t.pts[last].toFixed(1)}</text>`).join('');
+  }
+
+  plot.innerHTML = `
+    <svg width="${W}" height="${H}" style="display:block;">
+      <style>.race-ax{fill:#A2AAAD;font:11px 'JetBrains Mono',monospace}.race-lb{fill:#e8edf1;font:600 13px 'Barlow Condensed',sans-serif}.race-pt{fill:#e8edf1;font:700 11px 'JetBrains Mono',monospace}</style>
+      <defs><clipPath id="race-clip"><rect x="${L}" y="${T - 6}" width="${W - L - R + 6}" height="${H - T - B + 12}"/></clipPath></defs>
+      ${grid}
+      <g clip-path="url(#race-clip)">${field}${lines}</g>
+      <line id="race-cross" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke="#A2AAAD" stroke-dasharray="3 3" opacity="0.6" style="display:none;"/>
+      ${endLabels}
+      <rect id="race-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/>
+    </svg>`;
+
+  // Legend below the chart: always on phones; on wide screens the names are at the line ends.
+  document.getElementById('points-race-legend').innerHTML = wide ? '' : `
+    <div style="display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px;">
+      ${shown.map(t => `<span style="display:inline-flex; align-items:center; gap:6px; font-size:13px;"><span style="width:10px; height:10px; border-radius:50%; background:${colorOf(t)}; display:inline-block;"></span>${escapeHtml((teams.indexOf(t) + 1) + '. ' + t.name)} <span class="mono" style="color:var(--text-dim); font-size:11px;">${t.pts[last].toFixed(1)}</span></span>`).join('')}
+    </div>`;
+
+  // Hover / touch: a guide line and each shown team's gap on that night.
+  const hit = document.getElementById('race-hit');
+  const cross = document.getElementById('race-cross');
+  const tip = document.getElementById('points-race-tip');
+  const show = (clientX) => {
+    const box = plot.getBoundingClientRect();
+    const x = clientX - box.left;
+    const d = Math.max(0, Math.min(last, Math.round((x - L) / ((W - L - R) / Math.max(1, last)))));
+    cross.setAttribute('x1', X(d)); cross.setAttribute('x2', X(d)); cross.style.display = '';
+    const rows = shown.filter(t => t.gap[d] != null).sort((a, b) => b.gap[d] - a.gap[d]).map(t => `
+      <div style="display:flex; align-items:center; gap:6px; padding:1px 0;">
+        <span style="width:8px; height:8px; border-radius:50%; background:${colorOf(t)}; display:inline-block;"></span>
+        <span style="flex:1; color:var(--text);">${escapeHtml(t.name.length > 22 ? t.name.slice(0, 21) + '…' : t.name)}</span>
+        <span style="color:var(--text); font-weight:700; margin-left:12px;">${t.gap[d] === 0 ? '1st' : t.gap[d].toFixed(1)}</span>
+        <span style="color:var(--text-dim); margin-left:8px;">${t.pts[d].toFixed(1)}</span>
+      </div>`).join('');
+    tip.innerHTML = `<div style="color:var(--text-dim); text-transform:uppercase; margin-bottom:4px;">${escapeHtml(day(dates[d]))}</div>${rows}`;
+    tip.style.display = 'block';
+    const tw = tip.offsetWidth;
+    const left = X(d) + 10 + tw + 14 > W - R ? X(d) + 10 - tw - 14 : X(d) + 24;
+    tip.style.left = Math.max(4, left) + 'px';
+    tip.style.top = (T + 16) + 'px';
+  };
+  const hide = () => { cross.style.display = 'none'; tip.style.display = 'none'; };
+  hit.addEventListener('mousemove', (e) => show(e.clientX));
+  hit.addEventListener('mouseleave', hide);
+  hit.addEventListener('touchstart', (e) => show(e.touches[0].clientX), { passive: true });
+  hit.addEventListener('touchmove', (e) => show(e.touches[0].clientX), { passive: true });
+
+  document.getElementById('points-race-team').addEventListener('change', (e) => {
+    try {
+      if (e.target.value) localStorage.setItem('aahl_lastNightTeam', e.target.value);
+      else localStorage.removeItem('aahl_lastNightTeam');
+    } catch (err) { /* ignore */ }
+    lastNightTeamId = e.target.value || null;
+    drawPointsRace_();
+  });
 }
 
-@media (max-width: 640px) {
-  .hero-header-row {
-    background:
-      linear-gradient(180deg, rgba(10,10,10,0.85) 0%, rgba(10,10,10,0.6) 100%),
-      url('Gemini_Generated_Image_xxsfkaxxsfkaxxsf.jpg');
-    background-size: cover;
-    background-position: center 20%;
-    padding: 24px 16px;
+// ---------- Season Records page ----------
+// Built in the browser from data already saved each night: the Points
+// Race history (every team's points per night) and the 3 Stars history
+// (the top three players each night).
+// "Best Night by a Team" only counts nights from this date on. Earlier
+// nights were rebuilt as estimates, not saved from the real standings.
+const RECORDS_TEAM_NIGHT_START = '2026-10-06';
+
+async function renderRecordsPage() {
+  const el = document.getElementById('records-content');
+  if (!el) return;
+  el.innerHTML = skeletonLoader_();
+
+  const [race, tally, powWeeks, tallyHtml] = await Promise.all([fetchPointsRace().catch(() => null), fetchStarsTally_(), fetchPlayersOfWeekHistory().catch(() => []), buildSeasonStarsTallyHtml_().catch(() => '')]);
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const card = (title, note, rows) => `
+    <div>
+      <h3 class="mini-title">${title}</h3>
+      <div class="panel">
+        ${rows.length ? rows.join('') : `<p class="mono" style="color:var(--text-dim); font-size:13px;">Not enough games yet.</p>`}
+        ${note ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">${note}</p>` : ''}
+      </div>
+    </div>`;
+  const row = (i, main, sub, value) => `
+    <div class="division-leader-row">
+      <div style="display:flex; align-items:center; gap:10px; min-width:0;">
+        <span class="mono" style="color:var(--text-dim); font-weight:700; width:14px;">${i + 1}</span>
+        <div class="division-leader-info" style="min-width:0;">
+          <div class="division-leader-team">${main}</div>
+          <div class="mono division-leader-record">${sub}</div>
+        </div>
+      </div>
+      <div class="division-leader-earning"><span class="division-leader-count">${value}</span></div>
+    </div>`;
+
+  const teamNights = [], climbs = [], daysInFirst = {};
+  const teamNames = {};
+  if (race && race.dates && race.teams) {
+    const ids = Object.keys(race.teams);
+    // Rank of every team on each night (1 = most points; ties share a rank).
+    const ranks = race.dates.map((_, d) => {
+      const pts = ids.filter(id => race.teams[id].pts[d] != null).map(id => race.teams[id].pts[d]).sort((a, b) => b - a);
+      const out = {};
+      ids.forEach(id => { const v = race.teams[id].pts[d]; if (v != null) out[id] = pts.indexOf(v) + 1; });
+      return out;
+    });
+    race.dates.forEach((date, d) => {
+      ids.forEach(id => {
+        const t = race.teams[id];
+        const now = t.pts[d];
+        if (now == null) return;
+        if (ranks[d][id] === 1) daysInFirst[id] = (daysInFirst[id] || 0) + 1;
+        // A team's first recorded night only counts if it's opening night
+        // (otherwise a late entry's whole season would look like one night).
+        const prev = d === 0 ? 0 : t.pts[d - 1];
+        if (prev == null) return;
+        if (date >= RECORDS_TEAM_NIGHT_START) teamNights.push({ name: t.name, date, gain: now - prev });
+        // Skip the first two nights: early ranks jump around too much to mean anything.
+        if (d > 1 && ranks[d - 1][id]) {
+          climbs.push({ name: t.name, date, up: ranks[d - 1][id] - ranks[d][id], from: ranks[d - 1][id], to: ranks[d][id] });
+        }
+      });
+    });
+    ids.forEach(id => { teamNames[id] = race.teams[id].name; });
+  }
+  teamNights.sort((a, b) => b.gain - a.gain);
+  climbs.sort((a, b) => (b.up - a.up) || (a.to - b.to));
+
+  const playerNights = [];
+  ((tally && tally.history) || []).forEach(n => (n.stars || []).forEach(p => playerNights.push({ name: p.fullName, team: p.team, date: n.date, pts: p.pts || 0 })));
+  playerNights.sort((a, b) => b.pts - a.pts);
+
+  const firsts = Object.keys(daysInFirst).map(id => ({ name: teamNames[id], days: daysInFirst[id] })).sort((a, b) => b.days - a.days);
+
+  el.innerHTML = `
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:12px;">The best of the season so far. Updated every morning.</p>
+    ${teamOfWeekHistoryHtml_(computeTeamWeeks_(race))}
+    ${playersOfWeekHistoryHtml_(powWeeks || [])}
+    <div style="margin-top:24px;">${tallyHtml || ''}</div>
+    <h3 class="mini-title" style="margin-top:24px;">📊 Season Bests</h3>
+    <div class="home-grid" style="margin-top:0;">
+      ${card('🔥 Best Night by a Team', `Counting from ${escapeHtml(day(RECORDS_TEAM_NIGHT_START))}.`, teamNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), escapeHtml(day(r.date)), '+' + r.gain.toFixed(2))))}
+      ${card('⭐ Best Night by a Player', '', playerNights.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(r.team || '')} · ${escapeHtml(day(r.date))}`, '+' + r.pts.toFixed(2))))}
+      ${card('📈 Biggest One-Day Climb', '', climbs.filter(r => r.up > 0).slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `${escapeHtml(day(r.date))} · ${ordinal(r.from)} → ${ordinal(r.to)}`, '▲' + r.up)))}
+      ${card('👑 Most Nights in 1st Place', '', firsts.slice(0, 5).map((r, i) => row(i, escapeHtml(r.name), `of ${race.dates.length} nights so far`, r.days)))}
+    </div>`;
+  attachTeamLinkListeners(el);
+  makeTableSortable_(el.querySelector('.tally-table'));
+}
+
+/** Records page: every week's Team of the Week (newest first) and who has won most. */
+function teamOfWeekHistoryHtml_(weeks) {
+  if (!weeks.length) return '';
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const wins = {};
+  weeks.forEach(w => { wins[w.id] = wins[w.id] || { name: w.name, n: 0 }; wins[w.id].n++; });
+  const repeat = Object.values(wins).filter(x => x.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
+  return `
+    <h3 class="mini-title">🏅 Team of the Week</h3>
+    <div class="panel">
+      <table class="data-table">
+        <thead><tr><th>Week</th><th>Team</th><th class="num">Gained</th></tr></thead>
+        <tbody>${weeks.map(w => `<tr><td class="mono" style="white-space:nowrap;">${escapeHtml(day(w.weekStart))} – ${escapeHtml(day(w.weekEnd))}</td><td><span class="team-link" data-entry-id="${escapeHtml(w.id)}">${escapeHtml(w.name)}</span></td><td class="num mono" style="color:#3ecf6a;">+${w.gain.toFixed(2)}</td></tr>`).join('')}</tbody>
+      </table>
+      ${repeat.length ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Most weekly wins: ${repeat.map(x => `${escapeHtml(x.name)} ×${x.n}`).join(' · ')}</p>` : ''}
+      <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:4px;">Weeks before Oct 6 use estimated nightly totals.</p>
+    </div>`;
+}
+
+/**
+ * Records page: every week's Players of the Week (newest first), plus who
+ * has won it most often.
+ */
+function playersOfWeekHistoryHtml_(weeks) {
+  if (!weeks.length) return '';
+  const day = (s) => new Date(s + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const wins = {};
+  weeks.forEach(w => ['F', 'D', 'G'].forEach(g => {
+    const p = w[g];
+    if (p) { const k = p.playerId; wins[k] = wins[k] || { p, n: 0 }; wins[k].n++; }
+  }));
+  const repeat = Object.values(wins).filter(x => x.n > 1).sort((a, b) => b.n - a.n).slice(0, 5);
+  const cell = (p) => p
+    ? `<td data-v="${escapeHtml(p.fullName)}">${playerCellHtml_(p.fullName, p.headshotUrl, p.team, p.isGoalie ? 'G' : p.position, p.playerId)}</td><td class="pts">+${(p.pts || 0).toFixed(2)}</td>`
+    : '<td>—</td><td></td>';
+  return `
+    <h3 class="mini-title" style="margin-top:24px;">🏆 Players of the Week</h3>
+    <div class="panel">
+      <div class="players-table-scroll" style="max-height:60vh;">
+        <table class="data-table">
+          <thead><tr><th>Week</th><th>Forward</th><th></th><th>Defense</th><th></th><th>Goalie</th><th></th></tr></thead>
+          <tbody>
+            ${weeks.map(w => `<tr><td class="mono" style="white-space:nowrap;">${escapeHtml(day(w.weekStart))} – ${escapeHtml(day(w.weekEnd))}</td>${cell(w.F)}${cell(w.D)}${cell(w.G)}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${repeat.length ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Most awards: ${repeat.map(x => `${escapeHtml(x.p.fullName)} ×${x.n}`).join(' · ')}</p>` : ''}
+    </div>`;
+}
+
+
+// ---------- Season 3 Stars Tally ----------
+/**
+ * Reads the precomputed season tally (config/starsTallyCache), built
+ * nightly by rebuildStarsTally() in Stats.gs.
+ */
+async function fetchStarsTally_() {
+  try {
+    let r = await supabaseDirectGet_('config', 'starsTallyCache');
+    if (r && r.data && !r.items) r = r.data;
+    return r || null;
+  } catch (e) {
+    return null;
   }
 }
-/* Today's Games strip (Home page) */
-.games-ticker { overflow: hidden; }
-.games-ticker-track {
-  display: flex;
-  gap: 8px;
-  width: max-content;
-  animation: games-ticker-scroll linear infinite;
-}
-.games-ticker-track .game-chip { flex: 0 0 142px; margin: 0; }
-@keyframes games-ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(calc(-50% - 4px)); }
-}
-.game-chip {
-  min-width: 132px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--ice);
-  padding: 8px 12px;
-}
-.game-chip-time { font-size: 10px; color: var(--amber); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-.game-chip-team { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
-.game-chip-abbrev { font-weight: 700; font-size: 15px; flex: 1; }
-.game-chip-record { font-size: 11px; color: var(--text-dim); }
-.game-chip-score { font-size: 15px; font-weight: 700; color: var(--text); min-width: 14px; text-align: right; }
-.game-chip-loser .game-chip-abbrev, .game-chip-loser .game-chip-score { color: var(--text-dim); font-weight: 400; }
-.game-chip-live { color: #3ecf6a; font-weight: 700; }
-.game-chip-final { color: var(--text-dim); font-weight: 700; }
 
+async function buildSeasonStarsTallyHtml_() {
+  const tally = await fetchStarsTally_();
+  const items = (tally && tally.items || []).filter(t => poolPlayerIds.size === 0 || poolPlayerIds.has(t.playerId));
+  if (items.length === 0) return '';
 
-/* Standings tables: division dots, numbers right-aligned */
-.div-dots { display: inline-flex; gap: 3px; vertical-align: middle; }
-.div-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1px solid #4a4f55; }
-.div-dot-on { background: var(--amber); border-color: var(--amber); }
-/* Standings: every column centred under its header, except Team (left). */
-.standings-full th, .standings-full td,
-.standings-full th.num, .standings-full td.num { text-align: center; }
-.standings-full th:nth-child(2), .standings-full td.team-cell { text-align: left; }
-.standings-full td.team-cell { width: 34%; }
-@media (max-width: 640px) {
-  /* Phones: keep rank, team, points and the division dots; drop the rest */
-  .standings-full .col-hide-sm { display: none; }
-  .standings-full td.team-cell { width: auto; white-space: normal; }
+  const nights = tally.nights || 0;
+
+  return `
+    <h3 class="group-title">Season 3 Stars Tally <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(${nights} night${nights === 1 ? '' : 's'} · 1st = 3, 2nd = 2, 3rd = 1)</span></h3>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="players-table-scroll" style="max-height:60vh;">
+        <table class="data-table tally-table">
+          <thead>
+            <tr>
+              <th>#</th><th data-sort="text">Player</th>
+              <th data-sort="num" title="1st Star">1st</th><th data-sort="num" title="2nd Star">2nd</th><th data-sort="num" title="3rd Star">3rd</th>
+              <th data-sort="num" title="Total star selections">Total</th><th data-sort="num" title="Weighted score">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((t, i) => `
+              <tr>
+                <td class="${i === 0 ? 'rank-1' : ''}">${i + 1}</td>
+                <td data-v="${escapeHtml(t.fullName)}">${playerCellHtml_(t.fullName, t.headshotUrl, t.team, t.position, t.playerId)}</td>
+                <td>${t.first || 0}</td>
+                <td>${t.second || 0}</td>
+                <td>${t.third || 0}</td>
+                <td>${t.total || 0}</td>
+                <td class="pts">${t.score || 0}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
 }
 
-/* Division Leaders: four cards with a large team logo */
-.division-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.division-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--amber);
-  padding: 12px 14px;
-  min-width: 0;
-}
-.division-card-logo { width: 52px; height: 52px; object-fit: contain; flex-shrink: 0; }
-.division-card-info { flex: 1; min-width: 0; }
-.division-card-team { font-weight: 700; font-size: 18px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.division-card .division-leader-count { font-size: 26px; }
-@media (max-width: 900px) { .division-cards { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { .division-cards { grid-template-columns: 1fr; } }
+function renderScoringSummary() {
+  const el = document.getElementById('scoring-summary');
+  const c = currentConfig;
+  const pot = totalPot();
+  const under1000 = pot < 1000;
 
-/* IR List: compact, sortable */
-.ir-table { font-size: 12px; }
-.ir-table th { padding: 6px 8px; }
-.ir-table td { padding: 4px 8px; }
-.ir-player { display: flex; align-items: center; gap: 8px; }
-.ir-player img, .ir-player-nophoto { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); flex-shrink: 0; display: inline-block; }
-.ir-player-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; line-height: 1.1; }
-.ir-player-meta { color: var(--text-dim); font-size: 10px; }
-.ir-soon { color: var(--text-dim); font-size: 10px; margin-left: 4px; }
-.ir-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 11px; color: var(--text-dim); }
-@media (max-width: 640px) {
-  .ir-table .ir-hide-sm { display: none; }
-}
+  const cards = [
+    { title: 'Forwards & Defense', rows: [
+      ['Goal', c.goalPtsF ?? 1],
+      ['Assist', c.assistPtsF ?? 1],
+      ['Shot on Goal', c.sogPtsF ?? 0.11],
+      ['PIM / min (D only)', c.pimPtsD ?? 0.25]
+    ]},
+    { title: 'Goalies', rows: [
+      ['Win', c.winPtsG ?? 3],
+      ['Loss', c.lossPtsG ?? 1],
+      ['OT Loss', c.otlPtsG ?? 1.5],
+      ['Shutout', c.shutoutPtsG ?? 2],
+      ['Save', c.savePtsG ?? 0.02]
+    ]},
+    { title: 'Bonuses', rows: [
+      ['Hat Trick', `+${c.hatTrickBonus ?? 3}`, true],
+      ['Division winner (season end)', '+25', true]
+    ]},
+    { title: `Payout (${under1000 ? 'pot < $1,000' : 'pot $1,000+'})`, rows: under1000 ? [
+      ['1st place', '40% of pot'],
+      ['2nd place', '10% of pot'],
+      ['Last place', 'Free entry next yr']
+    ] : [
+      ['1st place', '30% of pot'],
+      ['2nd place', '15% of pot'],
+      ['3rd place', '5% of pot'],
+      ['Last place', 'Free entry next yr']
+    ]},
+    { title: 'Season', rows: [
+      ['Entry Fee', `$${c.entryFee ?? 10}`],
+      ['Picks Lock', formatDeadline(c.deadline)]
+    ]}
+  ];
 
-/* One look for every data table (Standings, Players, Last Night, Stars
-   Tally, IR List): compact rows, small player photos, team under name. */
-.data-table { font-size: 12px; }
-.data-table th { padding: 6px 8px; }
-.data-table td { padding: 4px 8px; }
-.dt-player { display: flex; align-items: center; gap: 8px; }
-.dt-player img, .dt-player-nophoto { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); flex-shrink: 0; display: inline-block; }
-.dt-player-name { font-family: var(--font-display); font-weight: 700; font-size: 14px; line-height: 1.1; white-space: nowrap; }
-.dt-player-meta { color: var(--text-dim); font-size: 10px; }
-.standings-full td.team-cell .team-link { font-family: var(--font-display); font-weight: 700; font-size: 14px; }
-
-/* "Updated ..." stamps */
-.updated-stamp { color: var(--text-dim); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
-.mini-title .updated-stamp { margin-left: auto; }
-
-.pow-label { color: var(--amber); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; width: 58px; flex-shrink: 0; }
-
-/* Tonight tags in the team popup */
-.tonight-tag { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-left: 6px; white-space: nowrap; }
-.tonight-live { color: #3ecf6a; font-weight: 700; }
-.tonight-final { color: var(--ice); }
-
-/* Division pick status in the team popup */
-.div-pick-status { font-size: 11px; color: var(--text-dim); margin-left: 8px; white-space: nowrap; }
-.div-pick-yes { color: #3ecf6a; font-weight: 700; }
-.div-pick-no { color: #ff5c5c; font-weight: 700; }
-
-/* Team popup: one tidy card per pick - photo | name / team + tags / stats | points */
-.pick-card {
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  min-height: 64px;
-  padding: 8px 10px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-}
-.pick-card-photo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); }
-.pick-card-main { min-width: 0; }
-.pick-card-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pick-card-meta { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pick-card-meta .ir-badge, .pick-card-meta .tonight-tag { margin-left: 6px; }
-.pick-card-stats { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pick-card-pts { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
-.pick-card-pts-num { font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--ice); line-height: 1; }
-.pick-card-pts-label { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); margin-top: 3px; }
-.modal-pick-wrap { display: flex; margin-bottom: 0; }
-.modal-pick-wrap .pick-card { flex: 1; }
-.pick-card-move { grid-column: 1 / -1; font-family: var(--font-mono); font-size: 10px; color: var(--amber); border-top: 1px solid var(--border); padding-top: 5px; margin-top: 2px; }
-.modal-content h2 { padding-right: 34px; }
-
-/* Team of the Week icon */
-.team-week-icon { display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--bg-panel-alt); }
-
-/* Head-to-head compare */
-.compare-pickers { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.compare-pickers select { flex: 1; min-width: 180px; margin: 0; }
-.compare-table .cmp-box { color: var(--text-dim); font-size: 10px; white-space: nowrap; }
-.compare-table .cmp-win { color: #3ecf6a; }
-.compare-table td.cmp-win .dt-player-name { color: #3ecf6a; }
-.compare-table .cmp-same, .compare-table .cmp-same-row td { opacity: 0.45; }
-.compare-table .cmp-group td { font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--ice); padding-top: 12px; border-bottom: 1px solid var(--border); }
-
-/* ============================================================
-   Colour roles - one job per colour
-   gold      = 1st place and awards
-   red-pink  = money and bonuses (payouts, prize pool, division +25)
-   ice blue  = points and stats
-   green     = gains and live
-   red       = injuries and drops
-   ============================================================ */
-.rank-1 { color: #d4a017; }
-.star-card { border-color: #d4a017; }
-.star-badge { background: #d4a017; color: #111; }
-.star-pts { color: var(--ice); }
-.pow-label { color: #d4a017; }
-.hat-trick { color: #d4a017; }
-.division-leader-count { color: var(--ice); }
-.stat-source { color: var(--text-dim); }
-.ticker-chip .ticker-pts { color: #3ecf6a; }
-.game-chip-time { color: var(--text-dim); }
-.move-history-line, .pick-card-move { color: var(--ice); border-left-color: var(--ice); }
-.ir-badge { color: #ff5c5c; }
-.compare-table .cmp-group td.cmp-win { color: #3ecf6a; }
-
-/* Navigation "More" menu */
-.nav-more { position: relative; display: inline-flex; }
-.nav-more-btn {
-  background: none; border: none; margin: 0; padding: 0 0 4px;
-  color: var(--text-dim); font-family: var(--font-display); font-weight: 600; font-size: 16px;
-  letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
-  border-bottom: 2px solid transparent;
-}
-.nav-more-btn:hover, .nav-more-btn.active { color: var(--ice); border-color: var(--ice); opacity: 1; }
-.nav-more-menu {
-  display: none; position: absolute; top: 100%; right: 0; z-index: 40; margin-top: 8px;
-  min-width: 170px; background: var(--bg-panel); border: 1px solid var(--border);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5); padding: 6px 0; flex-direction: column;
-}
-.nav-more-menu.open { display: flex; }
-.nav-more-menu .nav-link { padding: 8px 14px; border-bottom: none; white-space: nowrap; }
-.nav-more-menu .nav-link:hover, .nav-more-menu .nav-link.active { background: var(--bg-panel-alt); }
-@media (max-width: 640px) {
-  .nav-more-btn { font-size: 13px !important; width: auto !important; padding: 0 0 4px !important; }
-  .nav-more-menu { right: auto; left: 0; }
+  el.innerHTML = `
+    <p style="color:var(--amber); margin-bottom:4px; font-size:14px; font-weight:700;">🏒 Wedding Fundraiser for Mackenzie &amp; Dan 🏒</p>
+    <p style="color:var(--text-dim); margin-bottom:16px; font-size:14px;">
+      27-box pick'em (16 Forward, 5 Defense, 6 Goalie) + 4 division winner picks. 50% of the pot goes to the couple, 50% to the participant prize pool.
+    </p>
+    <div class="scoring-grid">
+      ${cards.map(card => `
+        <div class="scoring-card">
+          <div class="scoring-card-title">${escapeHtml(card.title)}</div>
+          <table class="scoring-table">
+            <tbody>
+              ${card.rows.map(([label, value, hat]) => `
+                <tr><td>${escapeHtml(label)}</td><td class="pts scoring-value ${hat ? 'hat-trick' : ''}">${escapeHtml(String(value))}</td></tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
-/* Home: Stars of the Night stacked beside Players of the Week */
-.home-stars .stars-cards-row { flex-direction: column; }
-.home-stars .star-date { padding: 4px 0 0; }
-
-/* Compact hero stats: one slim strip of "value + label" chips */
-.hero-header-row { padding: 20px 24px; gap: 12px; }
-.hero-title-new { font-size: 34px; }
-.hero-badges-row { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; grid-template-columns: none; }
-.hero-badge {
-  flex-direction: row;
-  align-items: baseline;
-  gap: 6px;
-  padding: 6px 12px;
-  min-width: 0;
-  border-top-width: 0;
-  border-left-width: 3px;
-  background: rgba(20, 20, 20, 0.85);
-}
-.hero-badge-blue { border-left-color: var(--ice); }
-.hero-badge-amber { border-left-color: var(--amber); }
-.hero-badge-gold { border-left-color: #d4a017; }
-.hero-badge-value { font-size: 16px; }
-.hero-badge-label { font-size: 10px; margin-top: 0; white-space: nowrap; }
-.hero-badge-sub { font-size: 10px; margin-top: 0; }
-.hero-badge-sub:not(:empty)::before { content: '· '; }
-@media (max-width: 640px) {
-  .hero-header-row { padding: 16px; }
-  .hero-title-new { font-size: 28px; }
-  .hero-badges-row { gap: 6px; }
-  .hero-badge { padding: 5px 9px; }
-  .hero-badge-value { font-size: 14px; }
+function ordinal(n) {
+  if (!n) return '';
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-/* Home: Stars of the Night and Players of the Week boxes match in height */
-.home-grid > div { display: flex !important; flex-direction: column; }
-.home-grid > div[style*="display: none"] { display: none !important; }
-.home-grid > div > .panel { flex: 1; display: flex; flex-direction: column; }
-#weekly-top-panel > .division-leader-row { flex: 1; align-items: center; }
-
-/* ---------- Player cards (cards.js) ---------- */
-.dt-player[data-player-id] { cursor: pointer; }
-.dt-player[data-player-id]:hover .dt-player-name { color: var(--ice); }
-.aahl-mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; margin-bottom: 8px; }
-.aahl-mc { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px; position: relative; overflow: hidden; height: 136px; cursor: pointer; transition: border-color .15s, transform .15s; }
-.aahl-mc:hover, .aahl-mc:focus { border-color: var(--ice); transform: translateY(-2px); outline: none; }
-.aahl-mc-wm { position: absolute; right: -14px; top: -10px; width: 78px; height: 78px; opacity: .16; pointer-events: none; }
-.aahl-mc-hs { width: 52px; height: 52px; border-radius: 50%; background: var(--bg-panel-alt); object-fit: cover; position: relative; display: block; }
-.aahl-mc-n { font-family: var(--font-display); font-weight: 700; font-size: 16px; line-height: 1.05; margin-top: 4px; position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.aahl-mc-m { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
-.aahl-mc-m .ir-badge, .aahl-mc-m .tonight-tag { margin-left: 4px; }
-.aahl-mc-p { position: absolute; bottom: 8px; right: 8px; font-family: var(--font-mono); font-weight: 700; font-size: 15px; color: var(--ice); }
-.aahl-mc-bx { position: absolute; bottom: 10px; left: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
-.aahl-mc-tr { position: absolute; top: 6px; right: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--amber); border: 1px solid var(--amber); border-radius: 4px; padding: 0 4px; background: var(--bg); }
-
-.aahl-card-ov { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
-.aahl-card-ov.on { display: flex; }
-.aahl-fc { width: 100%; max-width: 440px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; position: relative; animation: aahlPop .2s ease-out; color: var(--text); }
-@keyframes aahlPop { from { transform: scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
-.aahl-fc-wm { position: absolute; right: -40px; top: -30px; width: 240px; height: 240px; opacity: .14; pointer-events: none; }
-.aahl-fc-x { position: absolute; top: 8px; right: 12px; background: none; border: 0; color: var(--text-dim); font-size: 28px; cursor: pointer; z-index: 2; line-height: 1; }
-.aahl-fc-top { display: flex; position: relative; min-height: 190px; }
-.aahl-fc-info { flex: 1; padding: 20px 0 14px 20px; min-width: 0; }
-.aahl-fc-nm { font-family: var(--font-display); font-weight: 800; font-size: 30px; line-height: .95; letter-spacing: .5px; text-transform: uppercase; }
-.aahl-fc-meta { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); margin: 10px 0 6px; display: flex; align-items: center; gap: 6px; }
-.aahl-fc-meta img { width: 20px; height: 20px; }
-.aahl-fc-sub { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
-.aahl-fc-badge { margin-top: 4px; }
-.aahl-fc-hs { width: 160px; align-self: flex-end; position: relative; }
-.aahl-fc-hs img { width: 160px; display: block; }
-.aahl-fc-pool { display: flex; justify-content: space-between; align-items: baseline; margin: 0 12px 8px; padding: 10px 14px; border: 1px solid var(--ice); border-radius: 12px; background: var(--bg-panel); position: relative; }
-.aahl-fc-pool small, .aahl-fc-strip small { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); letter-spacing: .5px; }
-.aahl-fc-pool b { font-family: var(--font-mono); font-size: 26px; color: var(--ice); font-weight: 700; }
-.aahl-fc-strip { margin: 0 12px 12px; border: 1px solid var(--border); border-radius: 12px; display: grid; padding: 12px 4px; background: var(--bg-panel); position: relative; }
-.aahl-fc-strip div { text-align: center; }
-.aahl-fc-strip b { display: block; font-family: var(--font-mono); font-size: 20px; font-weight: 500; }
-.aahl-fc-strip b.ht { color: var(--amber); }
-.aahl-fc-moves { margin: 0 12px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--amber); position: relative; }
-.aahl-fc-moves div { padding: 6px 10px; border: 1px solid var(--border); background: var(--bg-panel); border-radius: 8px; margin-top: 6px; }
-@media (max-width: 520px) {
-  .aahl-fc-hs, .aahl-fc-hs img { width: 120px; }
-  .aahl-fc-nm { font-size: 26px; }
+function nhlProfileUrl(fullName, playerId) {
+  const slug = (fullName || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  return `https://www.nhl.com/player/${slug}-${playerId}`;
 }
 
-/* ---------- Players page card view (stats.js) ---------- */
-.pc-controls { display: flex; gap: 8px; align-items: center; margin: 8px 0 12px; flex-wrap: wrap; }
-.pc-controls select { flex: 1; min-width: 160px; margin: 0; }
-.pc-view-toggle { display: flex; gap: 4px; }
-.aahl-pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-.aahl-pc { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; cursor: pointer; transition: border-color .15s, transform .15s; }
-.aahl-pc:hover, .aahl-pc:focus { border-color: var(--ice); transform: translateY(-2px); outline: none; }
-.aahl-pc-wm { position: absolute; right: -24px; top: -18px; width: 150px; height: 150px; opacity: .13; pointer-events: none; }
-.aahl-pc-top { display: flex; position: relative; min-height: 132px; }
-.aahl-pc-info { flex: 1; padding: 14px 0 10px 14px; min-width: 0; }
-.aahl-pc-nm { font-family: var(--font-display); font-weight: 800; font-size: 22px; line-height: .95; text-transform: uppercase; letter-spacing: .5px; }
-.aahl-pc-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin: 8px 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.aahl-pc-meta .ir-badge { margin-left: 6px; }
-.aahl-pc-picked { font-family: var(--font-mono); font-size: 11px; color: var(--ice); }
-.aahl-pc-hs { width: 112px; align-self: flex-end; position: relative; }
-.aahl-pc-hs img { width: 112px; display: block; }
-.aahl-pc-strip { margin: 0 8px 8px; border: 1px solid var(--border); border-radius: 10px; display: grid; padding: 8px 2px; background: var(--bg-panel); position: relative; }
-.aahl-pc-strip div { text-align: center; min-width: 0; }
-.aahl-pc-strip b { display: block; font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
-.aahl-pc-strip b.ht { color: var(--amber); }
-.aahl-pc-strip small { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
-.aahl-pc-pts { border-left: 1px solid var(--border); }
-.aahl-pc-pts b { color: var(--ice); font-weight: 700; }
+
+// ---------- Boxes Reference (public, read-only) ----------
+async function renderBoxesReference() {
+  const el = document.getElementById('boxes-reference');
+  el.innerHTML = `${skeletonLoader_()}`;
+
+  if (allBoxes.length === 0) {
+    allBoxes = await fetchBoxes();
+  }
+  await ensureCurrentSeasonStandingsLoaded_();
+  if (Object.keys(lastSeasonStandings).length === 0) {
+    lastSeasonStandings = await fetchLastSeasonStandings();
+  }
+
+  const grouped = { F: [], D: [], G: [] };
+  allBoxes.forEach(b => grouped[b.boxType].push(b));
+  const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
+
+  const playerBoxesHtml = Object.keys(groupTitles).map(type => `
+    <h3 class="group-title">${groupTitles[type]}</h3>
+    <div class="box-grid">
+      ${grouped[type].map(box => {
+        const ranked = [...box.players].map(p => {
+          const fullPlayer = allPlayers.find(ap => ap.id === p.playerId);
+          const s = (fullPlayer && fullPlayer.stats) || {};
+          const ptsNum = fullPlayer ? computePlayerPoints(fullPlayer, currentConfig) : 0;
+          return { p, fullPlayer, s, ptsNum };
+        }).sort((a, b) => b.ptsNum - a.ptsNum);
+
+        return `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
+          <div class="box-picker-options">
+            ${ranked.map(({ p, fullPlayer, s, ptsNum }) => {
+              const currentTeam = fullPlayer ? fullPlayer.team : p.team;
+              const headshot = fullPlayer ? fullPlayer.headshotUrl : '';
+              const gp = `${gamesPlayedOf_(s) || 0}GP · `;
+              const statLine = box.boxType === 'G'
+                ? `${gp}${s.wins || 0}W ${s.losses || 0}L ${s.otl || 0}OTL · ${s.shutouts || 0}SO · ${s.saves || 0}SV`
+                : `${gp}${s.goals || 0}G ${s.assists || 0}A ${s.sog || 0}SOG${box.boxType === 'D' ? ` ${s.pim || 0}PIM` : ''}${s.hatTricks ? ` · ${s.hatTricks}HT` : ''}`;
+              return `
+              <div class="box-option box-option-readonly">
+                <span class="box-option-photo-wrap">
+                  ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                </span>
+                <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Status: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
+                <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts${pickedSuffix_(pickedCount_(p.playerId), p.playerId)}</span>
+                <span class="mono box-option-meta">${escapeHtml(currentTeam)}</span>
+              </div>
+            `;}).join('')}
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+  `).join('');
+
+  // Division Winner reference: use LIVE current-season standings once a
+  // team has actually played games this season; fall back to last
+  // season's final numbers for any team current data doesn't have yet
+  // (e.g. very first night or a temporary API hiccup) so the section
+  // never looks empty.
+  const divisionBoxesHtml = `
+    <h3 class="group-title">Division Winner Boxes <span style="color:var(--text-dim); font-weight:400; text-transform:none; font-size:14px;">(+25 pts bonus each, awarded at season end)</span></h3>
+    <div class="box-grid">
+      ${DIVISIONS.map(division => {
+        const teams = [...DIVISION_TEAMS[division]].sort((a, b) => {
+          const recA = currentSeasonStandings[a[0]] || lastSeasonStandings[a[0]] || {};
+          const recB = currentSeasonStandings[b[0]] || lastSeasonStandings[b[0]] || {};
+          return (recA.rank ?? 99) - (recB.rank ?? 99);
+        });
+        return `
+        <div class="box-picker">
+          <div class="box-picker-label">${escapeHtml(division)}</div>
+          <div class="box-picker-options">
+            ${teams.map(([abbrev, fullName]) => {
+              const live = currentSeasonStandings[abbrev];
+              const prev = lastSeasonStandings[abbrev];
+              const record = live || prev;
+              const refLabel = live
+                ? `${live.points}pts (${ordinal(live.rank)} · ${live.gamesPlayed || 0}GP)`
+                : (prev ? `${prev.points}pts (${ordinal(prev.rank)}, 25-26)` : '');
+              return `
+              <div class="box-option box-option-readonly">
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
+                <span class="box-option-name">${escapeHtml(fullName)}</span>
+                <span class="mono box-option-stats">${escapeHtml(refLabel)}${pickedSuffix_((hasPickCounts_() && pickCounts.divisions && pickCounts.divisions[abbrev]) || 0)}</span>
+                <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
+              </div>
+            `;}).join('')}
+          </div>
+        </div>
+      `;}).join('')}
+    </div>
+  `;
+
+  el.innerHTML = playerBoxesHtml + divisionBoxesHtml;
+}
