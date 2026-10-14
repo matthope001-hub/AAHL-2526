@@ -339,14 +339,17 @@ function getStarsOfNightData() {
 }
 
 /**
- * Fills one ticker row and starts it scrolling. The chips are repeated
- * until one set is wider than any screen, then doubled, so the row loops
- * forever with no gap or jump. Speed is a steady ~45px per second.
+ * Fills one ticker row. If the chips all fit on screen the row stays
+ * still. Otherwise the chips are repeated until one set is wider than any
+ * screen, then doubled, so the row loops forever with no gap or jump.
+ * Speed is a steady ~45px per second.
  */
 function fillTickerRow_(track, chips) {
   const GAP_PX = 32; // matches .stat-ticker-track gap in style.css
   track.style.animation = 'none';
   track.innerHTML = chips.join('');
+  // Everything fits: leave it still.
+  if (track.scrollWidth <= track.parentElement.clientWidth) return;
   const setWidth = track.scrollWidth + GAP_PX;
   const copies = Math.max(1, Math.ceil(1600 / setWidth));
   let oneSet = '';
@@ -504,6 +507,9 @@ function hockeyDay_() {
  * own time zone) and, once games begin, the live score and status.
  * Hidden if the saved schedule isn't today's.
  *
+ * If all the games fit on screen the strip stays still; it only scrolls
+ * when there are more games than fit.
+ *
  * When called again with the same set of games (the periodic refresh),
  * it updates the cards in place so the ticker doesn't jump back to the
  * start.
@@ -532,25 +538,33 @@ async function renderTodaysGames() {
     }
     todaysGamesKey_ = key;
 
-    // Continuous ticker: repeat the games until one set is wider than any
-    // screen, then double it so the scroll loops with no gap or jump.
-    const CARD_PX = 150; // card width + gap, matches style.css
-    const copies = games.length ? Math.max(1, Math.ceil(2400 / (games.length * CARD_PX))) : 0;
-    const oneSet = [];
-    for (let i = 0; i < copies; i++) oneSet.push(...games);
-    const loop = oneSet.concat(oneSet);
-    const tickerSeconds = Math.round(oneSet.length * CARD_PX / 45); // ~45px per second
+    const cardHtml = (g) => `<div class="game-chip" data-game-id="${g.id}">${gameCardInner_(g)}</div>`;
 
+    // Start with one still set of games.
     el.innerHTML = `
       <h3 class="mini-title">🏒 Today's Games <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span>
         <span class="mono updated-stamp" id="todays-games-stamp">${gamesStampHtml_(data)}</span></h3>
       ${games.length === 0
         ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
-        : `<div class="games-ticker"><div class="games-ticker-track" style="animation-duration:${tickerSeconds}s;">
-            ${loop.map(g => `<div class="game-chip" data-game-id="${g.id}">${gameCardInner_(g)}</div>`).join('')}
+        : `<div class="games-ticker"><div class="games-ticker-track" style="animation:none;">
+            ${games.map(cardHtml).join('')}
           </div></div>`}
     `;
     el.style.display = 'block';
+
+    // Only scroll when the games don't all fit. Then repeat them until one
+    // set is wider than any screen and double it, so the loop has no gap.
+    const ticker = el.querySelector('.games-ticker');
+    const track = el.querySelector('.games-ticker-track');
+    if (track && track.scrollWidth > ticker.clientWidth) {
+      const CARD_PX = 150; // card width + gap, matches style.css
+      const copies = Math.max(1, Math.ceil(2400 / (games.length * CARD_PX)));
+      const oneSet = [];
+      for (let i = 0; i < copies; i++) oneSet.push(...games);
+      track.innerHTML = oneSet.concat(oneSet).map(cardHtml).join('');
+      track.style.animation = '';
+      track.style.animationDuration = Math.round(oneSet.length * CARD_PX / 45) + 's'; // ~45px per second
+    }
   } catch (e) {
     el.style.display = 'none';
   }
@@ -580,6 +594,19 @@ setInterval(async () => {
   }
   if (onStandings) renderStandingsTable();
 }, 180000);
+
+// Screen size changed: re-check whether each ticker needs to scroll.
+let tickerResizeTimer_ = null;
+window.addEventListener('resize', () => {
+  clearTimeout(tickerResizeTimer_);
+  tickerResizeTimer_ = setTimeout(() => {
+    const home = document.getElementById('view-home');
+    if (!home || !home.classList.contains('active')) return;
+    todaysGamesKey_ = null;
+    renderTodaysGames();
+    renderStatTicker();
+  }, 300);
+});
 
 /**
  * "Top Performers Last Week" under Division Leaders: the three pool
