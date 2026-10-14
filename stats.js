@@ -614,6 +614,16 @@ async function renderLastNightTeamDetail_(stars) {
     </div>
     ${played.length === 0
       ? `<p class="mono" style="color:var(--text-dim); font-size:13px;">None of this team's players played last night.</p>`
+      : playerView === 'cards'
+      ? `<div class="aahl-pc-grid">${played.map(({ pick, perf }) => lastNightCardHtml_({
+          ...perf,
+          playerId: pick.playerId,
+          fullName: perf.fullName || pick.playerName,
+          headshotUrl: perf.headshotUrl || pick.headshotUrl,
+          team: perf.team || pick.team,
+          position: perf.position || pick.boxType,
+          isGoalie: perf.isGoalie || pick.boxType === 'G'
+        })).join('')}</div>`
       : played.map(({ pick, perf }) => `
         <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border, rgba(255,255,255,0.06));">
           ${pick.headshotUrl ? `<img class="modal-pick-photo" style="width:36px; height:36px;" src="${pick.headshotUrl}" alt="" loading="lazy">` : `<div class="modal-pick-photo modal-pick-photo-empty" style="width:36px; height:36px;"></div>`}
