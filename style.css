@@ -1407,3 +1407,7 @@ a.hero-badge { cursor: pointer; }
 .aahl-pc-strip small { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
 .aahl-pc-pts { border-left: 1px solid var(--border); }
 .aahl-pc-pts b { color: var(--ice); font-weight: 700; }
+
+/* ---------- Boxes page card view (stats.js) ---------- */
+.box-card-group { margin-bottom: 20px; }
+.box-card-group .box-picker-label { margin-bottom: 8px; }

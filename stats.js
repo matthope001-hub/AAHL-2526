@@ -1106,7 +1106,33 @@ async function renderBoxesReference() {
   allBoxes.forEach(b => grouped[b.boxType].push(b));
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
 
-  const playerBoxesHtml = Object.keys(groupTitles).map(type => `
+  // Card view: each box gets a label and a grid of player cards (ranked by
+  // season pool points). Table view keeps the original compact box list.
+  const viewToggleHtml = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+      <div class="pc-view-toggle" id="boxes-view-toggle">
+        <button class="filter-tab ${playerView === 'cards' ? 'active' : ''}" data-view="cards">Cards</button>
+        <button class="filter-tab ${playerView === 'table' ? 'active' : ''}" data-view="table">Table</button>
+      </div>
+    </div>`;
+
+  const cardBoxesHtml = () => Object.keys(groupTitles).map(type => `
+    <h3 class="group-title">${groupTitles[type]}</h3>
+    ${grouped[type].map(box => {
+      const ranked = [...box.players].map(p => {
+        const full = allPlayers.find(ap => ap.id === p.playerId)
+          || { id: p.playerId, fullName: p.name, team: p.team, position: type, isGoalie: type === 'G', stats: {} };
+        return { full, pts: computePlayerPoints(full, currentConfig) };
+      }).sort((a, b) => b.pts - a.pts);
+      return `
+      <div class="box-card-group">
+        <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
+        <div class="aahl-pc-grid">${ranked.map(r => playerBigCardHtml_(r.full)).join('')}</div>
+      </div>`;
+    }).join('')}
+  `).join('');
+
+  const playerBoxesHtml = playerView === 'cards' ? cardBoxesHtml() : Object.keys(groupTitles).map(type => `
     <h3 class="group-title">${groupTitles[type]}</h3>
     <div class="box-grid">
       ${grouped[type].map(box => {
@@ -1183,5 +1209,12 @@ async function renderBoxesReference() {
     </div>
   `;
 
-  el.innerHTML = playerBoxesHtml + divisionBoxesHtml;
+  el.innerHTML = viewToggleHtml + playerBoxesHtml + divisionBoxesHtml;
+  el.querySelectorAll('#boxes-view-toggle [data-view]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      playerView = btn.dataset.view;
+      try { localStorage.setItem('aahl_player_view', playerView); } catch (e) { /* fine */ }
+      renderBoxesReference();
+    });
+  });
 }
