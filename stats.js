@@ -417,15 +417,15 @@ async function renderLastNightStats() {
     const dateFormatted = new Date(stars.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
     el.innerHTML = `
-      <p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">${escapeHtml(dateFormatted)} <span class="updated-stamp" data-stamp="stats" style="margin-left:8px;"></span></p>
-      <div id="lastnight-team"></div>
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:28px; flex-wrap:wrap;">
-        <h3 class="group-title" style="margin:0;">All Pool Players</h3>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+        <p class="mono" style="color:var(--text-dim); font-size:13px; margin:0;">${escapeHtml(dateFormatted)} <span class="updated-stamp" data-stamp="stats" style="margin-left:8px;"></span></p>
         <div class="pc-view-toggle" id="lastnight-view-toggle">
           <button class="filter-tab ${playerView === 'cards' ? 'active' : ''}" data-view="cards">Cards</button>
           <button class="filter-tab ${playerView === 'table' ? 'active' : ''}" data-view="table">Table</button>
         </div>
       </div>
+      <div id="lastnight-team"></div>
+      <h3 class="group-title" style="margin-top:28px;">All Pool Players</h3>
       ${Object.keys(groupTitles).map(g => {
         if (grouped[g].length === 0) return '';
         return `
