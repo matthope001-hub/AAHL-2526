@@ -144,6 +144,35 @@ const USE_WORKER = true;
 const WORKER_GET_ACTIONS = ['findEntryForMoves', 'checkLateInvite'];
 const WORKER_POST_ACTIONS = ['createEntry', 'createLateEntry', 'submitBatchTeamChanges'];
 
+/**
+ * Is the Worker reachable from this browser right now? Checked with a tiny
+ * /health request (3-second limit) and remembered for 5 minutes. If it
+ * can't be reached - e.g. this visitor's internet provider can't find
+ * api.theaahl.ca yet - everything uses Apps Script instead. Because this
+ * check happens BEFORE a save is sent, falling back can never cause a
+ * duplicate: the save only ever goes to one place.
+ */
+let workerUp_ = null;
+let workerCheckedAt_ = 0;
+async function workerAvailable_() {
+  if (!USE_WORKER) return false;
+  if (workerUp_ !== null && Date.now() - workerCheckedAt_ < 300000) return workerUp_;
+  let up = false;
+  try {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 3000) : null;
+    const res = await fetch(WORKER_URL + '/health', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+    if (timer) clearTimeout(timer);
+    const j = await res.json();
+    up = !!(j && j.ok && j.configured);
+  } catch (e) {
+    up = false;
+  }
+  workerUp_ = up;
+  workerCheckedAt_ = Date.now();
+  return up;
+}
+
 function queryString_(action, params) {
   let qs = `?action=${action}`;
   if (params) {
@@ -153,7 +182,7 @@ function queryString_(action, params) {
 }
 
 async function apiGet(action, params) {
-  if (USE_WORKER && WORKER_GET_ACTIONS.includes(action)) {
+  if (WORKER_GET_ACTIONS.includes(action) && await workerAvailable_()) {
     try {
       const viaWorker = await fetchJsonWithRetry_(WORKER_URL + '/' + queryString_(action, params));
       if (viaWorker && typeof viaWorker.success === 'boolean') return viaWorker;
@@ -196,7 +225,7 @@ async function apiPost(action, payload) {
   };
   // Saves never switch servers mid-request: a retry goes to the same place
   // with the same idempotencyKey, so it can't create a duplicate.
-  const target = (USE_WORKER && WORKER_POST_ACTIONS.includes(action)) ? WORKER_URL + '/' : WEBAPP_URL;
+  const target = (WORKER_POST_ACTIONS.includes(action) && await workerAvailable_()) ? WORKER_URL + '/' : WEBAPP_URL;
   try {
     return await fetchJsonWithRetry_(target, options);
   } catch (e) {
