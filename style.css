@@ -1414,3 +1414,27 @@ a.hero-badge { cursor: pointer; }
 /* ---------- Boxes page card view (stats.js) ---------- */
 .box-card-group { margin-bottom: 20px; }
 .box-card-group .box-picker-label { margin-bottom: 8px; }
+
+/* ---------- Card layout + team colours ---------- */
+/* Headshot centred so the team logo (top-right) stays clear. */
+.aahl-pc-hs, .aahl-fc-hs { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 0; }
+.aahl-pc-info, .aahl-fc-info { position: relative; z-index: 2; }
+/* Team-colour tint (data-team + --tc set by cardTeamAttr_ in cards.js). */
+.aahl-pc[data-team], .aahl-fc[data-team], .aahl-mc[data-team] {
+  background: color-mix(in srgb, var(--tc) 26%, var(--bg));
+  border-color: color-mix(in srgb, var(--tc) 70%, var(--bg));
+}
+.aahl-pc[data-team]::before, .aahl-fc[data-team]::before, .aahl-mc[data-team]::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tc); z-index: 3;
+}
+.aahl-pc[data-team] .aahl-pc-strip, .aahl-fc[data-team] .aahl-fc-strip {
+  background: color-mix(in srgb, var(--tc) 12%, var(--bg));
+  border-color: color-mix(in srgb, var(--tc) 45%, var(--bg));
+}
+.aahl-fc[data-team] .aahl-fc-pool { background: color-mix(in srgb, var(--tc) 14%, var(--bg)); }
+.aahl-pc[data-team] .aahl-pc-meta, .aahl-fc[data-team] .aahl-fc-meta, .aahl-mc[data-team] .aahl-mc-m { color: #c3cbd0; }
+/* Logo watermark goes light on tinted cards so e.g. TBL blue on blue still shows. */
+.aahl-pc[data-team] .aahl-pc-wm, .aahl-fc[data-team] .aahl-fc-wm, .aahl-mc[data-team] .aahl-mc-wm {
+  filter: grayscale(1) brightness(2.2); opacity: .2;
+}
+.aahl-mc[data-team]:hover, .aahl-mc[data-team]:focus { border-color: var(--tc); }
