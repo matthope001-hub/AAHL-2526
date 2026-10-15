@@ -196,14 +196,14 @@ function playerBigCardHtml_(p) {
   const picked = n == null ? '' : (n ? pickedLink_(p.id, `${n}/${pickCounts.total} picked`) : `0/${pickCounts.total} picked`);
   const stats = cardStatList_(s, type);
   return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0"${cardTeamAttr_(p.team)}>
-    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" width="150" height="150" loading="lazy" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
         <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
         <div class="aahl-pc-meta">${escapeHtml(p.team || '')} · ${escapeHtml(p.position || type)}${statusBadge_(p.id)}</div>
         ${picked ? `<div class="aahl-pc-picked">${picked}</div>` : ''}
       </div>
-      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" width="112" height="112" loading="lazy" onerror="this.remove()">` : ''}</div>
     </div>
     <div class="aahl-pc-strip" style="grid-template-columns:repeat(${stats.length + 1},1fr)">
       ${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
@@ -489,14 +489,14 @@ function lastNightCardHtml_(p) {
     ? [[p.decision || '-', 'DEC'], [p.shutout ? 'Y' : '-', 'SO', p.shutout ? 'ht' : ''], [p.saves || 0, 'SV']]
     : [[goals, 'G'], [p.assists || 0, 'A'], [p.sog || 0, 'SOG'], ...(pos === 'D' ? [[p.pim || 0, 'PIM']] : []), [goals >= 3 ? 'Y' : '-', 'HT', goals >= 3 ? 'ht' : '']];
   return `<div class="aahl-pc" data-player-id="${escapeHtml(p.playerId)}" role="button" tabindex="0"${cardTeamAttr_(p.team)}>
-    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" width="150" height="150" loading="lazy" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
         <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
         <div class="aahl-pc-meta">${escapeHtml(p.team || '')} · ${escapeHtml(pos)}${statusBadge_(p.playerId)}</div>
         ${hasPickCounts_() && pickedCount_(p.playerId) ? `<div class="aahl-pc-picked">${pickedLink_(p.playerId, `${pickedCount_(p.playerId)}/${pickCounts.total} picked`)}</div>` : ''}
       </div>
-      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" width="112" height="112" loading="lazy" onerror="this.remove()">` : ''}</div>
     </div>
     <div class="aahl-pc-strip" style="grid-template-columns:repeat(${stats.length + 1},1fr)">
       ${stats.map(t => `<div><b class="${t[2] || ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
@@ -626,7 +626,7 @@ async function renderLastNightTeamDetail_(stars) {
         })).join('')}</div>`
       : played.map(({ pick, perf }) => `
         <div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border, rgba(255,255,255,0.06));">
-          ${pick.headshotUrl ? `<img class="modal-pick-photo" style="width:36px; height:36px;" src="${pick.headshotUrl}" alt="" loading="lazy">` : `<div class="modal-pick-photo modal-pick-photo-empty" style="width:36px; height:36px;"></div>`}
+          ${pick.headshotUrl ? `<img class="modal-pick-photo" style="width:36px; height:36px;" src="${pick.headshotUrl}" alt="" width="36" height="36" loading="lazy">` : `<div class="modal-pick-photo modal-pick-photo-empty" style="width:36px; height:36px;"></div>`}
           <div style="flex:1; min-width:0;">
             <div style="font-weight:700;">${escapeHtml(pick.playerName)} <span class="mono" style="color:var(--text-dim); font-size:11px; font-weight:400;">${escapeHtml(perf.team || pick.team || '')} · ${escapeHtml(pick.boxType || '')}</span></div>
             <div class="star-chips" style="margin-top:4px;">${chipsFor(perf, pick.boxType).map(c => `<span class="stat-chip">${escapeHtml(c)}</span>`).join('')}</div>
@@ -1157,7 +1157,7 @@ async function renderBoxesReference() {
               return `
               <div class="box-option box-option-readonly">
                 <span class="box-option-photo-wrap">
-                  ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                  ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" width="22" height="22" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                 </span>
                 <span class="box-option-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ` <span class="ir-badge" title="Status: ${escapeHtml(fullPlayer.injuryStatus)}">🩹</span>` : ''}</span>
                 <span class="mono box-option-stats">${statLine} · ${ptsNum.toFixed(2)}pts${pickedSuffix_(pickedCount_(p.playerId), p.playerId)}</span>
@@ -1197,7 +1197,7 @@ async function renderBoxesReference() {
                 : (prev ? `${prev.points}pts (${ordinal(prev.rank)}, 25-26)` : '');
               return `
               <div class="box-option box-option-readonly">
-                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
                 <span class="mono box-option-stats">${escapeHtml(refLabel)}${pickedSuffix_((hasPickCounts_() && pickCounts.divisions && pickCounts.divisions[abbrev]) || 0)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
