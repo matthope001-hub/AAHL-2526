@@ -14,6 +14,8 @@
  *   GET  /health                - quick "is it up" check
  *   POST /weekly-image          - PNG screenshot of theaahl.ca/weekly.html for the
  *                                 Monday email (WeeklyImage.gs; shared secret)
+ *   POST adminRecap             - Admin: rewrite / hide / show the nightly recap
+ *   CRON (mornings)               - "Last Night in the AAHL" recap (Workers AI)
  *   CRON (every minute, evenings) - live pool points + Today's Games scores
  *                                 during games (see "live points" below)
  *
@@ -39,7 +41,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -75,7 +77,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/health') {
-      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD, live: env.LIVE_POINTS !== 'off', browser: !!env.BROWSER });
+      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD, live: env.LIVE_POINTS !== 'off', browser: !!env.BROWSER, ai: !!env.AI && env.RECAP !== 'off' });
     }
 
     if (url.pathname === '/weekly-image') return weeklyImage(request, env);
@@ -98,6 +100,7 @@ export default {
           case 'submitBatchTeamChanges': result = await submitBatchTeamChanges(env, ctx, body); break;
           case 'adminGetEntries': result = await adminGetEntries(env, body); break;
           case 'adminGetPendingMoves': result = await adminGetPendingMoves(env, body); break;
+          case 'adminRecap': result = await adminRecap(env, body); break;
           default: result = { success: false, error: 'Unknown action: ' + body.action };
         }
       } else {
@@ -112,6 +115,11 @@ export default {
 
   // Cron trigger (wrangler.toml [triggers]) - live points during games.
   async scheduled(event, env, ctx) {
+    if (RECAP_CRONS.includes(event.cron)) {
+      if (env.RECAP === 'off') return;
+      ctx.waitUntil(runNightlyRecap(env, false).catch(err => console.log('Recap failed: ' + (err && err.stack || err))));
+      return;
+    }
     if (env.LIVE_POINTS === 'off') return;
     ctx.waitUntil(runLivePoints(env).catch(err => console.log('Live points failed: ' + (err && err.stack || err))));
   }
@@ -806,4 +814,152 @@ async function weeklyImage(request, env) {
     console.log('Weekly image failed: ' + (err && err.stack || err));
     return fail(502, (err && err.message) || 'Screenshot failed');
   }
+}
+
+// --------------------------------------------------------- nightly recap
+// "Last Night in the AAHL": 2-3 fun sentences written by Workers AI from
+// facts the 4am run already saved (Stars of the Night + Points Race).
+// Runs a few times each morning (wrangler.toml); the first run after both
+// are saved for the same night writes it, later runs skip. The AI only
+// gets the facts and every number it writes is checked against them -
+// if anything's off, a plain template is used instead.
+// Saved to config/nightlyRecap (public; Home shows it). Admin can rewrite
+// or hide it (adminRecap). Off switch: Worker variable RECAP = off.
+
+const RECAP_CRONS = ['30 9,10,11 * * *'];
+const RECAP_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const f1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
+const ordinal = (n) => { const v = n % 100; return n + ((v >= 11 && v <= 13) ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] || 'th')); };
+const shortDate = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' });
+
+function playerLine(p) {
+  if (p.isGoalie) {
+    const dec = p.decision === 'W' ? 'win' : p.decision === 'L' ? 'loss' : p.decision === 'O' ? 'OT loss' : 'no decision';
+    return `${p.saves || 0} saves, ${dec}${p.shutout ? ', shutout' : ''}`;
+  }
+  const g = p.goals || 0, a = p.assists || 0;
+  return `${g + a} point${g + a === 1 ? '' : 's'} (${g}G ${a}A)${g >= 3 ? ', hat trick' : ''}`;
+}
+
+// The facts for one night, or null if the 4am data isn't in yet.
+async function recapFacts(env) {
+  const [stars, race] = await Promise.all([getConfigDoc(env, 'starsOfNightCache'), getConfigDoc(env, 'pointsRaceHistory')]);
+  if (!stars || !stars.date || !race || !race.dates || race.dates.length < 2 || !race.teams) return null;
+  const i = race.dates.indexOf(stars.date);
+  if (i < 1) return null; // Points Race not saved for that night yet
+  const ids = Object.keys(race.teams);
+  const rankAt = (idx) => {
+    const out = {};
+    ids.filter(id => race.teams[id].pts[idx] != null).sort((a, b) => race.teams[b].pts[idx] - race.teams[a].pts[idx]).forEach((id, k) => { out[id] = k + 1; });
+    return out;
+  };
+  const before = rankAt(i - 1), after = rankAt(i);
+  const teams = ids.map(id => {
+    const t = race.teams[id];
+    const now = t.pts[i], prev = t.pts[i - 1];
+    return { id, name: t.name, gain: now != null && prev != null ? r2(now - prev) : null, rank: after[id], was: before[id], pts: now };
+  }).filter(t => t.gain != null);
+  if (!teams.length) return null;
+  const byGain = [...teams].sort((a, b) => b.gain - a.gain);
+  const leader = teams.find(t => t.rank === 1);
+  const climber = [...teams].filter(t => t.was && t.rank && t.was - t.rank >= 2).sort((a, b) => (b.was - b.rank) - (a.was - a.rank))[0];
+  const all = stars.allPerformers || stars.topPerformers || [];
+  return {
+    date: stars.date,
+    night: shortDate(stars.date),
+    topPlayers: (stars.topPerformers || all.slice(0, 3)).slice(0, 3).map(p => ({ name: p.fullName, team: p.team, line: playerLine(p), pts: f1(p.pts) })),
+    hatTricks: all.filter(p => !p.isGoalie && (p.goals || 0) >= 3).map(p => p.fullName),
+    shutouts: all.filter(p => p.isGoalie && p.shutout).map(p => `${p.fullName} (${p.saves || 0} saves)`),
+    bestTeam: { name: byGain[0].name, gain: f1(byGain[0].gain), rank: byGain[0].rank },
+    worstTeam: byGain.length > 1 ? { name: byGain[byGain.length - 1].name, gain: f1(byGain[byGain.length - 1].gain) } : null,
+    leader: leader ? { name: leader.name, pts: f1(leader.pts), isNew: leader.was !== 1 } : null,
+    climber: climber ? { name: climber.name, from: climber.was, to: climber.rank } : null,
+    teamCount: teams.length
+  };
+}
+
+function recapFactLines(f) {
+  const L = [`Night: ${f.night}`];
+  f.topPlayers.forEach((p, k) => L.push(`Star ${k + 1}: ${p.name} (${p.team}) - ${p.line}, ${p.pts} pool points`));
+  if (f.hatTricks.length) L.push('Hat tricks: ' + f.hatTricks.join(', '));
+  if (f.shutouts.length) L.push('Shutouts: ' + f.shutouts.join(', '));
+  L.push(`Best pool team of the night: ${f.bestTeam.name}, +${f.bestTeam.gain} points (now ${ordinal(f.bestTeam.rank)} place)`);
+  if (f.worstTeam) L.push(`Quietest pool team: ${f.worstTeam.name}, +${f.worstTeam.gain} points`);
+  if (f.leader) L.push(`Pool leader: ${f.leader.name} with ${f.leader.pts} points${f.leader.isNew ? ' (NEW leader - took over 1st place last night)' : ' (still in 1st)'}`);
+  if (f.climber) L.push(`Biggest climber: ${f.climber.name}, from ${ordinal(f.climber.from)} to ${ordinal(f.climber.to)} place`);
+  return L.join('\n');
+}
+
+// Plain version if the AI is off, fails, or doesn't pass the check.
+function recapTemplate(f) {
+  const s = [];
+  const p = f.topPlayers[0];
+  if (p) s.push(`${p.name} led the way ${f.night.split(',')[0]} with ${p.line.replace(/ \(.*\)/, '')}, worth ${p.pts} pool points.`);
+  s.push(`${f.bestTeam.name} had the best night in the pool at +${f.bestTeam.gain}.`);
+  if (f.leader && f.leader.isNew) s.push(`${f.leader.name} moved into 1st place.`);
+  else if (f.leader) s.push(`${f.leader.name} stays on top with ${f.leader.pts} points.`);
+  return s.join(' ');
+}
+
+// Every number in the AI's text must be one we gave it (ordinals and
+// small counting words aside), and it must name at least one real player.
+function recapCheck(text, f, facts) {
+  if (!text || text.length < 60 || text.length > 700) return false;
+  const allowed = new Set((facts.match(/\d+(?:\.\d+)?/g) || []).map(Number));
+  [1, 2, 3].forEach(n => allowed.add(n));
+  const nums = (text.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+  if (nums.some(n => !allowed.has(n))) return false;
+  return f.topPlayers.some(p => text.includes(p.name.split(' ').slice(-1)[0]));
+}
+
+async function writeRecap(env, f) {
+  const facts = recapFactLines(f);
+  if (!env.AI || typeof env.AI.run !== 'function') return { text: recapTemplate(f), source: 'template' };
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const out = await env.AI.run(RECAP_MODEL, {
+        messages: [
+          { role: 'system', content: 'You write the "Last Night in the AAHL" blurb for a friendly fantasy hockey pool website. Write 2 or 3 short, fun sentences in the voice of an upbeat hockey broadcaster. Use ONLY the facts given - never invent stats, scores, players, teams or numbers, and copy numbers exactly as written. Mention the top star and the best pool team; mention the pool leader if they are new. Light teasing of the quietest team is fine, never mean. Plain text only: no hashtags, no emojis, no quotes, no title.' },
+          { role: 'user', content: facts }
+        ],
+        max_tokens: 220,
+        temperature: 0.7
+      });
+      const text = String((out && (out.response || out.result && out.result.response)) || '').replace(/^["\s]+|["\s]+$/g, '').replace(/\s+/g, ' ');
+      if (recapCheck(text, f, facts)) return { text, source: 'ai' };
+      console.log('Recap: AI text failed the check (attempt ' + attempt + '): ' + text.slice(0, 300));
+    } catch (err) {
+      console.log('Recap: AI error (attempt ' + attempt + '): ' + err.message);
+    }
+  }
+  return { text: recapTemplate(f), source: 'template' };
+}
+
+async function runNightlyRecap(env, force) {
+  const f = await recapFacts(env);
+  if (!f) { console.log('Recap: 4am data not in yet - will try again.'); return { success: false, error: "Last night's stats aren't in yet." }; }
+  const prev = await getConfigDoc(env, 'nightlyRecap');
+  if (!force && prev && prev.date === f.date) return { success: true, skipped: true };
+  const r = await writeRecap(env, f);
+  const doc = { date: f.date, night: f.night, text: r.text, source: r.source, hidden: !!(force && prev && prev.date === f.date && prev.hidden), createdAt: new Date().toISOString() };
+  await putConfigDoc(env, 'nightlyRecap', doc);
+  console.log('Recap (' + r.source + '): ' + r.text);
+  return { success: true, data: doc };
+}
+
+async function adminRecap(env, body) {
+  const denied = adminDenied(env, body);
+  if (denied) return Object.assign(denied, { fallback: false });
+  if (body.op === 'regenerate') return runNightlyRecap(env, true);
+  if (body.op === 'hide' || body.op === 'show') {
+    const doc = await getConfigDoc(env, 'nightlyRecap');
+    if (!doc) return { success: false, error: 'No recap yet.' };
+    doc.hidden = body.op === 'hide';
+    await putConfigDoc(env, 'nightlyRecap', doc);
+    return { success: true, data: doc };
+  }
+  if (body.op === 'get') return { success: true, data: await getConfigDoc(env, 'nightlyRecap') };
+  return { success: false, error: 'Unknown recap action' };
 }

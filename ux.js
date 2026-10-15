@@ -14,6 +14,8 @@
  *     "Next puck drop 7:00 PM · in 2h 13m" in the Today's Games heading, and the
  *     trade deadline on My Team. Any element with data-countdown="..."
  *     (milestone / puck / trade) is kept up to date every second.
+ *  5. "Last Night in the AAHL" recap card on Home (written each morning by
+ *     the Worker with Workers AI - config/nightlyRecap).
  *
  * Loaded last (defer) in index.html, after the three libraries.
  */
@@ -300,11 +302,26 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) tickCountdowns(); });
   }
 
+  // ------------------------------------------------- 5. nightly recap
+  async function showRecap() {
+    const el = document.getElementById('home-recap');
+    if (!el || typeof supabaseDirectGet_ !== 'function') return;
+    let r = null;
+    try { r = await supabaseDirectGet_('config', 'nightlyRecap'); } catch (e) { r = null; }
+    // Only fresh ones (last night or the night before) and not hidden.
+    const fresh = r && r.date && (Date.now() - new Date(r.date + 'T12:00:00Z').getTime()) < 2.5 * 86400000;
+    if (!r || r.hidden || !r.text || !fresh) { el.hidden = true; return; }
+    const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    el.innerHTML = `<div class="home-recap-head mono">📰 LAST NIGHT IN THE AAHL <span>${esc(r.night || r.date)}</span></div><p>${esc(r.text)}</p>`;
+    el.hidden = false;
+  }
+
   function init() {
     if (typeof NProgress !== 'undefined') NProgress.configure({ showSpinner: false, trickleSpeed: 150, minimum: 0.15 });
     wrapFetch();
     startPullToRefresh();
     startCountdowns();
+    showRecap();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

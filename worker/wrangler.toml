@@ -15,7 +15,12 @@ routes = [
 # stop after one small read). To switch off without a deploy, add a
 # variable LIVE_POINTS = off in the dashboard (Apps Script takes over).
 [triggers]
-crons = ["* 15-23,0-8 * * *"]
+crons = ["* 15-23,0-8 * * *", "30 9,10,11 * * *"]
+
+# Nightly recap: 5:30 / 6:30 / 7:30am ET (summer; an hour earlier in winter)
+# - the second cron above. Written by Workers AI. Off: variable RECAP = off.
+[ai]
+binding = "AI"
 
 # Browser Rendering - takes the Monday standings picture (/weekly-image).
 [browser]

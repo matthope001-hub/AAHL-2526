@@ -84,6 +84,7 @@ function renderAdminEntries(entries) {
   const ctaVisible = currentConfig.showSignupCta !== false;
   const toggleHtml = `
     <div id="admin-pending-moves"></div>
+    <div id="admin-recap"></div>
     <div class="panel" style="margin-bottom:16px;">
       <h3 style="margin-bottom:6px;">🔁 Process Trade (on behalf of a team)</h3>
       <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">Same as the owner doing it from My Team: counts as one of their moves, banks the outgoing player's points, logs it in Activity, and emails the owner. In-season it's auto-approved.</p>
@@ -141,6 +142,7 @@ function renderAdminEntries(entries) {
     wireAdminInjuryPanel_();
     wireAdminTradePanel_();
     loadAdminPendingMoves(); // after innerHTML so the container exists
+    loadAdminRecap_();
     return;
   }
 
@@ -264,6 +266,32 @@ function renderAdminEntries(entries) {
   wireAdminInjuryPanel_();
   wireAdminTradePanel_();
   loadAdminPendingMoves(); // after innerHTML so the container exists
+  loadAdminRecap_();
+}
+
+// ---------- Nightly recap ("Last Night in the AAHL", written by AI) ----------
+async function loadAdminRecap_(op) {
+  const box = document.getElementById('admin-recap');
+  if (!box || !adminPassword) return;
+  if (op) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  const res = await adminRecap(adminPassword, op || 'get');
+  const r = res && res.success ? res.data : null;
+  const note = res && !res.success ? `<p class="status-msg error" style="margin-top:8px;">${escapeHtml(res.error || 'Something went wrong')}</p>` : '';
+  box.innerHTML = `
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:6px;">📰 Last Night Recap</h3>
+      <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">Written each morning by AI from the 4am stats (shown on Home). Every number is checked against the real stats; if the AI gets one wrong, a plain version is used instead.</p>
+      ${r ? `
+        <p style="margin-bottom:6px;">${escapeHtml(r.text)}</p>
+        <p class="mono" style="color:var(--text-dim); font-size:11px; margin-bottom:10px;">${escapeHtml(r.night || r.date)} · ${r.source === 'ai' ? 'written by AI' : 'plain version'}${r.hidden ? ' · <span style="color:var(--amber)">HIDDEN from Home</span>' : ''}</p>
+      ` : '<p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:10px;">No recap yet - the first one is written after the next 4am run.</p>'}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" data-recap="regenerate">✍️ Rewrite</button>
+        ${r ? `<button type="button" data-recap="${r.hidden ? 'show' : 'hide'}">${r.hidden ? '👁 Show on Home' : '🙈 Hide from Home'}</button>` : ''}
+      </div>
+      ${note}
+    </div>`;
+  box.querySelectorAll('button[data-recap]').forEach(b => b.addEventListener('click', () => loadAdminRecap_(b.dataset.recap)));
 }
 
 // ---------- Live pending-moves alerts ----------

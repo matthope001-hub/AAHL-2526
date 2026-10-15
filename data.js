@@ -577,6 +577,19 @@ async function adminUpdateConfig(password, updates) {
   return apiPost('adminUpdateConfig', { password, updates });
 }
 
+// Nightly recap (Worker only): op = 'get' | 'regenerate' | 'hide' | 'show'.
+async function adminRecap(password, op) {
+  try {
+    return await fetchJsonWithRetry_(WORKER_URL + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'adminRecap', password, op })
+    });
+  } catch (e) {
+    return { success: false, error: "Couldn't reach the server." };
+  }
+}
+
 async function adminGetEntries(password) {
   return adminRead_('adminGetEntries', password);
 }
