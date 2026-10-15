@@ -131,7 +131,34 @@ async function supabaseDirectGet_(table, id) {
   }
 }
 
+/**
+ * Cloudflare Worker for member saves (worker/ folder in this repo).
+ * USE_WORKER = false: everything goes to Apps Script exactly as before.
+ * USE_WORKER = true:  sign-ups, late sign-ups and My Team changes save via
+ * the Worker (much faster); My Team look-up and late-link checks read via
+ * the Worker and fall back to Apps Script if it can't be reached.
+ * Admin and everything else always stays on Apps Script.
+ */
+const WORKER_URL = 'https://api.theaahl.ca';
+const USE_WORKER = true;
+const WORKER_GET_ACTIONS = ['findEntryForMoves', 'checkLateInvite'];
+const WORKER_POST_ACTIONS = ['createEntry', 'createLateEntry', 'submitBatchTeamChanges'];
+
+function queryString_(action, params) {
+  let qs = `?action=${action}`;
+  if (params) {
+    for (const key in params) qs += `&${key}=${encodeURIComponent(params[key])}`;
+  }
+  return qs;
+}
+
 async function apiGet(action, params) {
+  if (USE_WORKER && WORKER_GET_ACTIONS.includes(action)) {
+    try {
+      const viaWorker = await fetchJsonWithRetry_(WORKER_URL + '/' + queryString_(action, params));
+      if (viaWorker && typeof viaWorker.success === 'boolean') return viaWorker;
+    } catch (e) { /* read-only: fall back to Apps Script below */ }
+  }
   let url = `${WEBAPP_URL}?action=${action}`;
   if (params) {
     for (const key in params) {
@@ -167,10 +194,13 @@ async function apiPost(action, payload) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action, idempotencyKey }, payload))
   };
+  // Saves never switch servers mid-request: a retry goes to the same place
+  // with the same idempotencyKey, so it can't create a duplicate.
+  const target = (USE_WORKER && WORKER_POST_ACTIONS.includes(action)) ? WORKER_URL + '/' : WEBAPP_URL;
   try {
-    return await fetchJsonWithRetry_(WEBAPP_URL, options);
+    return await fetchJsonWithRetry_(target, options);
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: target === WEBAPP_URL ? e.message : "Couldn't reach the server. Check your connection and try again." };
   }
 }
 
