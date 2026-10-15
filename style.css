@@ -1438,3 +1438,6 @@ a.hero-badge { cursor: pointer; }
   filter: grayscale(1) brightness(2.2); opacity: .2;
 }
 .aahl-mc[data-team]:hover, .aahl-mc[data-team]:focus { border-color: var(--tc); }
+
+/* Player-card headshots: width/height attributes are only a size hint (no stretching). */
+.aahl-pc-hs img { height: auto; }
