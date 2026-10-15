@@ -195,7 +195,7 @@ function playerBigCardHtml_(p) {
   const n = hasPickCounts_() ? pickedCount_(p.id) : null;
   const picked = n == null ? '' : (n ? pickedLink_(p.id, `${n}/${pickCounts.total} picked`) : `0/${pickCounts.total} picked`);
   const stats = cardStatList_(s, type);
-  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0">
+  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0"${cardTeamAttr_(p.team)}>
     ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
@@ -488,7 +488,7 @@ function lastNightCardHtml_(p) {
   const stats = g
     ? [[p.decision || '-', 'DEC'], [p.shutout ? 'Y' : '-', 'SO', p.shutout ? 'ht' : ''], [p.saves || 0, 'SV']]
     : [[goals, 'G'], [p.assists || 0, 'A'], [p.sog || 0, 'SOG'], ...(pos === 'D' ? [[p.pim || 0, 'PIM']] : []), [goals >= 3 ? 'Y' : '-', 'HT', goals >= 3 ? 'ht' : '']];
-  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.playerId)}" role="button" tabindex="0">
+  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.playerId)}" role="button" tabindex="0"${cardTeamAttr_(p.team)}>
     ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
