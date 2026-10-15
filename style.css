@@ -1402,7 +1402,7 @@ a.hero-badge { cursor: pointer; }
 .aahl-pc-meta .ir-badge { margin-left: 6px; }
 .aahl-pc-picked { font-family: var(--font-mono); font-size: 11px; color: var(--ice); }
 .aahl-pc-hs { width: 112px; align-self: flex-end; position: relative; }
-.aahl-pc-hs img { width: 112px; display: block; }
+.aahl-pc-hs img { width: 112px; height: 112px; object-fit: contain; object-position: bottom; display: block; }
 .aahl-pc-strip { margin: 0 8px 8px; border: 1px solid var(--border); border-radius: 10px; display: grid; padding: 8px 2px; background: var(--bg-panel); position: relative; }
 .aahl-pc-strip div { text-align: center; min-width: 0; }
 .aahl-pc-strip b { display: block; font-family: var(--font-mono); font-size: 15px; font-weight: 500; }
@@ -1439,5 +1439,3 @@ a.hero-badge { cursor: pointer; }
 }
 .aahl-mc[data-team]:hover, .aahl-mc[data-team]:focus { border-color: var(--tc); }
 
-/* Player-card headshots: width/height attributes are only a size hint (no stretching). */
-.aahl-pc-hs img { height: auto; }
