@@ -11,6 +11,19 @@
  * escapeHtml, statusBadge_, tonightTagHtml_, ensurePlayersLoaded.
  */
 
+// Team tint colours: each team's main colour, brightened where the
+// official one is too dark to show on a black card (TOR navy, LAK black).
+const TEAM_TINT_ = {
+  ANA: '#F47A38', BOS: '#FFB81C', BUF: '#2C5CB8', CGY: '#C8102E', CAR: '#CE1126', CHI: '#CF0A2C',
+  COL: '#8A2D4E', CBJ: '#2A5AA8', DAL: '#008C5A', DET: '#CE1126', EDM: '#FF4C00', FLA: '#C8102E',
+  LAK: '#A2AAAD', MIN: '#2E7D4F', MTL: '#AF1E2D', NSH: '#FFB81C', NJD: '#CE1126', NYI: '#1B6FC1',
+  NYR: '#1E55C8', OTT: '#DA1A32', PHI: '#F74902', PIT: '#FCB514', SJS: '#00A0AB', SEA: '#68A2B9',
+  STL: '#2A5DC1', TBL: '#2D62C2', TOR: '#2B5BB5', UTA: '#6CACE4', VAN: '#1F6FBF', VGK: '#B4975A',
+  WSH: '#C8102E', WPG: '#2E6DB4'
+};
+/** Attributes that tint a card in its team's colour (see style.css). */
+const cardTeamAttr_ = t => (t && TEAM_TINT_[t]) ? ` data-team="${t}" style="--tc:${TEAM_TINT_[t]}"` : '';
+
 const CARD_LOGO_ = t => t ? `https://assets.nhle.com/logos/nhl/svg/${t}_light.svg` : '';
 const cardF2_ = n => (Number(n) || 0).toFixed(2);
 const cardPlayer_ = id => ((typeof allPlayers !== 'undefined' && allPlayers) || []).find(p => String(p.id) === String(id)) || {};
@@ -67,7 +80,7 @@ function miniPickCardHtml_(pk) {
   const moved = pk.moves && pk.moves.length;
   const badge = typeof statusBadge_ === 'function' ? statusBadge_(pk.playerId) : '';
   const tonight = typeof tonightTagHtml_ === 'function' ? tonightTagHtml_(pk.playerId, team) : '';
-  return `<div class="aahl-mc" data-player-id="${escapeHtml(pk.playerId)}" data-pick-key="${key}" role="button" tabindex="0">
+  return `<div class="aahl-mc" data-player-id="${escapeHtml(pk.playerId)}" data-pick-key="${key}" role="button" tabindex="0"${cardTeamAttr_(team)}>
     ${team ? `<img class="aahl-mc-wm" src="${CARD_LOGO_(team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
     ${hs ? `<img class="aahl-mc-hs" src="${escapeHtml(hs)}" alt="" loading="lazy">` : `<div class="aahl-mc-hs"></div>`}
     ${moved ? `<div class="aahl-mc-tr" title="Traded in">⇄</div>` : ''}
@@ -112,7 +125,7 @@ async function openPlayerCard(playerId, extra) {
 
   const ov = ensureCardOverlay_();
   ov.innerHTML = `
-    <div class="aahl-fc" role="dialog" aria-label="${escapeHtml(name)}">
+    <div class="aahl-fc" role="dialog" aria-label="${escapeHtml(name)}"${cardTeamAttr_(team)}>
       ${team ? `<img class="aahl-fc-wm" src="${CARD_LOGO_(team)}" alt="" onerror="this.remove()">` : ''}
       <button class="aahl-fc-x" aria-label="Close">×</button>
       <div class="aahl-fc-top">
