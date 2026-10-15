@@ -1390,7 +1390,10 @@ a.hero-badge { cursor: pointer; }
 .pc-view-toggle { display: flex; gap: 4px; }
 .aahl-pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .aahl-pc { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; cursor: pointer; transition: border-color .15s, transform .15s; }
-.aahl-pc:hover, .aahl-pc:focus { border-color: var(--ice); transform: translateY(-2px); outline: none; }
+.aahl-pc:hover, .aahl-pc:focus { border-color: var(--ice); outline: none; }
+.aahl-pc, .aahl-fc { transform-style: preserve-3d; will-change: transform; }
+.aahl-pc-top, .aahl-fc-top { transform: translateZ(24px); }
+.aahl-pc-strip, .aahl-fc-strip, .aahl-fc-pool { transform: translateZ(16px); }
 .aahl-pc-wm { position: absolute; right: -24px; top: -18px; width: 150px; height: 150px; opacity: .13; pointer-events: none; }
 .aahl-pc-top { display: flex; position: relative; min-height: 132px; }
 .aahl-pc-info { flex: 1; padding: 14px 0 10px 14px; min-width: 0; }
