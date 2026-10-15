@@ -1002,9 +1002,60 @@ function wireStandingsSort_(el, redraw) {
       else standingsSort = standingsSort.key === key
         ? { key, dir: standingsSort.dir === 'desc' ? 'asc' : 'desc' }
         : { key, dir: 'desc' };
-      redraw();
+      flipStandingsRows_(el, redraw);
     });
   });
+}
+
+// ---------- Animated standings ----------
+const standingsMotionOk_ = () => !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/**
+ * Re-sorts with each row sliding from its old spot to its new one (FLIP):
+ * note every row's position, redraw, then animate each row from where it
+ * was. Rows are matched by entry id, so a full innerHTML redraw is fine.
+ */
+function flipStandingsRows_(el, redraw) {
+  if (!standingsMotionOk_()) { redraw(); return; }
+  const before = {};
+  el.querySelectorAll('tr[data-entry]').forEach(tr => { before[tr.dataset.entry] = tr.getBoundingClientRect().top; });
+  redraw();
+  el.querySelectorAll('tr[data-entry]').forEach(tr => {
+    const old = before[tr.dataset.entry];
+    if (old == null) return;
+    const dy = old - tr.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    tr.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }],
+      { duration: 550, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+}
+
+/**
+ * Once per nightly update: rows start at yesterday's rank and slide to
+ * today's, so overnight movers are obvious. Uses each entry's rankChange
+ * (positive = moved up). Only in normal rank order.
+ */
+async function animateOvernightMoves_(el) {
+  if (!standingsMotionOk_() || standingsSort.key !== 'rank') return;
+  let version = null;
+  try { version = await getDataVersion_(); } catch (e) { /* use date */ }
+  const key = version || new Date().toISOString().slice(0, 10);
+  try { if (localStorage.getItem('aahl_standings_anim') === key) return; } catch (e) { /* still animate */ }
+  const rows = [...el.querySelectorAll('tr[data-entry]')];
+  if (!rows.length) return;
+  const h = rows[0].getBoundingClientRect().height || 40;
+  const byId = {};
+  (allStandings || []).forEach(e => { byId[e.entryId] = e; });
+  let moved = 0;
+  rows.forEach(tr => {
+    const e = byId[tr.dataset.entry];
+    const rc = e && e.rankChange;
+    if (!rc) return;
+    moved++;
+    tr.animate([{ transform: `translateY(${rc * h}px)` }, { transform: `translateY(${rc * h}px)`, offset: 0.25 }, { transform: 'none' }],
+      { duration: 1400, easing: 'cubic-bezier(.2,.8,.2,1)' });
+  });
+  if (moved) { try { localStorage.setItem('aahl_standings_anim', key); } catch (e) { /* fine */ } }
 }
 
 /**
@@ -1052,7 +1103,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
         ${sorted.map(e => {
           const b = pointsBreakdown_(e);
           return `
-          <tr>
+          <tr data-entry="${escapeHtml(e.entryId || '')}">
             <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
             <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
             ${live ? (() => { const t = live.entries && live.entries[e.entryId]; return `<td class="num mono" style="color:${t && t.pts ? '#3ecf6a' : 'var(--text-dim)'}; white-space:nowrap;">${t ? '+' + t.pts.toFixed(2) : '—'}${t && t.players ? ` <span style="color:var(--text-dim); font-size:10px;">(${t.players})</span>` : ''}</td>`; })() : ''}
@@ -1106,6 +1157,7 @@ function renderStandingsTable() {
   el.innerHTML = standingsTableHtml_(sorted, '±Pts (24h)');
   attachTeamLinkListeners(el);
   wireStandingsSort_(el, renderStandingsTable);
+  animateOvernightMoves_(el);
 }
 
 /**
