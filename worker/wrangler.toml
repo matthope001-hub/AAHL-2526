@@ -1,0 +1,19 @@
+# AAHL member-saves API - Cloudflare Worker.
+# Deployed automatically by Cloudflare whenever this folder changes on GitHub
+# (Workers & Pages -> aahl-api -> Settings -> Build: root directory "worker").
+name = "aahl-api"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+keep_vars = true
+
+# Answers at https://api.theaahl.ca (theaahl.ca's DNS is already on Cloudflare).
+routes = [
+  { pattern = "api.theaahl.ca", custom_domain = true }
+]
+
+# Public, non-secret settings. The three secrets (SUPABASE_SERVICE_KEY,
+# WORKER_SHARED_SECRET, LATE_INVITE_SECRET) are added in the Cloudflare
+# dashboard, never here - this file is public on GitHub.
+[vars]
+SUPABASE_URL = "https://tetgrmgurobacdohhiby.supabase.co"
+APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJA2dDY7N2IY9xrwMpr-XYybw2Z8ZWybXTH8Sm7eYn1tR1qBaEAzc8N9Vp2jmM_bYVdA/exec"
