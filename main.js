@@ -452,7 +452,7 @@ async function renderStarsOfNight() {
  * game is on - the score. The loser is dimmed on a final.
  */
 function gameCardInner_(g) {
-  const logo = (abbrev) => `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">`;
+  const logo = (abbrev) => `<img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">`;
   const started = g.state === 'live' || g.state === 'final';
 
   // Status line: start time -> "● 2ND · 12:34" / "2ND INT" -> "FINAL/OT"
@@ -714,7 +714,7 @@ async function renderWeeklyTop() {
           ${p.award
             ? `<span class="mono pow-label">${escapeHtml(p.award)}</span>`
             : `<span class="mono" style="color:var(--text-dim); font-weight:700; width:14px;">${i + 1}</span>`}
-          ${p.headshotUrl ? `<img class="star-photo" src="${p.headshotUrl}" alt="" loading="lazy">` : `<div class="star-photo star-photo-empty"></div>`}
+          ${p.headshotUrl ? `<img class="star-photo" src="${p.headshotUrl}" alt="" width="42" height="42" loading="lazy">` : `<div class="star-photo star-photo-empty"></div>`}
           <div class="division-leader-info" style="min-width:0;">
             <div class="division-leader-team">${escapeHtml(p.fullName)}</div>
             <div class="mono division-leader-record">${escapeHtml(p.team || '')} · ${escapeHtml(p.isGoalie ? 'G' : (p.position || ''))} · ${p.games || 0}GP · ${line}</div>
@@ -900,7 +900,7 @@ async function renderDivisionLeadersPanel(preloadedLeaders) {
     // and how many pool teams picked it.
     el.innerHTML = leaders.map(d => `
       <div class="division-card" title="${escapeHtml(d.teamName || '')}">
-        ${d.teamAbbrev ? `<img class="division-card-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(d.teamAbbrev)}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+        ${d.teamAbbrev ? `<img class="division-card-logo" src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(d.teamAbbrev)}_light.svg" alt="" width="52" height="52" loading="lazy" onerror="this.style.display='none'">` : ''}
         <div class="division-card-info">
           <div class="mono division-leader-name-label">${escapeHtml(d.division)}</div>
           <div class="division-card-team">${escapeHtml(TEAM_NICKNAMES[d.teamAbbrev] || d.teamName || '')}</div>
@@ -1226,7 +1226,7 @@ function renderPicksModalBody_(data, ownerLine) {
 
   const groupTitles = { F: 'Forwards', D: 'Defense', G: 'Goalies' };
   const divisionRows = Object.entries(data.divisionPicks || {})
-    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}${divisionPickStatusHtml_(div, team)}</span></div>`)
+    .map(([div, team]) => `<div class="activity-row"><span>${escapeHtml(div)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${team}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">${escapeHtml(team)}${divisionPickStatusHtml_(div, team)}</span></div>`)
     .join('');
 
   return `
@@ -1425,7 +1425,7 @@ function drawIRTable_() {
                 <tr>
                   <td>
                     <div class="ir-player">
-                      ${r.headshot ? `<img src="${r.headshot}" alt="" loading="lazy">` : '<span class="ir-player-nophoto"></span>'}
+                      ${r.headshot ? `<img src="${r.headshot}" alt="" width="26" height="26" loading="lazy">` : '<span class="ir-player-nophoto"></span>'}
                       <div><div class="ir-player-name">${escapeHtml(r.name)}</div><div class="ir-player-meta">${escapeHtml(r.team)} · ${escapeHtml(r.pos)}</div></div>
                     </div>
                   </td>
@@ -1624,7 +1624,7 @@ async function drawCompare_() {
  */
 function playerCellHtml_(name, headshot, team, pos, playerId) {
   return `<div class="dt-player"${playerId ? ` data-player-id="${escapeHtml(playerId)}"` : ''}>
-    ${headshot ? `<img src="${headshot}" alt="" loading="lazy">` : '<span class="dt-player-nophoto"></span>'}
+    ${headshot ? `<img src="${headshot}" alt="" width="26" height="26" loading="lazy">` : '<span class="dt-player-nophoto"></span>'}
     <div><div class="dt-player-name">${escapeHtml(name)}${playerId ? statusBadge_(playerId) : ''}</div>
     <div class="dt-player-meta">${escapeHtml(team || '')}${pos ? ' · ' + escapeHtml(pos) : ''}</div></div>
   </div>`;
