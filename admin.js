@@ -16,7 +16,7 @@ function renderAdminPanel() {
 
   if (!adminPassword) {
     el.innerHTML = `
-      <label>Admin Password</label>
+      <label for="admin-pw-input">Admin Password</label>
       <div class="pw-field-wrap">
         <input type="password" id="admin-pw-input">
         <button type="button" id="admin-pw-toggle" class="pw-eye-btn" aria-label="Show password">👁</button>
