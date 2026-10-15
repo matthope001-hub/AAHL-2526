@@ -1,7 +1,7 @@
 # AAHL member-saves API - Cloudflare Worker.
 # Deployed automatically by Cloudflare whenever this folder changes on GitHub
 # (Workers & Pages -> aahl-api -> Settings -> Build: root directory "worker").
-name = "aahl-api"
+name = "aahl-2526"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 keep_vars = true
