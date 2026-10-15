@@ -570,9 +570,13 @@ async function renderTodaysGames() {
   }
 }
 
-// Keep scores current on an open tab: re-check every 3 minutes while the
-// Home page is showing and the tab is visible.
-setInterval(async () => {
+// Keep scores current on an open tab while Home or Standings is showing.
+// Two triggers, same refresh:
+//  1. Supabase Realtime: Apps Script saves todaysGamesCache / livePointsCache
+//     during games and Supabase tells every open page right away.
+//  2. Backup: re-check every 3 minutes (also covers the live connection
+//     dropping, a phone waking up, or supabase-js not loading).
+async function refreshLiveViews_() {
   if (document.hidden) return;
   const home = document.getElementById('view-home');
   const standings = document.getElementById('view-standings');
@@ -592,8 +596,42 @@ setInterval(async () => {
     const again = document.querySelector('#home-standings-preview .players-table-scroll');
     if (again) again.scrollTop = top;
   }
-  if (onStandings) renderStandingsTable();
-}, 180000);
+  if (onStandings) {
+    const el = document.getElementById('standings-table');
+    // Rows slide to their new spots (e.g. when sorted by Tonight).
+    if (el && typeof flipStandingsRows_ === 'function') flipStandingsRows_(el, renderStandingsTable);
+    else renderStandingsTable();
+  }
+}
+setInterval(refreshLiveViews_, 180000);
+
+// Realtime: a save to either row triggers one refresh (the two rows are
+// saved seconds apart, so they're bundled). The page re-reads through the
+// normal path rather than trusting the pushed copy, so what's shown is
+// always exactly what the 3-minute check would show.
+let liveChannel_ = null;
+let livePushTimer_ = null;
+function onLivePush_() {
+  clearTimeout(livePushTimer_);
+  livePushTimer_ = setTimeout(refreshLiveViews_, 1500);
+}
+function startLiveChannel_() {
+  if (liveChannel_) return;
+  const sb = (typeof sbClient_get_ === 'function') ? sbClient_get_() : null;
+  if (!sb || typeof sb.channel !== 'function') return; // library not loaded yet / at all
+  try {
+    liveChannel_ = sb.channel('aahl-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config', filter: 'id=eq.livePointsCache' }, onLivePush_)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config', filter: 'id=eq.todaysGamesCache' }, onLivePush_)
+      .subscribe();
+  } catch (e) {
+    liveChannel_ = null; // the 3-minute check carries on regardless
+  }
+}
+// supabase-js loads in the background, so try a few times after page load.
+[2000, 6000, 15000, 40000].forEach(ms => setTimeout(startLiveChannel_, ms));
+// Coming back to the tab: catch up straight away.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { startLiveChannel_(); refreshLiveViews_(); } });
 
 // Screen size changed: re-check whether each ticker needs to scroll.
 let tickerResizeTimer_ = null;
