@@ -9,6 +9,8 @@
  *                                 division picks), also used by Admin trades
  *   GET  findEntryForMoves      - My Team look-up (entry ID + email)
  *   GET  checkLateInvite        - is a late invite link still good?
+ *   POST adminGetEntries        - Admin: all entries (password checked)
+ *   POST adminGetPendingMoves   - Admin: pending move requests (password checked)
  *   GET  /health                - quick "is it up" check
  *
  * Every rule mirrors the Apps Script versions (Entries.gs, RosterMoves.gs,
@@ -29,9 +31,11 @@
  *   SUPABASE_SERVICE_KEY   SECRET - same value as the Apps Script property
  *   WORKER_SHARED_SECRET   SECRET - from setupWorkerBridge() in Apps Script
  *   LATE_INVITE_SECRET     SECRET - from setupWorkerBridge() in Apps Script
+ *   ADMIN_PASSWORD         SECRET - the commissioner password (optional: without
+ *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -67,7 +71,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/health') {
-      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL) });
+      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD });
     }
 
     let result;
@@ -86,6 +90,8 @@ export default {
           case 'createEntry': result = await createEntry(env, ctx, body, false); break;
           case 'createLateEntry': result = await createEntry(env, ctx, body, true); break;
           case 'submitBatchTeamChanges': result = await submitBatchTeamChanges(env, ctx, body); break;
+          case 'adminGetEntries': result = await adminGetEntries(env, body); break;
+          case 'adminGetPendingMoves': result = await adminGetPendingMoves(env, body); break;
           default: result = { success: false, error: 'Unknown action: ' + body.action };
         }
       } else {
@@ -458,3 +464,62 @@ async function submitBatchTeamChanges(env, ctx, body) {
 }
 
 export const _test = { computePlayerPoints, cleanDisplayText, signLateInvite, stableId };
+
+// ---------------------------------------------------------- admin reads
+// Read-only. Approve / reject / edit stay in Apps Script. If ADMIN_PASSWORD
+// isn't set here, or the password doesn't match, the answer carries
+// fallback:true and the site asks Apps Script instead (Apps Script stays
+// the final word on the password).
+
+function safeEqual(a, b) {
+  a = String(a || ''); b = String(b || '');
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  return diff === 0;
+}
+
+function adminDenied(env, body) {
+  if (!env.ADMIN_PASSWORD) return { success: false, fallback: true, error: 'Admin not set up on the Worker' };
+  if (!body.password || !safeEqual(body.password, env.ADMIN_PASSWORD)) return { success: false, fallback: true, error: 'Invalid password' };
+  return null;
+}
+
+async function adminGetEntries(env, body) {
+  const denied = adminDenied(env, body);
+  if (denied) return denied;
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const rows = await sb(env, `entries?select=id,data&order=id&limit=1000&offset=${from}`);
+    (rows || []).forEach(r => out.push(Object.assign({ id: r.id }, r.data)));
+    if (!rows || rows.length < 1000) break;
+  }
+  return { success: true, data: out };
+}
+
+async function adminGetPendingMoves(env, body) {
+  const denied = adminDenied(env, body);
+  if (denied) return denied;
+  const moves = await listWhere(env, 'rosterMoves', 'status', 'pending');
+  if (!moves.length) return { success: true, data: [] };
+  const [entries, boxes, players] = await Promise.all([
+    getDocs(env, 'entries', moves.map(m => m.entryId)),
+    getDocs(env, 'boxes', moves.map(m => m.boxId)),
+    getDocs(env, 'players', moves.flatMap(m => [m.outPlayerId, m.inPlayerId]))
+  ]);
+  return {
+    success: true,
+    data: moves.map(m => {
+      const entry = entries[m.entryId], box = boxes[m.boxId];
+      const outP = players[m.outPlayerId], inP = players[m.inPlayerId];
+      return {
+        moveId: m.id,
+        entryId: m.entryId,
+        teamName: entry ? entry.teamName : 'Unknown',
+        boxLabel: box ? box.boxLabel : `Box ${m.boxId}`,
+        outPlayerName: outP ? outP.fullName : m.outPlayerId,
+        inPlayerName: inP ? inP.fullName : m.inPlayerId,
+        requestedAt: m.requestedAt
+      };
+    })
+  };
+}

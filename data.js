@@ -137,7 +137,8 @@ async function supabaseDirectGet_(table, id) {
  * USE_WORKER = true:  sign-ups, late sign-ups and My Team changes save via
  * the Worker (much faster); My Team look-up and late-link checks read via
  * the Worker and fall back to Apps Script if it can't be reached.
- * Admin and everything else always stays on Apps Script.
+ * Admin reads (entries list, pending moves) try the Worker first and fall
+ * back to Apps Script; every other admin action stays on Apps Script.
  */
 const WORKER_URL = 'https://api.theaahl.ca';
 const USE_WORKER = true;
@@ -171,6 +172,26 @@ async function workerAvailable_() {
   workerUp_ = up;
   workerCheckedAt_ = Date.now();
   return up;
+}
+
+/**
+ * Admin read-only lists. Tries the Worker (fast); if it isn't reachable,
+ * isn't set up with the admin password, or says the password is wrong,
+ * asks Apps Script instead - Apps Script stays the final word on the
+ * password. Reads only, so trying twice can never duplicate anything.
+ */
+async function adminRead_(action, password) {
+  if (await workerAvailable_()) {
+    try {
+      const r = await fetchJsonWithRetry_(WORKER_URL + '/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, password })
+      });
+      if (r && r.success === true) return r;
+    } catch (e) { /* fall through to Apps Script */ }
+  }
+  return apiPost(action, { password });
 }
 
 function queryString_(action, params) {
@@ -541,7 +562,7 @@ async function adminGetEntryPicks(password, entryId) {
 }
 
 async function adminGetPendingMoves(password) {
-  return apiPost('adminGetPendingMoves', { password });
+  return adminRead_('adminGetPendingMoves', password);
 }
 
 async function adminApproveMove(password, moveId) {
@@ -557,7 +578,7 @@ async function adminUpdateConfig(password, updates) {
 }
 
 async function adminGetEntries(password) {
-  return apiPost('adminGetEntries', { password });
+  return adminRead_('adminGetEntries', password);
 }
 
 async function adminApproveEntry(password, entryId) {
