@@ -580,16 +580,24 @@ function renderMyTeamMovesPanel() {
     <h3 style="margin-bottom:4px;">${escapeHtml(myTeamEntry.teamName)}</h3>
     <p class="mono" style="color:var(--ice); margin-bottom:16px;">${myTeamEntry.movesRemaining} move${myTeamEntry.movesRemaining === 1 ? '' : 's'} remaining</p>
 
+    <h4 class="group-title">Your Roster <a href="#" class="mono mt-full-link" id="my-team-full-link">Full team view →</a></h4>
+    <div id="my-team-roster" class="aahl-mgrid"><p class="mono" style="color:var(--text-dim); font-size:13px;">Loading roster…</p></div>
+
     ${myTeamEntry.moveHistory.length > 0 ? `
       <h4 class="group-title">Move History</h4>
       <div class="panel" style="margin-bottom:16px;">
         ${myTeamEntry.moveHistory.map(m => {
           const box = boxById[m.boxId];
-          const outP = allPlayers.find(p => p.id === m.outPlayerId);
-          const inP = allPlayers.find(p => p.id === m.inPlayerId);
+          const outP = mtPlayer_(m.outPlayerId);
+          const inP = mtPlayer_(m.inPlayerId);
           const statusColor = m.status === 'approved' ? 'var(--ice)' : (m.status === 'rejected' ? '#ff5c5c' : 'var(--amber)');
-          return `<div class="activity-row">
-            <span>${escapeHtml(box ? box.boxLabel : m.boxId)}: ${escapeHtml(outP ? outP.fullName : m.outPlayerId)} → ${escapeHtml(inP ? inP.fullName : m.inPlayerId)}</span>
+          return `<div class="activity-row mt-move">
+            <span class="mt-move-swap">
+              <span class="mono mt-move-box">${escapeHtml(box ? box.boxLabel : m.boxId)}</span>
+              ${mtFace_(outP)}<span>${escapeHtml(outP.fullName || m.outPlayerId)}</span>
+              <span class="mt-move-arrow">→</span>
+              ${mtFace_(inP)}<span>${escapeHtml(inP.fullName || m.inPlayerId)}</span>
+            </span>
             <span class="mono" style="color:${statusColor}; text-transform:capitalize;">${escapeHtml(m.status)}</span>
           </div>`;
         }).join('')}
@@ -618,31 +626,92 @@ function renderMyTeamMovesPanel() {
   }
 
   renderUnifiedChangesSummary_();
+
+  const full = document.getElementById('my-team-full-link');
+  if (full) full.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (typeof openTeamPicksModal === 'function') openTeamPicksModal(myTeamEntry.entryId, myTeamEntry.teamName);
+  });
+  renderMyTeamRoster_();
+  // Player photos / points need the player list - redraw once it's in.
+  if (typeof allPlayers !== 'undefined' && allPlayers.length === 0 && typeof ensurePlayersLoaded === 'function') {
+    ensurePlayersLoaded().then(() => {
+      if (canRequestMoves_()) renderMyTeamBoxPicker();
+    }).catch(() => {});
+  }
+}
+
+// ---------- My Team: player cards ----------
+function mtPlayer_(id) {
+  if (typeof cardPlayer_ === 'function') return cardPlayer_(id) || {};
+  return (typeof allPlayers !== 'undefined' && allPlayers.find(p => p.id === id)) || {};
+}
+function mtFace_(p, size) {
+  size = size || 22;
+  return p && p.headshotUrl
+    ? `<img class="mt-face" src="${escapeHtml(p.headshotUrl)}" alt="" width="${size}" height="${size}" loading="lazy">`
+    : `<span class="mt-face mt-face-empty"></span>`;
+}
+
+/** "Your Roster": the team's 27 picks as player cards (same as the team popup). */
+async function renderMyTeamRoster_() {
+  const el = document.getElementById('my-team-roster');
+  if (!el || !myTeamEntry) return;
+  const entryId = myTeamEntry.entryId;
+  let data = null;
+  try { data = await fetchEntryPicks(entryId); } catch (e) { data = null; }
+  if (!myTeamEntry || myTeamEntry.entryId !== entryId || !document.body.contains(el)) return; // looked up another team meanwhile
+  if (!data || data.error || !data.picks || typeof miniPickCardHtml_ !== 'function') {
+    // Fallback: simple cards from the picks themselves.
+    const picks = Object.keys(myTeamEntry.picks || {}).sort((a, b) => Number(a) - Number(b))
+      .map(boxId => ({ boxId, playerId: myTeamEntry.picks[boxId], contributionSinceAcquired: 0 }));
+    el.innerHTML = typeof miniPickCardHtml_ === 'function' ? picks.map(miniPickCardHtml_).join('') : '';
+    return;
+  }
+  const picks = [...data.picks].sort((a, b) => Number(a.boxId) - Number(b.boxId));
+  const total = picks.reduce((sum, p) => sum + (p.contributionSinceAcquired || 0)
+    + (p.moves || []).reduce((b, m) => b + (m.bankedAmount || 0), 0), 0);
+  el.innerHTML = picks.map(miniPickCardHtml_).join('');
+  const title = el.previousElementSibling;
+  if (title && !title.querySelector('.mt-total')) {
+    title.insertAdjacentHTML('beforeend', ` <span class="mono mt-total">${total.toFixed(2)} pts</span>`);
+  }
 }
 
 function renderMyTeamBoxPicker() {
   const grid = document.getElementById('my-team-box-grid');
+  if (!grid) return;
   const boxById = {};
   allBoxes.forEach(b => { boxById[b.id] = b; });
+  const cfg = typeof currentConfig !== 'undefined' ? currentConfig : {};
 
   grid.innerHTML = REQUIRED_BOX_IDS.map(boxId => {
     const box = boxById[boxId];
     if (!box) return '';
     const currentPlayerId = myTeamEntry.picks[boxId];
     const stagedId = stagedMoves[boxId] ? stagedMoves[boxId].newPlayerId : currentPlayerId;
+    const current = box.players.find(p => p.playerId === currentPlayerId);
 
     return `
-      <div class="box-picker">
-        <div class="box-picker-label">${escapeHtml(box.boxLabel)}</div>
-        <div class="box-picker-options">
+      <div class="box-picker mt-box">
+        <div class="box-picker-label">${escapeHtml(box.boxLabel)}${current ? ` <span class="mt-box-cur">· ${escapeHtml(current.name)}</span>` : ''}</div>
+        <div class="mt-opts">
           ${box.players.map(p => {
+            const full = mtPlayer_(p.playerId);
+            const team = full.team || p.team || '';
+            const pts = full.stats ? computePlayerPoints(full, cfg) : null;
             const isCurrent = p.playerId === currentPlayerId;
             const isSelected = p.playerId === stagedId;
+            const tint = typeof cardTeamAttr_ === 'function' ? cardTeamAttr_(team) : '';
             return `
-            <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
+            <label class="mt-opt${isCurrent ? ' is-current' : ''}${isSelected && !isCurrent ? ' is-staged' : ''}"${tint}>
               <input type="radio" name="move-target-${boxId}" data-box="${boxId}" value="${p.playerId}" ${isSelected ? 'checked' : ''}>
-              <span class="box-option-name">${escapeHtml(p.name)}${statusBadge_(p.playerId)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
-              <span class="mono box-option-meta">${escapeHtml(p.team)}</span>
+              ${mtFace_(full, 40)}
+              <span class="mt-opt-txt">
+                <span class="mt-opt-n">${escapeHtml(p.name)}${statusBadge_(p.playerId)}</span>
+                <span class="mono mt-opt-m">${escapeHtml(team)}${pts != null ? ` · ${pts.toFixed(1)} pts` : ''}</span>
+              </span>
+              <span class="mono mt-opt-tag">${isCurrent ? 'CURRENT' : (isSelected ? 'NEW' : '')}</span>
             </label>
           `;}).join('')}
         </div>
@@ -659,8 +728,21 @@ function renderMyTeamBoxPicker() {
       } else {
         stagedMoves[boxId] = { oldPlayerId: currentPlayerId, newPlayerId: radio.value };
       }
+      mtMarkChoice_(grid, `move-target-${boxId}`, currentPlayerId);
       renderUnifiedChangesSummary_();
     });
+  });
+}
+
+/** Re-marks CURRENT / NEW on one box's (or division's) cards after a change. */
+function mtMarkChoice_(grid, name, currentValue) {
+  grid.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
+    const opt = inp.closest('.mt-opt');
+    const isCurrent = inp.value === currentValue;
+    const staged = inp.checked && !isCurrent;
+    opt.classList.toggle('is-staged', staged);
+    const tag = opt.querySelector('.mt-opt-tag');
+    if (tag) tag.textContent = isCurrent ? 'CURRENT' : (staged ? 'NEW' : '');
   });
 }
 
@@ -673,18 +755,22 @@ function renderMyTeamDivisionPicker() {
     const stagedAbbrev = stagedDivisionChanges[division] ? stagedDivisionChanges[division].newTeam : currentAbbrev;
 
     return `
-      <div class="box-picker">
-        <div class="box-picker-label">${escapeHtml(division)}</div>
-        <div class="box-picker-options">
+      <div class="box-picker mt-box">
+        <div class="box-picker-label">${escapeHtml(division)}${currentAbbrev ? ` <span class="mt-box-cur">· ${escapeHtml(currentAbbrev)}</span>` : ''}</div>
+        <div class="mt-opts">
           ${DIVISION_TEAMS[division].map(([abbrev, fullName]) => {
             const isCurrent = abbrev === currentAbbrev;
             const isSelected = abbrev === stagedAbbrev;
+            const tint = typeof cardTeamAttr_ === 'function' ? cardTeamAttr_(abbrev) : '';
             return `
-            <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
+            <label class="mt-opt${isCurrent ? ' is-current' : ''}${isSelected && !isCurrent ? ' is-staged' : ''}"${tint}>
               <input type="radio" name="division-target-${division}" data-division="${division}" value="${abbrev}" ${isSelected ? 'checked' : ''}>
-              <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" onerror="this.style.display='none'">
-              <span class="box-option-name">${escapeHtml(fullName)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
-              <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
+              <img class="mt-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="40" height="40" onerror="this.style.visibility='hidden'">
+              <span class="mt-opt-txt">
+                <span class="mt-opt-n">${escapeHtml(fullName)}</span>
+                <span class="mono mt-opt-m">${escapeHtml(abbrev)}</span>
+              </span>
+              <span class="mono mt-opt-tag">${isCurrent ? 'CURRENT' : (isSelected ? 'NEW' : '')}</span>
             </label>
           `;}).join('')}
         </div>
@@ -701,6 +787,7 @@ function renderMyTeamDivisionPicker() {
       } else {
         stagedDivisionChanges[division] = { oldTeam: currentAbbrev, newTeam: radio.value };
       }
+      mtMarkChoice_(grid, `division-target-${division}`, currentAbbrev);
       renderUnifiedChangesSummary_();
     });
   });
