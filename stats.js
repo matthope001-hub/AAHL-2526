@@ -196,7 +196,7 @@ function playerBigCardHtml_(p) {
   const picked = n == null ? '' : (n ? pickedLink_(p.id, `${n}/${pickCounts.total} picked`) : `0/${pickCounts.total} picked`);
   const stats = cardStatList_(s, type);
   return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0"${cardTeamAttr_(p.team)}>
-    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" width="150" height="150" loading="lazy" onerror="this.remove()">` : ''}
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" width="150" height="150" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
         <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
@@ -489,7 +489,7 @@ function lastNightCardHtml_(p) {
     ? [[p.decision || '-', 'DEC'], [p.shutout ? 'Y' : '-', 'SO', p.shutout ? 'ht' : ''], [p.saves || 0, 'SV']]
     : [[goals, 'G'], [p.assists || 0, 'A'], [p.sog || 0, 'SOG'], ...(pos === 'D' ? [[p.pim || 0, 'PIM']] : []), [goals >= 3 ? 'Y' : '-', 'HT', goals >= 3 ? 'ht' : '']];
   return `<div class="aahl-pc" data-player-id="${escapeHtml(p.playerId)}" role="button" tabindex="0"${cardTeamAttr_(p.team)}>
-    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" width="150" height="150" loading="lazy" onerror="this.remove()">` : ''}
+    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" width="150" height="150" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
         <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
@@ -1197,7 +1197,7 @@ async function renderBoxesReference() {
                 : (prev ? `${prev.points}pts (${ordinal(prev.rank)}, 25-26)` : '');
               return `
               <div class="box-option box-option-readonly">
-                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" onerror="this.style.display='none'">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
                 <span class="mono box-option-stats">${escapeHtml(refLabel)}${pickedSuffix_((hasPickCounts_() && pickCounts.divisions && pickCounts.divisions[abbrev]) || 0)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>

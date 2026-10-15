@@ -174,7 +174,7 @@ async function renderSignupFormBody() {
               return `
               <label class="box-option">
                 <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}" ${divisionPicks[division] === abbrev ? 'checked' : ''}>
-                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" onerror="this.style.display='none'">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
                 <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
@@ -385,7 +385,7 @@ function renderSignupConfirmStep() {
   const divisionRows = DIVISIONS.map(division => {
     const abbrev = divisionPicks[division];
     const teamEntry = DIVISION_TEAMS[division].find(t => t[0] === abbrev);
-    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
+    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" onerror="this.style.display='none'">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
   }).join('');
 
   el.innerHTML = `
@@ -682,7 +682,7 @@ function renderMyTeamDivisionPicker() {
             return `
             <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
               <input type="radio" name="division-target-${division}" data-division="${division}" value="${abbrev}" ${isSelected ? 'checked' : ''}>
-              <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">
+              <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" onerror="this.style.display='none'">
               <span class="box-option-name">${escapeHtml(fullName)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
               <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
             </label>
