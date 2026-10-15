@@ -89,12 +89,12 @@ async function renderSignupFormBody() {
         🎟️ Late Entry Invite — you've been invited to join after the deadline. This link works for one entry only.
       </div>
     ` : ''}
-    <label>Team Name</label>
+    <label for="f-teamName">Team Name</label>
     <input type="text" id="f-teamName" value="${escapeHtml(signupFields.teamName)}">
     <div id="team-name-warning" class="status-msg" style="display:none; color:var(--amber);"></div>
-    <label>Owner Name</label>
+    <label for="f-ownerName">Owner Name</label>
     <input type="text" id="f-ownerName" value="${escapeHtml(signupFields.ownerName)}">
-    <label>Email</label>
+    <label for="f-email">Email</label>
     <input type="email" id="f-email" value="${escapeHtml(signupFields.email)}">
     <div id="email-validation-msg" class="status-msg" style="display:none; color:#ff5c5c; margin-top:6px; margin-bottom:8px;"></div>
     <div class="picks-count mono" id="picks-count">${Object.keys(signupPicks).length + Object.keys(divisionPicks).length} / ${TOTAL_PICKS} picked</div>
@@ -134,10 +134,10 @@ async function renderSignupFormBody() {
                 <label class="box-option ${signupPicks[box.id] === p.playerId ? 'box-option-current' : ''}">
                   <input type="radio" name="box-${box.id}" value="${p.playerId}" data-box="${box.id}" ${signupPicks[box.id] === p.playerId ? 'checked' : ''}>
                   <span class="box-option-photo-wrap">
-                    ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
+                    ${headshot ? `<a class="player-nhl-link" href="${nhlProfileUrl(p.name, p.playerId)}" target="_blank" rel="noopener"><img class="box-option-photo" src="${headshot}" alt="" width="22" height="22" loading="lazy"></a>` : `<div class="box-option-photo box-option-photo-empty"></div>`}
                     ${headshot ? `
                     <div class="player-hover-card">
-                      <img class="player-hover-photo" src="${headshot}" alt="" loading="lazy">
+                      <img class="player-hover-photo" src="${headshot}" alt="" width="56" height="56" loading="lazy">
                       <div class="player-hover-name">${escapeHtml(p.name)}${fullPlayer && fullPlayer.injuryStatus ? ' <span class="ir-badge">🩹</span>' : ''}</div>
                       <div class="player-hover-team mono">${escapeHtml(currentTeam)} ${currentSeasonHasStats ? '· 26-27' : '· 25-26 (last season)'}</div>
                       ${fullPlayer && fullPlayer.injuryStatus ? `<div class="mono" style="color:#ff5c5c; font-size:12px; margin-bottom:6px;">Status: ${escapeHtml(fullPlayer.injuryStatus)}</div>` : ''}
@@ -174,7 +174,7 @@ async function renderSignupFormBody() {
               return `
               <label class="box-option">
                 <input type="radio" name="division-${division}" value="${abbrev}" data-division="${division}" ${divisionPicks[division] === abbrev ? 'checked' : ''}>
-                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
+                <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">
                 <span class="box-option-name">${escapeHtml(fullName)}</span>
                 <span class="mono box-option-stats">${escapeHtml(refLabel)}</span>
                 <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
@@ -385,7 +385,7 @@ function renderSignupConfirmStep() {
   const divisionRows = DIVISIONS.map(division => {
     const abbrev = divisionPicks[division];
     const teamEntry = DIVISION_TEAMS[division].find(t => t[0] === abbrev);
-    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
+    return `<div class="activity-row"><span>${escapeHtml(division)}</span><span class="mono" style="display:flex; align-items:center; gap:6px; justify-content:flex-end;"><img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">${escapeHtml(teamEntry ? teamEntry[1] : abbrev)}</span></div>`;
   }).join('');
 
   el.innerHTML = `
@@ -515,9 +515,9 @@ function renderManageMoves() {
   el.innerHTML = `
     <div class="panel" style="margin-bottom:16px;">
       <p style="color:var(--text-dim); font-size:14px; margin-bottom:14px;">Look up your team using the Entry ID and email from your confirmation email. Before the season starts, you can change your picks freely at no cost. Once the season begins, you get 2 roster moves total, each needing commissioner approval before it counts, and all moves must be requested before the NHL trade deadline (March 1, 2027).</p>
-      <label>Entry ID</label>
+      <label for="moves-entryid-input">Entry ID</label>
       <input type="text" id="moves-entryid-input" placeholder="From your confirmation email">
-      <label>Email</label>
+      <label for="moves-email-input">Email</label>
       <input type="email" id="moves-email-input">
       <button id="moves-lookup-btn">Find My Team</button>
       <div id="moves-lookup-status" class="status-msg"></div>
@@ -682,7 +682,7 @@ function renderMyTeamDivisionPicker() {
             return `
             <label class="box-option ${isCurrent ? 'box-option-current' : ''}">
               <input type="radio" name="division-target-${division}" data-division="${division}" value="${abbrev}" ${isSelected ? 'checked' : ''}>
-              <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" loading="lazy" onerror="this.style.display='none'">
+              <img class="team-logo" src="https://assets.nhle.com/logos/nhl/svg/${abbrev}_light.svg" alt="" width="22" height="22" loading="lazy" onerror="this.style.display='none'">
               <span class="box-option-name">${escapeHtml(fullName)}${isCurrent ? ' <span class="mono" style="color:var(--ice); font-size:11px;">(current)</span>' : ''}</span>
               <span class="mono box-option-meta">${escapeHtml(abbrev)}</span>
             </label>
