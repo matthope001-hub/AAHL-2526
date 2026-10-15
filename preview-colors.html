@@ -38,6 +38,22 @@ body.tint .aahl-pc[style*="--tc"] .aahl-pc-wm,
 body.tint .aahl-fc[style*="--tc"] .aahl-fc-wm { opacity: .22; }
 body.tint .aahl-pc[style*="--tc"] .aahl-pc-meta,
 body.tint .aahl-fc[style*="--tc"] .aahl-fc-meta { color: #c3cbd0; }
+
+/* Centred-headshot layout: logo top-right (fully visible), photo in the
+   middle, stats below. Grid cards use pv-* classes; the popup is
+   restyled from cards.js's own markup. */
+.pv-card { display: flex; flex-direction: column; }
+.pv-top { display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 0; position: relative; z-index: 2; }
+.pv-top .aahl-pc-info { padding: 0; flex: 1; min-width: 0; }
+.pv-logo { width: 54px; height: 54px; flex-shrink: 0; object-fit: contain; }
+.pv-hs { display: flex; justify-content: center; position: relative; z-index: 1; margin-top: -6px; }
+.pv-hs img, .pv-hs .pv-hs-empty { width: 132px; height: 132px; object-fit: cover; object-position: top; border-radius: 50%; background: color-mix(in srgb, var(--tc, #2a2a2a) 30%, var(--bg-panel-alt)); border: 2px solid color-mix(in srgb, var(--tc, #2a2a2a) 75%, var(--bg)); }
+.pv-card .aahl-pc-strip { margin-top: 10px; }
+.aahl-fc-top { flex-direction: column; min-height: 0; }
+.aahl-fc-info { padding-right: 120px; }
+.aahl-fc-wm { width: 96px !important; height: 96px !important; right: 18px !important; top: 42px !important; opacity: .95 !important; }
+.aahl-fc-hs { align-self: center; width: 170px; margin-top: 4px; }
+.aahl-fc-hs img { width: 170px; height: 170px; object-fit: cover; object-position: top; border-radius: 50%; background: color-mix(in srgb, var(--tc, #2a2a2a) 30%, var(--bg-panel-alt)); border: 2px solid color-mix(in srgb, var(--tc, #2a2a2a) 75%, var(--bg)); }
 </style>
 </head>
 <body class="tint">
@@ -90,20 +106,33 @@ const tcStyle = team => TEAM_TINT[team] ? `--tc:${TEAM_TINT[team]};` : '';
 
 let pos = 'all', q = '', poolIds = null;
 
+// Logo with fallbacks: light version first, then dark, then the NHL
+// "secondary" mark, so a team whose light SVG is missing still shows one.
+function logoImg(team, cls) {
+  const base = `https://assets.nhle.com/logos/nhl/svg/${team}`;
+  return `<img class="${cls}" src="${base}_light.svg" data-alt="${base}_dark.svg|${base}_secondary_light.svg" alt="${escapeHtml(team)}" loading="lazy" onerror="logoFallback(this)">`;
+}
+function logoFallback(img) {
+  const alts = (img.dataset.alt || '').split('|').filter(Boolean);
+  if (!alts.length) { img.remove(); return; }
+  img.dataset.alt = alts.slice(1).join('|');
+  img.src = alts[0];
+}
+
 function cardHtml(p) {
   const type = cardType_(p);
   const [first, last] = cardSplitName_(p.fullName);
   const stats = cardStatList_(p.stats || {}, type);
   const pts = computePlayerPoints(p, currentConfig);
-  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0" style="${tcStyle(p.team)}">
-    ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
-    <div class="aahl-pc-top">
+  return `<div class="aahl-pc pv-card" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0" style="${tcStyle(p.team)}">
+    <div class="pv-top">
       <div class="aahl-pc-info">
         <div class="aahl-pc-nm">${escapeHtml(first)}<br>${escapeHtml(last)}</div>
         <div class="aahl-pc-meta">${escapeHtml(p.team || '')} · ${escapeHtml(p.position || type)}</div>
       </div>
-      <div class="aahl-pc-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+      ${p.team ? logoImg(p.team, 'pv-logo') : ''}
     </div>
+    <div class="pv-hs">${p.headshotUrl ? `<img src="${escapeHtml(p.headshotUrl)}" alt="" loading="lazy" onerror="this.outerHTML='<div class=&quot;pv-hs-empty&quot;></div>'">` : '<div class="pv-hs-empty"></div>'}</div>
     <div class="aahl-pc-strip" style="grid-template-columns:repeat(${stats.length + 1},1fr)">
       ${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
       <div class="aahl-pc-pts"><b>${pts.toFixed(1)}</b><small>PTS</small></div>
@@ -130,6 +159,14 @@ openPlayerCard = async function (playerId, extra) {
   const fc = document.querySelector('.aahl-fc');
   const p = allPlayers.find(x => String(x.id) === String(playerId)) || {};
   const team = p.team || (extra && extra.team);
+  if (fc && team) {
+    // Swap in logos that use the fallback chain (cards.js drops a logo
+    // that fails to load, which is why TBL went missing).
+    fc.querySelectorAll('.aahl-fc-wm').forEach(img => img.remove());
+    fc.insertAdjacentHTML('afterbegin', logoImg(team, 'aahl-fc-wm'));
+    const meta = fc.querySelector('.aahl-fc-meta');
+    if (meta) { meta.querySelectorAll('img').forEach(img => img.remove()); meta.insertAdjacentHTML('afterbegin', logoImg(team, '')); }
+  }
   if (fc && TEAM_TINT[team]) fc.style.setProperty('--tc', TEAM_TINT[team]);
 };
 
