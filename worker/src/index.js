@@ -12,6 +12,8 @@
  *   POST adminGetEntries        - Admin: all entries (password checked)
  *   POST adminGetPendingMoves   - Admin: pending move requests (password checked)
  *   GET  /health                - quick "is it up" check
+ *   POST /weekly-image          - PNG screenshot of theaahl.ca/weekly.html for the
+ *                                 Monday email (WeeklyImage.gs; shared secret)
  *   CRON (every minute, evenings) - live pool points + Today's Games scores
  *                                 during games (see "live points" below)
  *
@@ -37,7 +39,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -73,8 +75,10 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/health') {
-      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD, live: env.LIVE_POINTS !== 'off' });
+      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD, live: env.LIVE_POINTS !== 'off', browser: !!env.BROWSER });
     }
+
+    if (url.pathname === '/weekly-image') return weeklyImage(request, env);
 
     let result;
     try {
@@ -767,4 +771,39 @@ async function runLivePoints(env) {
 
   log.ms = Date.now() - t0;
   console.log('Live: ' + JSON.stringify(log));
+}
+
+// --------------------------------------------------------- weekly image
+// Screenshot of theaahl.ca/weekly.html (1200 x 675 PNG) for the Monday
+// summary email. Only Apps Script can ask (WORKER_SHARED_SECRET).
+// Uses Cloudflare Browser Rendering (the [browser] binding) - the free
+// plan's daily browser time is plenty for one picture a week.
+const WEEKLY_PAGE = 'https://theaahl.ca/weekly.html';
+
+async function weeklyImage(request, env) {
+  const fail = (status, error) => new Response(JSON.stringify({ success: false, error }), { status, headers: { 'Content-Type': 'application/json' } });
+  if (request.method !== 'POST') return fail(405, 'Method not allowed');
+  let body;
+  try { body = JSON.parse(await request.text()); } catch (e) { return fail(400, 'Invalid JSON body'); }
+  if (!env.WORKER_SHARED_SECRET || !safeEqual(body.secret, env.WORKER_SHARED_SECRET)) return fail(401, 'Unauthorized');
+  if (!env.BROWSER || typeof env.BROWSER.quickAction !== 'function') return fail(503, 'Browser Rendering not set up');
+
+  const week = /^\d{4}-\d{2}-\d{2}$/.test(body.start || '') && /^\d{4}-\d{2}-\d{2}$/.test(body.end || '')
+    ? `?start=${body.start}&end=${body.end}` : '';
+  try {
+    const shot = await env.BROWSER.quickAction('screenshot', {
+      url: WEEKLY_PAGE + week + (week ? '&' : '?') + 'v=' + Date.now(), // skip any cached copy
+      viewport: { width: 1200, height: 675, deviceScaleFactor: 1 },
+      gotoOptions: { waitUntil: 'networkidle0', timeout: 30000 },
+      screenshotOptions: { type: 'png' }
+    });
+    const res = shot instanceof Response ? shot : new Response(shot);
+    if (!res.ok) return fail(502, 'Screenshot failed (' + res.status + '): ' + (await res.text()).slice(0, 200));
+    const png = await res.arrayBuffer();
+    console.log('Weekly image: ' + png.byteLength + ' bytes' + (week ? ' for ' + body.start + '..' + body.end : ''));
+    return new Response(png, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' } });
+  } catch (err) {
+    console.log('Weekly image failed: ' + (err && err.stack || err));
+    return fail(502, (err && err.message) || 'Screenshot failed');
+  }
 }

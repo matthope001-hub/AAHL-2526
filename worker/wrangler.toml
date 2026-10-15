@@ -3,7 +3,7 @@
 # (Workers & Pages -> aahl-api -> Settings -> Build: root directory "worker").
 name = "aahl-2526"
 main = "src/index.js"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-03-24"
 keep_vars = true
 
 # Answers at https://api.theaahl.ca (theaahl.ca's DNS is already on Cloudflare).
@@ -16,6 +16,10 @@ routes = [
 # variable LIVE_POINTS = off in the dashboard (Apps Script takes over).
 [triggers]
 crons = ["* 15-23,0-8 * * *"]
+
+# Browser Rendering - takes the Monday standings picture (/weekly-image).
+[browser]
+binding = "BROWSER"
 
 # Public, non-secret settings. The three secrets (SUPABASE_SERVICE_KEY,
 # WORKER_SHARED_SECRET, LATE_INVITE_SECRET) are added in the Cloudflare

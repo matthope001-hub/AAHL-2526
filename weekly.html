@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1200">
+<meta name="robots" content="noindex">
+<title>AAHL Weekly Standings</title>
+<!--
+  weekly.html - the Monday standings picture (1200 x 675).
+  Not linked from the site. The Cloudflare Worker (/weekly-image) opens
+  this page in a browser and takes a screenshot; WeeklyImage.gs attaches
+  it to the weekly summary email. Optional ?start=YYYY-MM-DD&end=YYYY-MM-DD
+  picks the week (default: the last completed Mon-Sun week).
+  Reads only public data: config/pointsRaceHistory, weeklyTopCache, season.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a; --panel: #141414; --panel-alt: #1c1c1c; --line: #2a2a2a;
+    --ice: #4C8FC4; --amber: #A13F5C; --gold: #d4a017; --text: #e8edf1; --dim: #A2AAAD; --green: #3ecf6a; --red: #e05a5a;
+    --display: 'Barlow Condensed', sans-serif; --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 675px; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--display); }
+  .wrap { position: relative; width: 1200px; height: 675px; padding: 34px 40px 0; }
+  .glow { position: absolute; inset: 0; background: radial-gradient(700px 300px at 85% -10%, rgba(76,143,196,.18), transparent 70%), radial-gradient(500px 260px at -5% 110%, rgba(161,63,92,.16), transparent 70%); pointer-events: none; }
+  .eyebrow { font-family: var(--mono); font-size: 13px; letter-spacing: 2px; color: var(--amber); }
+  h1 { font-size: 56px; font-weight: 800; line-height: .95; letter-spacing: .5px; margin-top: 6px; }
+  h1 em { font-style: normal; color: var(--ice); }
+  .week { font-family: var(--mono); font-size: 16px; color: var(--ice); margin-top: 8px; letter-spacing: 1px; }
+  .badges { position: absolute; top: 40px; right: 40px; display: flex; gap: 12px; }
+  .badge { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--ice); padding: 8px 14px; min-width: 120px; }
+  .badge.gold { border-left-color: var(--gold); }
+  .badge b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 500; }
+  .badge.gold b { color: var(--gold); }
+  .badge small { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--dim); }
+  .cols { display: grid; grid-template-columns: 680px 1fr; gap: 24px; margin-top: 22px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 1px; color: var(--dim); text-align: left; padding: 9px 14px; background: var(--panel-alt); }
+  th.r, td.r { text-align: right; }
+  td { padding: 0 14px; height: 40px; border-top: 1px solid var(--line); font-size: 22px; font-weight: 700; white-space: nowrap; }
+  td.rk { width: 54px; font-size: 24px; color: var(--dim); }
+  tr.r1 td.rk { color: var(--gold); } tr.r2 td.rk, tr.r3 td.rk { color: var(--amber); }
+  td.mv { width: 54px; font-family: var(--mono); font-size: 13px; font-weight: 500; }
+  .up { color: var(--green); } .dn { color: var(--red); } .eq { color: #555; }
+  td.nm { max-width: 330px; overflow: hidden; text-overflow: ellipsis; }
+  td.gain { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--green); width: 110px; }
+  td.pts { font-family: var(--mono); font-size: 18px; font-weight: 500; color: var(--ice); width: 120px; }
+  .side h2 { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 2px; color: var(--amber); margin: 0 0 8px; }
+  .side .panel + h2 { margin-top: 18px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 0 14px; height: 62px; border-top: 1px solid var(--line); }
+  .item:first-child { border-top: 0; }
+  .item .n { font-size: 26px; font-weight: 800; color: var(--amber); width: 18px; }
+  .item img, .item .ph { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--panel-alt); flex-shrink: 0; }
+  .item .who { flex: 1; min-width: 0; }
+  .item .who b { display: block; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .who small { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+  .item .v { font-family: var(--mono); font-size: 17px; font-weight: 500; color: var(--green); }
+  .empty { font-family: var(--mono); font-size: 13px; color: var(--dim); padding: 18px 14px; }
+  .foot { position: absolute; left: 40px; right: 40px; bottom: 20px; display: flex; justify-content: space-between; align-items: baseline; }
+  .foot span { font-family: var(--mono); font-size: 12px; color: var(--dim); letter-spacing: 1px; }
+  .foot b { font-size: 28px; font-weight: 800; color: var(--ice); letter-spacing: .5px; }
+  .msg { font-family: var(--mono); color: var(--dim); padding: 40px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="root"><div class="msg">Loading…</div></div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const day = (s) => new Date(s + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const ord = (n) => { const v = n % 100; return n + ((v >= 11 && v <= 13) ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] || 'th')); };
+  const iso = (d) => d.toISOString().slice(0, 10);
+
+  // Last completed Mon-Sun week in ET (same as WeeklyImage.gs).
+  function lastWeek() {
+    const p = new URLSearchParams(location.search);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(p.get('start') || '') && /^\d{4}-\d{2}-\d{2}$/.test(p.get('end') || '')) {
+      return { start: p.get('start'), end: p.get('end') };
+    }
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const today = new Date(todayStr + 'T12:00:00Z');
+    const dow = today.getUTCDay() === 0 ? 7 : today.getUTCDay();
+    const end = new Date(today.getTime() - dow * 86400000);
+    return { start: iso(new Date(end.getTime() - 6 * 86400000)), end: iso(end) };
+  }
+
+  function ranksAt(race, idx) {
+    if (idx < 0) return {};
+    const out = {};
+    Object.keys(race.teams).map(id => ({ id, pts: race.teams[id].pts[idx] }))
+      .filter(t => t.pts != null).sort((a, b) => b.pts - a.pts)
+      .forEach((t, i) => { out[t.id] = i + 1; });
+    return out;
+  }
+
+  async function build() {
+    const root = document.getElementById('root');
+    const [race, weekly, cfg] = await Promise.all([
+      supabaseDirectGet_('config', 'pointsRaceHistory'),
+      supabaseDirectGet_('config', 'weeklyTopCache'),
+      supabaseDirectGet_('config', 'season')
+    ]);
+    if (!race || !race.dates || !race.dates.length || !race.teams) {
+      root.innerHTML = '<div class="msg">No standings history yet.</div>';
+      return;
+    }
+    const week = lastWeek();
+    let endIdx = -1, baseIdx = -1;
+    race.dates.forEach((d, i) => { if (d <= week.end) endIdx = i; if (d < week.start) baseIdx = i; });
+    if (endIdx === -1) endIdx = race.dates.length - 1;
+
+    const rankNow = ranksAt(race, endIdx), rankBefore = ranksAt(race, baseIdx);
+    const teams = Object.keys(race.teams).map(id => {
+      const t = race.teams[id];
+      const pts = t.pts[endIdx];
+      const base = baseIdx === -1 ? 0 : t.pts[baseIdx];
+      return { id, name: t.name, pts, gain: (pts == null || base == null) ? null : pts - base,
+        move: rankBefore[id] != null && rankNow[id] != null ? rankBefore[id] - rankNow[id] : null };
+    }).filter(t => t.pts != null).sort((a, b) => b.pts - a.pts);
+
+    const hot = teams.filter(t => t.gain != null).sort((a, b) => b.gain - a.gain).slice(0, 3);
+    const top = (weekly && weekly.weekEnd === week.end && weekly.top) ? weekly.top.slice(0, 3) : [];
+    const entries = cfg && cfg.totalEntries != null ? cfg.totalEntries : teams.length;
+    const prize = Number((cfg && cfg.prizePool) || 0);
+
+    const moveHtml = (m) => m == null ? '' : m > 0 ? `<span class="up">▲${m}</span>` : m < 0 ? `<span class="dn">▼${-m}</span>` : '<span class="eq">—</span>';
+    const rows = teams.slice(0, 10).map((t, i) => `
+      <tr class="r${i + 1}"><td class="rk">${i + 1}</td><td class="mv">${moveHtml(t.move)}</td>
+        <td class="nm">${esc(t.name)}</td>
+        <td class="gain r">${t.gain != null ? '+' + t.gain.toFixed(1) : ''}</td>
+        <td class="pts r">${t.pts.toFixed(2)}</td></tr>`).join('');
+
+    const hotHtml = hot.length ? hot.map((t, i) => `
+      <div class="item"><span class="n">${i + 1}</span>
+        <div class="who"><b>${esc(t.name)}</b><small>${ord(teams.indexOf(t) + 1)} overall</small></div>
+        <span class="v">+${t.gain.toFixed(1)}</span></div>`).join('') : '<div class="empty">Not available yet</div>';
+
+    const topHtml = top.length ? top.map((p, i) => `
+      <div class="item"><span class="n">${i + 1}</span>
+        ${p.headshotUrl ? `<img src="${esc(p.headshotUrl)}" alt="" width="44" height="44">` : '<span class="ph"></span>'}
+        <div class="who"><b>${esc(p.fullName)}</b><small>${esc(p.team || '')} · ${p.isGoalie ? (p.wins || 0) + 'W ' + (p.saves || 0) + 'SV' : (p.goals || 0) + 'G ' + (p.assists || 0) + 'A'}</small></div>
+        <span class="v">+${(p.pts || 0).toFixed(1)}</span></div>`).join('') : '<div class="empty">Not available yet</div>';
+
+    root.innerHTML = `
+      <div class="glow"></div>
+      <div class="eyebrow">ANGRY ALPACA HOCKEY LEAGUE · 2026-27</div>
+      <h1>WEEKLY <em>STANDINGS</em></h1>
+      <div class="week">${day(week.start).toUpperCase()} – ${day(week.end).toUpperCase()}</div>
+      <div class="badges">
+        <div class="badge gold"><b>$${prize.toFixed(0)}</b><small>PRIZE POOL</small></div>
+        <div class="badge"><b>${entries}</b><small>TEAMS</small></div>
+      </div>
+      <div class="cols">
+        <div class="panel"><table>
+          <tr><th>RANK</th><th>MOVE</th><th>TEAM</th><th class="r">THIS WEEK</th><th class="r">POINTS</th></tr>
+          ${rows}
+        </table></div>
+        <div class="side">
+          <h2>🔥 HOTTEST TEAMS</h2><div class="panel">${hotHtml}</div>
+          <h2>⭐ TOP PLAYERS</h2><div class="panel">${topHtml}</div>
+        </div>
+      </div>
+      <div class="foot"><span>FULL STANDINGS, LIVE POINTS &amp; PLAYER CARDS</span><b>theaahl.ca</b></div>`;
+    document.body.setAttribute('data-ready', '1');
+  }
+  build().catch(err => { document.getElementById('root').innerHTML = '<div class="msg">Could not load: ' + esc(err.message) + '</div>'; });
+})();
+</script>
+</body>
+</html>
