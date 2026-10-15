@@ -69,6 +69,7 @@
         <div class="hero-badge hero-badge-amber">
           <span class="hero-badge-value mono" id="deadline-display">—</span>
           <span class="hero-badge-label" id="deadline-label">Deadline</span>
+          <span class="hero-badge-cd mono" data-countdown="milestone"></span>
         </div>
         <div class="hero-badge hero-badge-amber">
           <span class="hero-badge-value mono" id="hero-days-left">—</span>
@@ -82,6 +83,7 @@
       </div>
     </div>
 
+    <div id="puck-drop" class="puck-drop mono" data-countdown="puck" hidden></div>
     <div id="todays-games" style="display:none; margin-bottom:20px;"></div>
 
     <div style="margin-bottom:20px;">
@@ -212,11 +214,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
 <script src="cards.js"></script>
 <script src="main.js"></script>
-<!-- Extras (ux.js): stat tooltips, pull to refresh (installed app), loading bar. Optional - the site works without them. -->
+<!-- Extras (ux.js): stat tooltips, pull to refresh (installed app), loading bar, countdowns. Optional - the site works without them. -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/tippy.js/6.3.7/tippy-bundle.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/pulltorefreshjs@0.1.22/dist/index.umd.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/easytimer.js@4.6.0/dist/easytimer.min.js"></script>
 <script defer src="ux.js"></script>
 <script>
 // ---------- Install as app (PWA) ----------

@@ -10,6 +10,10 @@
  *     browser has its own), pull down at the top of the page to reload.
  *  3. Loading bar (NProgress): a thin bar along the top while data loads
  *     after something you tapped (not for background live updates).
+ *  4. Countdowns (easytimer.js): the Home milestone box ("in 136d 8h"),
+ *     "Next puck drop 7:00 PM · in 2h 13m" above Today's Games, and the
+ *     trade deadline on My Team. Any element with data-countdown="..."
+ *     (milestone / puck / trade) is kept up to date every second.
  *
  * Loaded last (defer) in index.html, after the three libraries.
  */
@@ -218,10 +222,89 @@
     window.fetch = wrapped;
   }
 
+  // ---------------------------------------------------- 4. countdowns
+  // "136d 8h" / "2h 13m" / "12m 30s" until a date (null when past).
+  function cdText(date) {
+    if (!date) return null;
+    let sec = Math.floor((date.getTime() - Date.now()) / 1000);
+    if (sec <= 0) return null;
+    const d = Math.floor(sec / 86400); sec -= d * 86400;
+    const h = Math.floor(sec / 3600); sec -= h * 3600;
+    const m = Math.floor(sec / 60); const s = sec - m * 60;
+    if (d > 0) return `${d}d ${h}h`;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m ${String(s).padStart(2, '0')}s`;
+  }
+
+  function milestoneDate() {
+    return typeof getNextMilestone_ === 'function' ? (getNextMilestone_() || {}).date || null : null;
+  }
+  function tradeDate() {
+    if (typeof parseMilestoneDate_ !== 'function') return null;
+    const c = cfg();
+    const fallback = typeof DEFAULT_TRADE_DEADLINE !== 'undefined' ? DEFAULT_TRADE_DEADLINE : null;
+    return parseMilestoneDate_(c.tradeDeadline || fallback);
+  }
+  // Next game tonight that hasn't started, and how many start then.
+  function nextPuckDrop() {
+    const data = typeof todaysGamesData_ !== 'undefined' ? todaysGamesData_ : null;
+    const now = Date.now();
+    const upcoming = ((data && data.games) || [])
+      .filter(g => g.state === 'pre' && new Date(g.startTimeUTC).getTime() > now)
+      .sort((a, b) => String(a.startTimeUTC).localeCompare(String(b.startTimeUTC)));
+    if (!upcoming.length) return null;
+    const first = upcoming[0].startTimeUTC;
+    return { date: new Date(first), count: upcoming.filter(g => g.startTimeUTC === first).length };
+  }
+
+  function tickCountdowns() {
+    document.querySelectorAll('[data-countdown]').forEach(el => {
+      const kind = el.dataset.countdown;
+      let text = '';
+      if (kind === 'milestone') {
+        const t = cdText(milestoneDate());
+        text = t ? 'in ' + t : '';
+      } else if (kind === 'trade') {
+        const t = cdText(tradeDate());
+        text = t ? ' · ' + t + ' left' : '';
+      } else if (kind === 'puck') {
+        const n = nextPuckDrop();
+        const t = n && cdText(n.date);
+        if (t) {
+          const time = n.date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          const html = `🏒 Next puck drop <b>${time}</b>${n.count > 1 ? ` (${n.count} games)` : ''} · in <b>${t}</b>`;
+          if (el.innerHTML !== html) el.innerHTML = html;
+          el.hidden = false;
+        } else if (!el.hidden) {
+          el.hidden = true;
+          el.innerHTML = '';
+        }
+        return;
+      }
+      if (el.textContent !== text) el.textContent = text;
+    });
+  }
+
+  function startCountdowns() {
+    tickCountdowns();
+    // easytimer.js drives the once-a-second tick; plain setInterval if it
+    // didn't load. Times are always worked out from the real clock, so a
+    // phone waking up shows the right value straight away.
+    if (typeof easytimer !== 'undefined' && easytimer.Timer) {
+      const timer = new easytimer.Timer();
+      timer.start({ precision: 'seconds' });
+      timer.addEventListener('secondsUpdated', tickCountdowns);
+    } else {
+      setInterval(tickCountdowns, 1000);
+    }
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tickCountdowns(); });
+  }
+
   function init() {
     if (typeof NProgress !== 'undefined') NProgress.configure({ showSpinner: false, trickleSpeed: 150, minimum: 0.15 });
     wrapFetch();
     startPullToRefresh();
+    startCountdowns();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
