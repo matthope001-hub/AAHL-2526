@@ -4,19 +4,20 @@ Where everything lives, what runs when, and how to deploy changes. Last updated 
 
 ## How the site fits together
 
-- **Website** (theaahl.ca): GitHub Pages, repo `matthope001-hub/AAHL-2526`. Files: `index.html`, `style.css`, `data.js`, `stats.js`, `signup.js`, `admin.js`, `cards.js`, `main.js` (main.js loads last). Also `manifest.json`, `sw.js` and app icons (installable app).
+- **Website** (theaahl.ca): GitHub Pages, repo `matthope001-hub/AAHL-2526`. Files: `index.html`, `style.css`, `data.js`, `stats.js`, `signup.js`, `admin.js`, `cards.js`, `main.js` (main.js loads last), then `ux.js` (optional extras: stat tooltips via Tippy.js, pull to refresh in the installed app via PullToRefresh.js, loading bar via NProgress — the site works without them). Also `manifest.json`, `sw.js` and app icons (installable app).
 - **Member saves API**: Cloudflare Worker **aahl-2526** at `https://api.theaahl.ca` (code in the repo's `worker/` folder). See below.
 - **Backend**: Google Apps Script project **AAHL-2526-Agent**, deployed as a Web App. Runs admin actions, nightly jobs, live points, emails and standings.
 - **Data**: Supabase. Pages read Supabase directly through the official `supabase-js` library (falls back to plain requests if it doesn't load). The `entries` table is private and only read by Apps Script and the Worker. The `config` table is **publicly readable** — never put secrets in it.
 
 ## Cloudflare Worker (member saves + admin reads)
 
+- Also runs **live points + Today's Games scores every minute during games** (cron `* 15-23,0-8 * * *` UTC). Apps Script's `TodaysGames.gs` / `LivePoints.gs` skip while `livePointsWork.workerAt` is under 4 min old, and take over if the Worker stops. Off switch: Worker variable `LIVE_POINTS = off`. Logs: `Live:` lines.
 - Handles: sign-ups, late-invite sign-ups, My Team "Submit all changes" (also Admin trades), My Team look-up, late-link checks, and the two Admin lists (entries, pending moves — password checked). Approve / reject / edit and everything else stay on Apps Script.
 - Admin lists fall back to Apps Script if the Worker is unreachable, has no `ADMIN_PASSWORD`, or the password doesn't match (Apps Script stays the final word on the password).
 - Saves straight to Supabase, answers the member instantly, then calls Apps Script in the background (`WorkerBridge.gs`, doPost action `workerFollowup`) for standings, entry count, emails, commissioner alert and the pending-moves signal.
 - Retries are safe: entry/move IDs come from the request's idempotencyKey.
 - **On/off switch**: `USE_WORKER` in `data.js`. Each browser checks `api.theaahl.ca/health` first (3s limit, remembered 5 min); if unreachable, everything uses Apps Script, so saves never fail and never duplicate.
-- **Health check**: `https://api.theaahl.ca/health` → `{"ok":true,"version":"1.1.0","configured":true,"admin":true}`.
+- **Health check**: `https://api.theaahl.ca/health` → `{"ok":true,"version":"1.2.0","configured":true,"admin":true,"live":true}`.
 - **Cloudflare build settings** (aahl-2526 → Settings → Build): root directory `worker`; build command empty; deploy command copies the four build secrets into the running Worker:
   `npx wrangler deploy && printf '%s' "$SUPABASE_SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_KEY --name aahl-2526 && ...` (same for WORKER_SHARED_SECRET, LATE_INVITE_SECRET, ADMIN_PASSWORD).
 - Secrets (stored as Build secrets, copied on every build): `SUPABASE_SERVICE_KEY` (same as the Apps Script property), `WORKER_SHARED_SECRET` and `LATE_INVITE_SECRET` (both printed by `setupWorkerBridge()` in Apps Script), `ADMIN_PASSWORD` (commissioner password). **If the admin password changes, update the `ADMIN_PASSWORD` build secret (Rotate) and rebuild**, or Admin quietly falls back to the slower Apps Script path.
@@ -27,6 +28,7 @@ Where everything lives, what runs when, and how to deploy changes. Last updated 
 ## Live updates (Supabase Realtime)
 
 - Supabase → Database → Publications → `supabase_realtime`: the `config` table is switched on.
+- Pages re-check every 3 min only while Realtime is disconnected (every 15 min while connected).
 - Standings/Home refresh the moment `livePointsCache` or `todaysGamesCache` is saved (the 3-minute check stays as a backup).
 - Admin listens to `config/pendingMovesSignal` (count + time only, written by `touchPendingMovesSignal_` in RosterMoves.gs) and reloads Pending Moves with a banner.
 
