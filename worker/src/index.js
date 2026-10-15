@@ -869,7 +869,8 @@ async function recapFacts(env) {
   return {
     date: stars.date,
     night: shortDate(stars.date),
-    topPlayers: (stars.topPerformers || all.slice(0, 3)).slice(0, 3).map(p => ({ name: p.fullName, team: p.team, line: playerLine(p), pts: f1(p.pts) })),
+    topPlayers: (stars.topPerformers || all.slice(0, 3)).slice(0, 3).map(p => ({ name: p.fullName, team: p.team, line: playerLine(p), pts: f1(p.pts),
+      saves: p.isGoalie ? (p.saves || 0) : null, decision: p.decision || null, shutout: !!p.shutout })),
     hatTricks: all.filter(p => !p.isGoalie && (p.goals || 0) >= 3).map(p => p.fullName),
     shutouts: all.filter(p => p.isGoalie && p.shutout).map(p => `${p.fullName} (${p.saves || 0} saves)`),
     bestTeam: { name: byGain[0].name, gain: f1(byGain[0].gain), rank: byGain[0].rank },
@@ -896,7 +897,12 @@ function recapFactLines(f) {
 function recapTemplate(f) {
   const s = [];
   const p = f.topPlayers[0];
-  if (p) s.push(`${p.name} led the way ${f.night.split(',')[0]} with ${p.line.replace(/ \(.*\)/, '')}, worth ${p.pts} pool points.`);
+  const day = f.night.split(',')[0];
+  if (p && p.saves != null) {
+    s.push(`${p.name} led the way ${day}, turning aside ${p.saves} shots${p.decision === 'W' ? ' in a win' : ''}${p.shutout ? ' for a shutout' : ''} for ${p.pts} pool points.`);
+  } else if (p) {
+    s.push(`${p.name} led the way ${day} with ${p.line.replace(/ \(.*\)/, '')} for ${p.pts} pool points.`);
+  }
   s.push(`${f.bestTeam.name} had the best night in the pool at +${f.bestTeam.gain}.`);
   if (f.leader && f.leader.isNew) s.push(`${f.leader.name} moved into 1st place.`);
   else if (f.leader) s.push(`${f.leader.name} stays on top with ${f.leader.pts} points.`);
@@ -906,17 +912,19 @@ function recapTemplate(f) {
 // Every number in the AI's text must be one we gave it (ordinals and
 // small counting words aside), and it must name at least one real player.
 function recapCheck(text, f, facts) {
-  if (!text || text.length < 60 || text.length > 700) return false;
+  if (!text || text.length < 60 || text.length > 700) return 'length ' + (text ? text.length : 0);
   const allowed = new Set((facts.match(/\d+(?:\.\d+)?/g) || []).map(Number));
   [1, 2, 3].forEach(n => allowed.add(n));
-  const nums = (text.match(/\d+(?:\.\d+)?/g) || []).map(Number);
-  if (nums.some(n => !allowed.has(n))) return false;
-  return f.topPlayers.some(p => text.includes(p.name.split(' ').slice(-1)[0]));
+  const bad = (text.match(/\d+(?:\.\d+)?/g) || []).map(Number).filter(n => !allowed.has(n));
+  if (bad.length) return 'number not in the stats: ' + bad.join(', ');
+  if (!f.topPlayers.some(p => text.includes(p.name.split(' ').slice(-1)[0]))) return "didn't name the top star";
+  return '';
 }
 
 async function writeRecap(env, f) {
   const facts = recapFactLines(f);
-  if (!env.AI || typeof env.AI.run !== 'function') return { text: recapTemplate(f), source: 'template' };
+  if (!env.AI || typeof env.AI.run !== 'function') return { text: recapTemplate(f), source: 'template', note: 'AI not set up' };
+  let note = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const out = await env.AI.run(RECAP_MODEL, {
@@ -928,13 +936,16 @@ async function writeRecap(env, f) {
         temperature: 0.7
       });
       const text = String((out && (out.response || out.result && out.result.response)) || '').replace(/^["\s]+|["\s]+$/g, '').replace(/\s+/g, ' ');
-      if (recapCheck(text, f, facts)) return { text, source: 'ai' };
-      console.log('Recap: AI text failed the check (attempt ' + attempt + '): ' + text.slice(0, 300));
+      const problem = recapCheck(text, f, facts);
+      if (!problem) return { text, source: 'ai' };
+      note = 'AI text failed the check (' + problem + '): ' + text.slice(0, 200);
+      console.log('Recap: ' + note);
     } catch (err) {
-      console.log('Recap: AI error (attempt ' + attempt + '): ' + err.message);
+      note = 'AI error: ' + err.message;
+      console.log('Recap: ' + note);
     }
   }
-  return { text: recapTemplate(f), source: 'template' };
+  return { text: recapTemplate(f), source: 'template', note };
 }
 
 async function runNightlyRecap(env, force) {
@@ -943,7 +954,7 @@ async function runNightlyRecap(env, force) {
   const prev = await getConfigDoc(env, 'nightlyRecap');
   if (!force && prev && prev.date === f.date) return { success: true, skipped: true };
   const r = await writeRecap(env, f);
-  const doc = { date: f.date, night: f.night, text: r.text, source: r.source, hidden: !!(force && prev && prev.date === f.date && prev.hidden), createdAt: new Date().toISOString() };
+  const doc = { date: f.date, night: f.night, text: r.text, source: r.source, note: r.note || '', hidden: !!(force && prev && prev.date === f.date && prev.hidden), createdAt: new Date().toISOString() };
   await putConfigDoc(env, 'nightlyRecap', doc);
   console.log('Recap (' + r.source + '): ' + r.text);
   return { success: true, data: doc };

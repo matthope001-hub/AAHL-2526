@@ -1512,3 +1512,7 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .wn-release ul { margin: 0 0 4px 18px; padding: 0; }
 .wn-release li { margin: 4px 0; line-height: 1.45; color: var(--text); }
 .wn-release li b { color: var(--ice); font-weight: 600; }
+#todays-games .mini-title { flex-wrap: wrap; row-gap: 2px; }
+@media (max-width: 640px) {
+  #todays-games .mini-title .puck-drop { flex-basis: 100%; order: 3; }
+}

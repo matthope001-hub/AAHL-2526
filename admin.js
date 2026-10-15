@@ -283,7 +283,7 @@ async function loadAdminRecap_(op) {
       <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">Written each morning by AI from the 4am stats (shown on Home). Every number is checked against the real stats; if the AI gets one wrong, a plain version is used instead.</p>
       ${r ? `
         <p style="margin-bottom:6px;">${escapeHtml(r.text)}</p>
-        <p class="mono" style="color:var(--text-dim); font-size:11px; margin-bottom:10px;">${escapeHtml(r.night || r.date)} · ${r.source === 'ai' ? 'written by AI' : 'plain version'}${r.hidden ? ' · <span style="color:var(--amber)">HIDDEN from Home</span>' : ''}</p>
+        <p class="mono" style="color:var(--text-dim); font-size:11px; margin-bottom:10px;">${escapeHtml(r.night || r.date)} · ${r.source === 'ai' ? 'written by AI' : 'plain version' + (r.note ? ' - ' + escapeHtml(r.note) : '')}${r.hidden ? ' · <span style="color:var(--amber)">HIDDEN from Home</span>' : ''}</p>
       ` : '<p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:10px;">No recap yet - the first one is written after the next 4am run.</p>'}
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button type="button" data-recap="regenerate">✍️ Rewrite</button>
