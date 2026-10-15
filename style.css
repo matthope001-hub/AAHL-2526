@@ -1457,6 +1457,6 @@ a.hero-badge { cursor: pointer; }
 /* Countdowns (ux.js + easytimer.js) */
 .hero-badge-cd { display: block; font-size: 11px; color: var(--text); margin-top: 3px; white-space: nowrap; }
 .hero-badge-cd:empty { display: none; }
-.puck-drop { margin: -6px 0 12px; font-size: 13px; color: var(--text-dim); }
+.puck-drop { font-weight: 400; font-size: 12px; text-transform: none; letter-spacing: 0; color: var(--text-dim); }
 .puck-drop b { color: var(--ice); font-weight: 500; }
 .cd-inline:not(:empty) { color: var(--ice); }

@@ -11,7 +11,7 @@
  *  3. Loading bar (NProgress): a thin bar along the top while data loads
  *     after something you tapped (not for background live updates).
  *  4. Countdowns (easytimer.js): the Home milestone box ("in 136d 8h"),
- *     "Next puck drop 7:00 PM · in 2h 13m" above Today's Games, and the
+ *     "Next puck drop 7:00 PM · in 2h 13m" in the Today's Games heading, and the
  *     trade deadline on My Team. Any element with data-countdown="..."
  *     (milestone / puck / trade) is kept up to date every second.
  *
@@ -272,7 +272,7 @@
         const t = n && cdText(n.date);
         if (t) {
           const time = n.date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-          const html = `🏒 Next puck drop <b>${time}</b>${n.count > 1 ? ` (${n.count} games)` : ''} · in <b>${t}</b>`;
+          const html = `· Next puck drop <b>${time}</b>${n.count > 1 ? ` (${n.count} games)` : ''} · in <b>${t}</b>`;
           if (el.innerHTML !== html) el.innerHTML = html;
           el.hidden = false;
         } else if (!el.hidden) {
