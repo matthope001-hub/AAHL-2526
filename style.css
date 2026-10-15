@@ -1496,3 +1496,19 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .home-recap-head { font-size: 11px; letter-spacing: 1.5px; color: var(--ice); margin-bottom: 6px; }
 .home-recap-head span { color: var(--text-dim); letter-spacing: 0; margin-left: 6px; }
 .home-recap p { font-size: 15px; line-height: 1.5; color: var(--text); }
+
+/* What's New (ux.js + CHANGELOG.md) */
+.new-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); margin-left: 5px; vertical-align: middle; box-shadow: 0 0 6px var(--amber); }
+.new-dot[hidden] { display: none; }
+.footer-version { color: var(--text-dim); text-decoration: none; }
+.footer-version:hover { color: var(--ice); }
+.wn-release { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; }
+.wn-latest { border-left: 3px solid var(--ice); }
+.wn-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.wn-head h3 { font-family: var(--font-display); font-size: 22px; font-weight: 700; margin: 0; }
+.wn-ver { color: var(--ice); font-size: 13px; border: 1px solid var(--ice); border-radius: 4px; padding: 1px 6px; }
+.wn-date { color: var(--text-dim); font-size: 12px; margin-left: auto; }
+.wn-sub { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--amber); margin: 10px 0 4px; }
+.wn-release ul { margin: 0 0 4px 18px; padding: 0; }
+.wn-release li { margin: 4px 0; line-height: 1.45; color: var(--text); }
+.wn-release li b { color: var(--ice); font-weight: 600; }

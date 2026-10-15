@@ -18,7 +18,7 @@ const DEFAULT_TRADE_DEADLINE = '2027-03-01T23:59:00-05:00';
 const VIEW_TITLES = {
   home: 'Home', standings: 'Standings', players: 'Players', lastnight: "Last Night",
   records: 'Records', activity: 'Activity', rules: 'Rules', boxes: 'Boxes', ir: 'IR List',
-  signup: 'Sign Up', managemoves: 'My Team', admin: 'Commissioner'
+  signup: 'Sign Up', managemoves: 'My Team', admin: 'Commissioner', whatsnew: "What's New"
 };
 
 document.querySelectorAll('.nav-link').forEach(link => {
@@ -41,6 +41,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'players') { await Promise.all([ensurePlayersLoaded(), ensurePickCountsLoaded_()]); renderPlayersTable(); }
     if (view === 'lastnight') { await ensurePlayersLoaded(); renderLastNightStats(); }
     if (view === 'records') renderRecordsPage();
+    if (view === 'whatsnew' && typeof renderWhatsNew_ === 'function') renderWhatsNew_();
     if (view === 'activity') renderActivityList_();
     if (view === 'rules') renderRulesPage();
     if (view === 'boxes') { await Promise.all([ensurePlayersLoaded(), ensurePickCountsLoaded_()]); renderBoxesReference(); }

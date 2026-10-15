@@ -16,6 +16,9 @@
  *     (milestone / puck / trade) is kept up to date every second.
  *  5. "Last Night in the AAHL" recap card on Home (written each morning by
  *     the Worker with Workers AI - config/nightlyRecap).
+ *  6. What's New: More -> What's New shows CHANGELOG.md (the one place the
+ *     update history is kept), the footer shows the current version, and
+ *     a dot marks What's New until you've seen the latest update.
  *
  * Loaded last (defer) in index.html, after the three libraries.
  */
@@ -316,12 +319,82 @@
     el.hidden = false;
   }
 
+  // ---------------------------------------------------- 6. what's new
+  let changelog_ = null;
+  async function loadChangelog() {
+    if (changelog_) return changelog_;
+    const res = await fetch('CHANGELOG.md', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    changelog_ = parseChangelog(await res.text());
+    return changelog_;
+  }
+  // "## vX.Y — Title" / "_Date_" / "### Sub" / "- bullet" (with **bold**).
+  function parseChangelog(md) {
+    const out = [];
+    let cur = null;
+    md.split('\n').forEach(raw => {
+      const line = raw.trim();
+      let m;
+      if ((m = line.match(/^##\s+(v[\d.]+)\s*[—-]\s*(.+)$/))) { cur = { version: m[1], title: m[2], date: '', blocks: [] }; out.push(cur); return; }
+      if (!cur) return;
+      if ((m = line.match(/^_(.+)_$/))) { cur.date = m[1]; return; }
+      if ((m = line.match(/^###\s+(.+)$/))) { cur.blocks.push({ head: m[1], items: [] }); return; }
+      if ((m = line.match(/^-\s+(.+)$/))) {
+        if (!cur.blocks.length) cur.blocks.push({ head: '', items: [] });
+        cur.blocks[cur.blocks.length - 1].items.push(m[1]);
+      }
+    });
+    return out;
+  }
+  const mdInline = (s) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  const SEEN_KEY = 'aahl_seen_version';
+  function seenVersion() { try { return localStorage.getItem(SEEN_KEY); } catch (e) { return null; } }
+  function markSeen(v) { try { localStorage.setItem(SEEN_KEY, v); } catch (e) { /* private mode */ } }
+  function setNewDots(on) { document.querySelectorAll('.new-dot').forEach(d => { d.hidden = !on; }); }
+
+  async function renderWhatsNew() {
+    const el = document.getElementById('whatsnew-content');
+    if (!el) return;
+    try {
+      const list = await loadChangelog();
+      el.innerHTML = list.map((r, i) => `
+        <article class="wn-release${i === 0 ? ' wn-latest' : ''}">
+          <div class="wn-head"><span class="mono wn-ver">${mdInline(r.version)}</span><h3>${mdInline(r.title)}</h3><span class="mono wn-date">${mdInline(r.date)}</span></div>
+          ${r.blocks.map(b => `${b.head ? `<h4 class="wn-sub mono">${mdInline(b.head)}</h4>` : ''}<ul>${b.items.map(it => `<li>${mdInline(it)}</li>`).join('')}</ul>`).join('')}
+        </article>`).join('');
+      if (list[0]) { markSeen(list[0].version); setNewDots(false); }
+    } catch (e) {
+      el.innerHTML = '<p class="mono" style="color:var(--text-dim)">Couldn\'t load the update list - try again in a moment.</p>';
+    }
+  }
+  window.renderWhatsNew_ = renderWhatsNew;
+
+  async function startWhatsNew() {
+    const foot = document.getElementById('footer-version');
+    if (foot) foot.addEventListener('click', (e) => {
+      e.preventDefault();
+      const link = document.querySelector('.nav-link[data-view="whatsnew"]');
+      if (link) { link.click(); window.scrollTo(0, 0); }
+    });
+    try {
+      const list = await loadChangelog();
+      const latest = list[0] && list[0].version;
+      if (!latest) return;
+      if (foot) foot.textContent = 'AAHL 26-27 · ' + latest;
+      const seen = seenVersion();
+      if (!seen) markSeen(latest);          // first visit: nothing is "new" yet
+      else if (seen !== latest) setNewDots(true);
+    } catch (e) { /* footer just shows "AAHL 26-27" */ }
+  }
+
   function init() {
     if (typeof NProgress !== 'undefined') NProgress.configure({ showSpinner: false, trickleSpeed: 150, minimum: 0.15 });
     wrapFetch();
     startPullToRefresh();
     startCountdowns();
     showRecap();
+    startWhatsNew();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
