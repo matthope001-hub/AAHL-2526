@@ -1439,3 +1439,18 @@ a.hero-badge { cursor: pointer; }
 }
 .aahl-mc[data-team]:hover, .aahl-mc[data-team]:focus { border-color: var(--tc); }
 
+/* ---------- Extras (ux.js) ---------- */
+/* Stat tooltips (Tippy.js) */
+.tippy-box[data-theme~='aahl'] {
+  background: var(--bg-panel-alt); color: var(--text); border: 1px solid var(--ice);
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.45;
+}
+.tippy-box[data-theme~='aahl'] > .tippy-content { padding: 6px 9px; }
+.tippy-box[data-theme~='aahl'] > .tippy-arrow { color: var(--ice); }
+.aahl-pc-strip > div, .aahl-fc-strip > div { -webkit-touch-callout: none; }
+/* Loading bar (NProgress) in the site's ice blue */
+#nprogress .bar { background: var(--ice); height: 3px; z-index: 2000; }
+#nprogress .peg { box-shadow: 0 0 10px var(--ice), 0 0 5px var(--ice); }
+/* Pull to refresh (installed app) */
+.ptr--ptr { box-shadow: none !important; background: var(--bg) !important; }
+.ptr--text, .ptr--icon { color: var(--text-dim) !important; font-family: var(--font-mono); font-size: 12px; }

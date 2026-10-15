@@ -14,6 +14,7 @@
 <meta name="apple-mobile-web-app-title" content="AAHL">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -211,6 +212,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
 <script src="cards.js"></script>
 <script src="main.js"></script>
+<!-- Extras (ux.js): stat tooltips, pull to refresh (installed app), loading bar. Optional - the site works without them. -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/tippy.js/6.3.7/tippy-bundle.umd.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/pulltorefreshjs@0.1.22/dist/index.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js"></script>
+<script defer src="ux.js"></script>
 <script>
 // ---------- Install as app (PWA) ----------
 // Registers sw.js, then offers a small "Install AAHL" banner: a real
