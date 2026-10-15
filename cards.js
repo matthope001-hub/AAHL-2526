@@ -153,3 +153,25 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closePlayerCard();
   if (e.key === 'Enter' && e.target.classList && (e.target.classList.contains('aahl-mc') || e.target.classList.contains('aahl-pc'))) e.target.click();
 });
+
+// ---------- 3D tilt (VanillaTilt) ----------
+// Player cards (Players, Boxes, Last Night) and the full card popup tilt
+// toward the mouse with a shine. The popup also follows phone tilt.
+// A watcher applies it to any card as soon as it's drawn, so pages don't
+// need to call anything. Skipped if VanillaTilt didn't load or the
+// device is set to reduce motion.
+(function () {
+  if (typeof VanillaTilt === 'undefined') return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const GRID = { max: 12, speed: 400, scale: 1.03, glare: true, 'max-glare': 0.3, gyroscope: false };
+  const POPUP = { max: 8, speed: 500, scale: 1, glare: true, 'max-glare': 0.25, gyroscope: true, gyroscopeMinAngleX: -20, gyroscopeMaxAngleX: 20, gyroscopeMinAngleY: -20, gyroscopeMaxAngleY: 20 };
+  let queued = false;
+  function apply() {
+    queued = false;
+    document.querySelectorAll('.aahl-pc:not([data-tilted])').forEach(el => { el.dataset.tilted = '1'; VanillaTilt.init(el, GRID); });
+    document.querySelectorAll('.aahl-fc:not([data-tilted])').forEach(el => { el.dataset.tilted = '1'; VanillaTilt.init(el, POPUP); });
+  }
+  new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(apply); } })
+    .observe(document.body, { childList: true, subtree: true });
+  apply();
+})();
