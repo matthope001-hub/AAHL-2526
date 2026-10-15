@@ -81,8 +81,8 @@ function miniPickCardHtml_(pk) {
   const badge = typeof statusBadge_ === 'function' ? statusBadge_(pk.playerId) : '';
   const tonight = typeof tonightTagHtml_ === 'function' ? tonightTagHtml_(pk.playerId, team) : '';
   return `<div class="aahl-mc" data-player-id="${escapeHtml(pk.playerId)}" data-pick-key="${key}" role="button" tabindex="0"${cardTeamAttr_(team)}>
-    ${team ? `<img class="aahl-mc-wm" src="${CARD_LOGO_(team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
-    ${hs ? `<img class="aahl-mc-hs" src="${escapeHtml(hs)}" alt="" loading="lazy">` : `<div class="aahl-mc-hs"></div>`}
+    ${team ? `<img class="aahl-mc-wm" src="${CARD_LOGO_(team)}" alt="" width="78" height="78" loading="lazy" onerror="this.remove()">` : ''}
+    ${hs ? `<img class="aahl-mc-hs" src="${escapeHtml(hs)}" alt="" width="52" height="52" loading="lazy">` : `<div class="aahl-mc-hs"></div>`}
     ${moved ? `<div class="aahl-mc-tr" title="Traded in">⇄</div>` : ''}
     <div class="aahl-mc-n" title="${escapeHtml(pk.playerName || p.fullName || '')}">${escapeHtml(cardSplitName_(pk.playerName || p.fullName)[1])}</div>
     <div class="aahl-mc-m">${escapeHtml(team)} · ${escapeHtml(pk.boxType || p.position || '')}${badge}${tonight}</div>
