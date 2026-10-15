@@ -4,41 +4,58 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex">
-<title>AAHL — Card Layout Preview</title>
+<title>AAHL — Card Preview</title>
 <link rel="icon" type="image/png" href="alpaca-pixel.png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-/* Preview only — not linked from the site, live style.css untouched.
-   Same cards as the live site, with the headshot moved to the centre so
-   the team logo (top-right) stays clear. Toggle compares with live. */
+/* Preview only — not linked from the site; live files untouched.
+   Live card layout as-is, with two changes:
+   1. headshot slid to the centre so the team logo (top-right) is clear
+   2. team-colour tint, colour read from each team's logo by Color Thief
+      (falls back to a built-in colour list if the logo can't be read). */
 .pv-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
 .pv-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .pv-head h1 { font-family: var(--font-display); font-size: 28px; flex: 1; }
 .pv-tag { font-family: var(--font-mono); font-size: 11px; color: var(--amber); border: 1px solid var(--amber); padding: 2px 6px; border-radius: 4px; }
-.pv-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.pv-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
 .pv-tools .search-input { flex: 1; min-width: 180px; margin: 0; }
+.pv-status { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin-bottom: 14px; }
 .pv-msg { font-family: var(--font-mono); color: var(--text-dim); font-size: 13px; padding: 24px 0; text-align: center; }
 
-body.centre .aahl-pc-top { flex-direction: column; min-height: 0; }
-body.centre .aahl-pc-info { padding: 14px 96px 4px 14px; }
-body.centre .aahl-pc-wm { right: -12px; top: -8px; width: 120px; height: 120px; }
-body.centre .aahl-pc-hs { align-self: center; }
-body.centre .aahl-fc-top { flex-direction: column; min-height: 0; }
-body.centre .aahl-fc-info { padding: 20px 150px 6px 20px; }
-body.centre .aahl-fc-wm { right: -20px; top: -14px; width: 170px; height: 170px; }
-body.centre .aahl-fc-hs { align-self: center; }
-@media (max-width: 520px) {
-  body.centre .aahl-fc-info { padding-right: 110px; }
-  body.centre .aahl-fc-wm { width: 130px; height: 130px; }
+/* 1. Headshot slid to the centre (same card size and layout otherwise). */
+.aahl-pc-hs { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 0; }
+.aahl-pc-info { position: relative; z-index: 2; }
+.aahl-fc-hs { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 0; }
+.aahl-fc-info { position: relative; z-index: 2; }
+
+/* 2. Team-colour tint (--tc set per card). */
+body.tint .aahl-pc[data-team], body.tint .aahl-fc[data-team] {
+  background: color-mix(in srgb, var(--tc, #2a2a2a) 26%, var(--bg));
+  border-color: color-mix(in srgb, var(--tc, #2a2a2a) 70%, var(--bg));
+  transition: background .4s, border-color .4s;
+}
+body.tint .aahl-pc[data-team]::before, body.tint .aahl-fc[data-team]::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tc, transparent); z-index: 3;
+}
+body.tint .aahl-pc[data-team] .aahl-pc-strip, body.tint .aahl-fc[data-team] .aahl-fc-strip {
+  background: color-mix(in srgb, var(--tc, #2a2a2a) 12%, var(--bg));
+  border-color: color-mix(in srgb, var(--tc, #2a2a2a) 45%, var(--bg));
+}
+body.tint .aahl-fc[data-team] .aahl-fc-pool { background: color-mix(in srgb, var(--tc, #2a2a2a) 14%, var(--bg)); }
+body.tint .aahl-pc[data-team] .aahl-pc-meta, body.tint .aahl-fc[data-team] .aahl-fc-meta { color: #c3cbd0; }
+/* On a tinted card the logo watermark goes light, so a blue logo on a
+   blue card (e.g. TBL) still shows. */
+body.tint .aahl-pc[data-team] .aahl-pc-wm, body.tint .aahl-fc[data-team] .aahl-fc-wm {
+  filter: grayscale(1) brightness(2.2); opacity: .2;
 }
 </style>
 </head>
-<body class="centre">
+<body class="tint">
 <div class="pv-wrap">
   <div class="pv-head">
     <img src="aahl-logo.png" alt="" style="height:34px" onerror="this.remove()">
-    <h1>Card layout</h1>
+    <h1>Player cards</h1>
     <span class="pv-tag">PREVIEW ONLY</span>
   </div>
   <div class="pv-tools">
@@ -50,10 +67,11 @@ body.centre .aahl-fc-hs { align-self: center; }
     </div>
     <input id="pv-q" class="search-input mono" type="text" placeholder="Search name or team">
     <div class="pc-view-toggle">
-      <button class="filter-tab active" data-lay="centre">Centred headshot</button>
-      <button class="filter-tab" data-lay="live">Current live</button>
+      <button class="filter-tab active" data-tint="on">Team colours</button>
+      <button class="filter-tab" data-tint="off">Plain</button>
     </div>
   </div>
+  <div class="pv-status" id="pv-status">Reading team colours…</div>
   <div id="pv-grid"><p class="pv-msg">Loading players…</p></div>
 </div>
 
@@ -68,17 +86,96 @@ function escapeHtml(str) {
 async function ensurePlayersLoaded() { if (!allPlayers.length) allPlayers = await fetchPlayers(); }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.1/vanilla-tilt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/colorthief@2.4.0/dist/color-thief.umd.js"></script>
 <script src="cards.js"></script>
 <script>
+// ---------- Team colours ----------
+// Backup list, used until Color Thief has read a team's logo, or if the
+// logo can't be read (the NHL image server may not allow it).
+const TEAM_TINT = {
+  ANA: '#F47A38', BOS: '#FFB81C', BUF: '#2C5CB8', CGY: '#C8102E', CAR: '#CE1126', CHI: '#CF0A2C',
+  COL: '#8A2D4E', CBJ: '#2A5AA8', DAL: '#008C5A', DET: '#CE1126', EDM: '#FF4C00', FLA: '#C8102E',
+  LAK: '#A2AAAD', MIN: '#2E7D4F', MTL: '#AF1E2D', NSH: '#FFB81C', NJD: '#CE1126', NYI: '#1B6FC1',
+  NYR: '#1E55C8', OTT: '#DA1A32', PHI: '#F74902', PIT: '#FCB514', SJS: '#00A0AB', SEA: '#68A2B9',
+  STL: '#2A5DC1', TBL: '#2D62C2', TOR: '#2B5BB5', UTA: '#6CACE4', VAN: '#1F6FBF', VGK: '#B4975A',
+  WSH: '#C8102E', WPG: '#2E6DB4'
+};
+const thiefColour = {};          // team -> colour read from its logo
+const colourSource = {};         // team -> 'thief' | 'list'
+const teamColour = t => thiefColour[t] || TEAM_TINT[t] || '';
+
+// Pick the most colourful swatch from a logo palette (skip black, white
+// and greys), and lift it if it's too dark to show on a black card.
+function pickColour(palette) {
+  let best = null, bestScore = -1;
+  (palette || []).forEach(([r, g, b]) => {
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const light = (max + min) / 510, sat = max === min ? 0 : (max - min) / (255 - Math.abs(max + min - 255));
+    if (light < 0.08 || light > 0.92 || sat < 0.25) return;
+    const score = sat * (1 - Math.abs(light - 0.5));
+    if (score > bestScore) { bestScore = score; best = [r, g, b]; }
+  });
+  if (!best) return null;
+  let [r, g, b] = best;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  if (lum < 70) { const k = 70 / Math.max(lum, 1); r = Math.min(255, r * k); g = Math.min(255, g * k); b = Math.min(255, b * k); }
+  return '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+}
+
+function readTeamColour(team) {
+  return new Promise(resolve => {
+    if (typeof ColorThief === 'undefined') return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.width = 200; img.height = 200;
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas');
+        c.width = c.height = 200;
+        c.getContext('2d').drawImage(img, 0, 0, 200, 200);
+        const raster = new Image();
+        raster.onload = () => {
+          try { resolve(pickColour(new ColorThief().getPalette(raster, 6))); } catch (e) { resolve(null); }
+        };
+        raster.onerror = () => resolve(null);
+        raster.src = c.toDataURL('image/png');   // throws if the server blocks reading it
+      } catch (e) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = `https://assets.nhle.com/logos/nhl/svg/${team}_light.svg`;
+  });
+}
+
+function paintTeam(team) {
+  const col = teamColour(team);
+  document.querySelectorAll(`[data-team="${team}"]`).forEach(el => el.style.setProperty('--tc', col));
+}
+
+async function readAllTeamColours() {
+  const teams = Object.keys(TEAM_TINT);
+  await Promise.all(teams.map(async t => {
+    const col = await readTeamColour(t);
+    if (col) { thiefColour[t] = col; colourSource[t] = 'thief'; } else colourSource[t] = 'list';
+    paintTeam(t);
+  }));
+  const fromThief = teams.filter(t => colourSource[t] === 'thief').length;
+  document.getElementById('pv-status').textContent = fromThief === teams.length
+    ? `Team colours read from each logo by Color Thief (all ${teams.length} teams).`
+    : fromThief === 0
+      ? `Color Thief couldn't read the NHL logos (their server blocks it), so the built-in colour list is in use.`
+      : `Color Thief read ${fromThief} of ${teams.length} logos; the rest use the built-in colour list.`;
+}
+
+// ---------- Cards (same markup as the live Players page) ----------
 let pos = 'all', q = '', poolIds = null;
 
-// Same markup as the live Players page cards.
 function cardHtml(p) {
   const type = cardType_(p);
   const [first, last] = cardSplitName_(p.fullName);
   const stats = cardStatList_(p.stats || {}, type);
   const pts = computePlayerPoints(p, currentConfig);
-  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" role="button" tabindex="0">
+  const col = teamColour(p.team);
+  return `<div class="aahl-pc" data-player-id="${escapeHtml(p.id)}" data-team="${escapeHtml(p.team || '')}" role="button" tabindex="0"${col ? ` style="--tc:${col}"` : ''}>
     ${p.team ? `<img class="aahl-pc-wm" src="${CARD_LOGO_(p.team)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
     <div class="aahl-pc-top">
       <div class="aahl-pc-info">
@@ -105,15 +202,25 @@ function draw() {
     : `<p class="pv-msg">No players match.</p>`;
 }
 
+// Tint the full card popup too.
+const openPlayerCardBase_ = openPlayerCard;
+openPlayerCard = async function (playerId, extra) {
+  await openPlayerCardBase_(playerId, extra);
+  const fc = document.querySelector('.aahl-fc');
+  const p = allPlayers.find(x => String(x.id) === String(playerId)) || {};
+  const team = p.team || (extra && extra.team);
+  if (fc && team) { fc.dataset.team = team; fc.style.setProperty('--tc', teamColour(team)); }
+};
+
 document.querySelectorAll('#pv-pos [data-f]').forEach(b => b.addEventListener('click', () => {
   pos = b.dataset.f;
   document.querySelectorAll('#pv-pos [data-f]').forEach(x => x.classList.toggle('active', x === b));
   draw();
 }));
 document.getElementById('pv-q').addEventListener('input', e => { q = e.target.value; draw(); });
-document.querySelectorAll('[data-lay]').forEach(b => b.addEventListener('click', () => {
-  document.body.classList.toggle('centre', b.dataset.lay === 'centre');
-  document.querySelectorAll('[data-lay]').forEach(x => x.classList.toggle('active', x === b));
+document.querySelectorAll('[data-tint]').forEach(b => b.addEventListener('click', () => {
+  document.body.classList.toggle('tint', b.dataset.tint === 'on');
+  document.querySelectorAll('[data-tint]').forEach(x => x.classList.toggle('active', x === b));
 }));
 
 (async () => {
@@ -130,6 +237,7 @@ document.querySelectorAll('[data-lay]').forEach(b => b.addEventListener('click',
   } catch (e) {
     document.getElementById('pv-grid').innerHTML = `<p class="pv-msg">Couldn't load players.</p>`;
   }
+  readAllTeamColours();
 })();
 </script>
 </body>
