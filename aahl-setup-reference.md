@@ -6,20 +6,21 @@ Where everything lives, what runs when, and how to deploy changes. Last updated 
 
 - **Website** (theaahl.ca): GitHub Pages, repo `matthope001-hub/AAHL-2526`. Files: `index.html`, `style.css`, `data.js`, `stats.js`, `signup.js`, `admin.js`, `cards.js`, `main.js` (main.js loads last). Also `manifest.json`, `sw.js` and app icons (installable app).
 - **Member saves API**: Cloudflare Worker **aahl-2526** at `https://api.theaahl.ca` (code in the repo's `worker/` folder). See below.
-- **Backend**: Google Apps Script project **AAHL-2526-Agent**, deployed as a Web App. Runs admin, nightly jobs, live points, emails and standings.
+- **Backend**: Google Apps Script project **AAHL-2526-Agent**, deployed as a Web App. Runs admin actions, nightly jobs, live points, emails and standings.
 - **Data**: Supabase. Pages read Supabase directly through the official `supabase-js` library (falls back to plain requests if it doesn't load). The `entries` table is private and only read by Apps Script and the Worker. The `config` table is **publicly readable** — never put secrets in it.
 
-## Cloudflare Worker (member saves)
+## Cloudflare Worker (member saves + admin reads)
 
-- Handles: sign-ups, late-invite sign-ups, My Team "Submit all changes" (also Admin trades), My Team look-up, late-link checks. Admin and everything else stay on Apps Script.
+- Handles: sign-ups, late-invite sign-ups, My Team "Submit all changes" (also Admin trades), My Team look-up, late-link checks, and the two Admin lists (entries, pending moves — password checked). Approve / reject / edit and everything else stay on Apps Script.
+- Admin lists fall back to Apps Script if the Worker is unreachable, has no `ADMIN_PASSWORD`, or the password doesn't match (Apps Script stays the final word on the password).
 - Saves straight to Supabase, answers the member instantly, then calls Apps Script in the background (`WorkerBridge.gs`, doPost action `workerFollowup`) for standings, entry count, emails, commissioner alert and the pending-moves signal.
 - Retries are safe: entry/move IDs come from the request's idempotencyKey.
 - **On/off switch**: `USE_WORKER` in `data.js`. Each browser checks `api.theaahl.ca/health` first (3s limit, remembered 5 min); if unreachable, everything uses Apps Script, so saves never fail and never duplicate.
-- **Health check**: `https://api.theaahl.ca/health` → `{"ok":true,"configured":true}`.
-- **Cloudflare build settings** (aahl-2526 → Settings → Build): root directory `worker`; build command empty; deploy command copies the three build secrets into the running Worker:
-  `npx wrangler deploy && printf '%s' "$SUPABASE_SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_KEY --name aahl-2526 && ...` (same for WORKER_SHARED_SECRET, LATE_INVITE_SECRET).
-- Secrets (stored as Build secrets, copied on every build): `SUPABASE_SERVICE_KEY` (same as the Apps Script property), `WORKER_SHARED_SECRET` and `LATE_INVITE_SECRET` (both printed by `setupWorkerBridge()` in Apps Script).
-- Public settings (`SUPABASE_URL`, `APPS_SCRIPT_URL`) are in `worker/wrangler.toml`. If the Apps Script web app URL ever changes, update it there too.
+- **Health check**: `https://api.theaahl.ca/health` → `{"ok":true,"version":"1.1.0","configured":true,"admin":true}`.
+- **Cloudflare build settings** (aahl-2526 → Settings → Build): root directory `worker`; build command empty; deploy command copies the four build secrets into the running Worker:
+  `npx wrangler deploy && printf '%s' "$SUPABASE_SERVICE_KEY" | npx wrangler secret put SUPABASE_SERVICE_KEY --name aahl-2526 && ...` (same for WORKER_SHARED_SECRET, LATE_INVITE_SECRET, ADMIN_PASSWORD).
+- Secrets (stored as Build secrets, copied on every build): `SUPABASE_SERVICE_KEY` (same as the Apps Script property), `WORKER_SHARED_SECRET` and `LATE_INVITE_SECRET` (both printed by `setupWorkerBridge()` in Apps Script), `ADMIN_PASSWORD` (commissioner password). **If the admin password changes, update the `ADMIN_PASSWORD` build secret (Rotate) and rebuild**, or Admin quietly falls back to the slower Apps Script path.
+- Public settings (`SUPABASE_URL`, `APPS_SCRIPT_URL`) and the Worker name (`aahl-2526`) are in `worker/wrangler.toml`. If the Apps Script web app URL ever changes, update it there too.
 - Every GitHub upload triggers a Worker rebuild (~30s, harmless).
 - Logs: aahl-2526 → Logs/Observability ("Follow-up:" lines show what Apps Script reported back).
 
@@ -36,7 +37,7 @@ Where everything lives, what runs when, and how to deploy changes. Last updated 
 | Stats.gs | Nightly stats, shutouts, games played, 3 Stars tally | — (nightly pipeline) |
 | Standings.gs | Points and ranking; division bonus only at season end | — |
 | RosterMoves.gs | Roster moves; `buildFullPicksView_` (team popup data); pending-moves signal | — |
-| Entries.gs | Entries, confirmation emails (late-entry wording) | — |
+| Entries.gs | Entries, confirmation emails (late-entry wording); deleting a team also deletes its moves (`cleanupOrphanMoves` for old leftovers) | — |
 | WebApp.gs | Routes website requests (incl. `workerFollowup`). **Redeploy the Web App after changing it** | — |
 | WorkerBridge.gs | Background follow-up for Worker saves (standings, emails, alerts) | setupWorkerBridge |
 | LateInvite.gs | One-time late-entry invite links (Admin button) | — |
@@ -77,9 +78,9 @@ starsOfNightCache, starsTallyCache, recentActivityCache, divisionLeadersDisplayC
 ## Deploying changes
 
 - **Apps Script**: paste the file, save. Only redeploy the Web App when `WebApp.gs` (or something it calls for the website) changes.
-- **GitHub from a phone**: **upload the file, don't paste it.** The phone clipboard cuts off at about 20,000 characters, which broke `stats.js` once. Upload page: `github.com/matthope001-hub/AAHL-2526/upload/main` (use the browser, not the GitHub app).
-- After a GitHub upload, browsers can show the old files for ~10 minutes. Check in incognito.
-- **Cloudflare Worker**: upload changes to `worker/` on GitHub; Cloudflare rebuilds and deploys automatically.
+- **GitHub**: Claude can push directly now that GitHub is connected. From a phone, **upload the file, don't paste it** — the phone clipboard cuts off at about 20,000 characters. Upload page: `github.com/matthope001-hub/AAHL-2526/upload/main` (use the browser, not the GitHub app).
+- After a GitHub change, browsers can show the old files for ~10 minutes. Check in incognito.
+- **Cloudflare Worker**: changes to `worker/` on GitHub; Cloudflare rebuilds and deploys automatically.
 
 ## Known quirks
 
@@ -88,6 +89,7 @@ starsOfNightCache, starsTallyCache, recentActivityCache, divisionLeadersDisplayC
 - **Points Race nights before Oct 6** are estimates (rebuilt from picks); Best Night by a Team counts from Oct 6.
 - **Live points** are an estimate; the 4am run is official.
 - **Division bonus** (+25 each) is only added at season end (`config/season.seasonComplete = true` and `divisionWinners` filled).
-- **Cloudflare variables**: secrets added under Settings → Build are build-only; the long deploy command copies them into the running Worker.
+- **Cloudflare variables**: secrets added under Settings → Build are build-only; the long deploy command copies them into the running Worker. A build secret that's missing uploads as blank (health shows `admin:false`).
 - **New DNS names**: a computer that looked up `api.theaahl.ca` before it existed can keep getting "not found" for up to an hour; `ipconfig /flushdns` helps. The site falls back to Apps Script meanwhile.
+- **"Unknown action: undefined"**: what Apps Script shows when its /exec link is opened directly in a browser — harmless.
 - **Color Thief** can't read NHL logos (their server blocks it); card team colours use a built-in list in `cards.js`.
