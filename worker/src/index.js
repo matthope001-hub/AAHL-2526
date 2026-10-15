@@ -12,6 +12,8 @@
  *   POST adminGetEntries        - Admin: all entries (password checked)
  *   POST adminGetPendingMoves   - Admin: pending move requests (password checked)
  *   GET  /health                - quick "is it up" check
+ *   CRON (every minute, evenings) - live pool points + Today's Games scores
+ *                                 during games (see "live points" below)
  *
  * Every rule mirrors the Apps Script versions (Entries.gs, RosterMoves.gs,
  * LateInvite.gs) so behaviour and messages are identical. It saves straight
@@ -35,7 +37,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -71,7 +73,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/health') {
-      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD });
+      return json(request, { ok: true, version: VERSION, configured: !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY && env.APPS_SCRIPT_URL), admin: !!env.ADMIN_PASSWORD, live: env.LIVE_POINTS !== 'off' });
     }
 
     let result;
@@ -102,6 +104,12 @@ export default {
       result = { success: false, error: (err && err.message) || 'Server error' };
     }
     return json(request, result);
+  },
+
+  // Cron trigger (wrangler.toml [triggers]) - live points during games.
+  async scheduled(event, env, ctx) {
+    if (env.LIVE_POINTS === 'off') return;
+    ctx.waitUntil(runLivePoints(env).catch(err => console.log('Live points failed: ' + (err && err.stack || err))));
   }
 };
 
@@ -522,4 +530,241 @@ async function adminGetPendingMoves(env, body) {
       };
     })
   };
+}
+
+// ---------------------------------------------------------- live points
+// Every minute during games: same work as LivePoints.gs refreshLivePoints_
+// (and the score part of TodaysGames.gs), so standings move within a
+// minute or two of a goal. Apps Script keeps running every 10 minutes as
+// the backup and skips its live points while this is working (it checks
+// livePointsWork.workerAt). The 4am run stays the official count.
+//
+// Kept light for the free plan's CPU limit:
+//  - nothing on (no game started, or all final) -> one small read, stop
+//  - a game's box score is only re-read when its score/shots/period
+//    changed, or every 3 minutes at most (catches penalty minutes)
+//  - final games already scored are reused, never re-read
+//  - pool lists (players, boxes, picks, scoring) are kept in memory 5 min
+//  - livePointsCache / todaysGamesCache are only saved when they changed
+// One log line per run: "Live: {...}" (Cloudflare -> aahl-2526 -> Logs).
+
+const NHL_API = 'https://api-web.nhle.com/v1';
+const LIVE_REFETCH_MS = 3 * 60000;
+const LOOKUP_TTL_MS = 5 * 60000;
+let liveLookups_ = null;
+
+function hockeyDay() {
+  // ET date, rolling over at 5am (same as TodaysGames.gs getHockeyDay_).
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(new Date(Date.now() - 5 * 3600000));
+}
+
+async function nhl(path) {
+  const res = await fetch(NHL_API + path, { headers: { 'User-Agent': 'AAHL-Worker/1.0' } });
+  if (!res.ok) throw new Error('NHL ' + path + ' returned ' + res.status);
+  return res.json();
+}
+
+async function getConfigDoc(env, id, select) {
+  const rows = await sb(env, `config?id=eq.${encodeURIComponent(id)}&select=${select || 'data'}`);
+  return rows && rows.length ? rows[0].data : null;
+}
+
+async function putConfigDoc(env, id, data) {
+  await setDoc(env, 'config', id, data);
+}
+
+// Same shape as TodaysGames.gs buildTickerGame_.
+function tickerGame(g, records) {
+  const raw = g.gameState || '';
+  const state = (raw === 'LIVE' || raw === 'CRIT') ? 'live' : (raw === 'FINAL' || raw === 'OFF') ? 'final' : 'pre';
+  const pd = g.periodDescriptor || {};
+  const num = pd.number || g.period || 0;
+  const type = pd.periodType || 'REG';
+  const period = type === 'SO' ? 'SO' : type === 'OT' ? 'OT' : num === 1 ? '1st' : num === 2 ? '2nd' : num === 3 ? '3rd' : '';
+  const lastType = (g.gameOutcome && g.gameOutcome.lastPeriodType) || type;
+  const away = g.awayTeam || {}, home = g.homeTeam || {};
+  return {
+    id: g.id,
+    startTimeUTC: g.startTimeUTC,
+    away: away.abbrev,
+    home: home.abbrev,
+    awayRecord: records[away.abbrev] || '',
+    homeRecord: records[home.abbrev] || '',
+    state: state,
+    awayScore: state === 'pre' ? null : (away.score || 0),
+    homeScore: state === 'pre' ? null : (home.score || 0),
+    period: state === 'live' ? period : '',
+    intermission: !!(g.clock && g.clock.inIntermission),
+    clock: state === 'live' && g.clock && g.clock.timeRemaining ? String(g.clock.timeRemaining) : '',
+    awaySog: state === 'pre' ? null : (away.sog != null ? away.sog : null),
+    homeSog: state === 'pre' ? null : (home.sog != null ? home.sog : null),
+    finalType: state === 'final' && (lastType === 'OT' || lastType === 'SO') ? lastType : ''
+  };
+}
+
+function toiSeconds(toi) {
+  if (!toi || typeof toi !== 'string') return 0;
+  const p = toi.split(':');
+  return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+}
+
+// Same as Stats.gs fetchBoxScoreStats_.
+async function boxScoreStats(gameId) {
+  const json = await nhl(`/gamecenter/${gameId}/boxscore`);
+  const out = [];
+  ['awayTeam', 'homeTeam'].forEach(k => {
+    const t = json.playerByGameStats && json.playerByGameStats[k];
+    if (!t) return;
+    ['forwards', 'defense'].forEach(grp => (t[grp] || []).forEach(p => out.push({
+      playerId: String(p.playerId), goals: p.goals || 0, assists: p.assists || 0,
+      sog: p.sog || 0, pim: p.pim || 0, isGoalie: false, played: toiSeconds(p.toi) > 0
+    })));
+    const goalies = t.goalies || [];
+    const playedCount = goalies.filter(g => toiSeconds(g.toi) > 0).length;
+    goalies.forEach(p => {
+      const played = toiSeconds(p.toi) > 0;
+      out.push({
+        playerId: String(p.playerId), goals: 0, assists: 0, sog: 0, pim: 0, isGoalie: true,
+        decision: p.decision || null,
+        shutout: played && playedCount === 1 && (p.goalsAgainst || 0) === 0,
+        saves: p.saves || 0, played: played
+      });
+    });
+  });
+  return out;
+}
+
+// Pool players (with positions), team picks and scoring - kept 5 min.
+async function liveLookups(env) {
+  if (liveLookups_ && Date.now() - liveLookups_.at < LOOKUP_TTL_MS) return liveLookups_;
+  const [config, boxes, entries] = await Promise.all([
+    getConfig(env),
+    sb(env, 'boxes?select=data'),
+    sb(env, 'entries?select=id,picks:data->picks&limit=1000')
+  ]);
+  const poolIds = new Set();
+  (boxes || []).forEach(b => ((b.data && b.data.players) || []).forEach(p => poolIds.add(String(p.playerId))));
+  const ids = [...poolIds];
+  const players = {};
+  for (let i = 0; i < ids.length; i += 150) {
+    const rows = await sb(env, `players?id=in.(${inList(ids.slice(i, i + 150))})&select=id,position:data->>position`);
+    (rows || []).forEach(r => { players[r.id] = r.position; });
+  }
+  liveLookups_ = {
+    at: Date.now(), config: config, players: players,
+    entries: (entries || []).map(e => ({ id: e.id, picks: e.picks || {} }))
+  };
+  return liveLookups_;
+}
+
+// Same as Stats.gs computeNightPerformers_ (only the fields LivePoints saves).
+function scoreNight(byPlayer, stateOf, lk) {
+  const players = {};
+  for (const id in byPlayer) {
+    const pos = lk.players[id];
+    if (!pos) continue; // not a pool player
+    const d = byPlayer[id];
+    const stats = d.isGoalie
+      ? { wins: d.decision === 'W' ? 1 : 0, losses: d.decision === 'L' ? 1 : 0, otl: d.decision === 'O' ? 1 : 0, shutouts: d.shutout ? 1 : 0, saves: d.saves || 0 }
+      : { goals: d.goals || 0, assists: d.assists || 0, sog: d.sog || 0, pim: d.pim || 0, hatTricks: (d.goals || 0) >= 3 ? 1 : 0 };
+    players[id] = {
+      pts: Math.round(computePlayerPoints({ position: pos, stats: stats }, lk.config) * 100) / 100,
+      goals: d.goals || 0, assists: d.assists || 0, sog: d.sog || 0, pim: d.pim || 0,
+      isGoalie: d.isGoalie || false, decision: d.decision || null, shutout: !!d.shutout, saves: d.saves || 0,
+      state: stateOf[id] || 'live'
+    };
+  }
+  return players;
+}
+
+async function sha256(text) {
+  const buf = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+  return [...buf].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function runLivePoints(env) {
+  const t0 = Date.now();
+  const day = hockeyDay();
+  const log = { day: day };
+
+  // 1. Is anything on? (Apps Script builds the day's schedule + records.)
+  const cache = await getConfigDoc(env, 'todaysGamesCache');
+  if (!cache || cache.date !== day || !(cache.games || []).length) return;
+  const now = Date.now();
+  const anyOn = cache.games.some(g => g.state !== 'final' && new Date(g.startTimeUTC).getTime() <= now + 60000);
+  if (!anyOn) return;
+
+  // 2. Fresh scores for the whole day (one request).
+  const feed = await nhl('/score/' + day);
+  const games = (feed.games || []).filter(g => g.gameType === 2)
+    .map(g => tickerGame(g, cache.records || {}))
+    .sort((a, b) => String(a.startTimeUTC).localeCompare(String(b.startTimeUTC)));
+  const started = games.filter(g => g.state === 'live' || g.state === 'final');
+  log.games = games.length; log.started = started.length;
+
+  // 3. Box scores - only what changed.
+  const work = await getConfigDoc(env, 'livePointsWork');
+  const same = work && work.date === day;
+  const prevStats = (same && work.gameStats) || {};
+  const prevStates = (same && work.gameStates) || {};
+  const prevSig = (same && work.gameSig) || {};
+  const prevAt = (same && work.fetchedAt) || {};
+  const gameStats = {}, gameStates = {}, gameSig = {}, fetchedAt = {};
+  let fetched = 0, reused = 0, failed = 0;
+
+  await Promise.all(started.map(async g => {
+    const id = String(g.id);
+    const sig = [g.state, g.awayScore, g.homeScore, g.awaySog, g.homeSog, g.period, g.intermission].join('|');
+    gameStates[id] = g.state; gameSig[id] = sig;
+    const have = prevStats[id];
+    const finalDone = g.state === 'final' && prevStates[id] === 'final' && have;
+    const unchanged = have && prevSig[id] === sig && now - (prevAt[id] || 0) < LIVE_REFETCH_MS;
+    if (finalDone || unchanged) { gameStats[id] = have; fetchedAt[id] = prevAt[id] || now; reused++; return; }
+    try {
+      gameStats[id] = await boxScoreStats(g.id);
+      fetchedAt[id] = now; fetched++;
+    } catch (err) {
+      console.log('Live: box score ' + id + ' failed - ' + err.message);
+      gameStats[id] = have || []; fetchedAt[id] = prevAt[id] || 0; failed++;
+    }
+  }));
+  log.fetched = fetched; log.reused = reused; if (failed) log.failed = failed;
+
+  // 4. Score pool players and total each team.
+  const byPlayer = {}, stateOf = {};
+  Object.keys(gameStats).forEach(id => (gameStats[id] || []).forEach(s => {
+    if (!s.played) return;
+    byPlayer[s.playerId] = s; stateOf[s.playerId] = gameStates[id];
+  }));
+  const lk = await liveLookups(env);
+  const players = scoreNight(byPlayer, stateOf, lk);
+  const entries = {};
+  lk.entries.forEach(e => {
+    let total = 0, count = 0;
+    Object.keys(e.picks).forEach(box => { const lp = players[e.picks[box]]; if (lp) { total += lp.pts; count++; } });
+    entries[e.id] = { pts: Math.round(total * 100) / 100, players: count };
+  });
+  log.poolPlayers = Object.keys(players).length;
+
+  // 5. Save only what changed.
+  const liveSig = await sha256(JSON.stringify([players, entries]));
+  const tickerSig = JSON.stringify(games);
+  const writes = [];
+  if (!same || work.liveSig !== liveSig) {
+    writes.push(putConfigDoc(env, 'livePointsCache', { date: day, players: players, entries: entries, updatedAt: new Date().toISOString(), source: 'worker' }));
+    log.pointsSaved = true;
+  }
+  if (JSON.stringify(cache.games) !== tickerSig) {
+    writes.push(putConfigDoc(env, 'todaysGamesCache', Object.assign({}, cache, { games: games, updatedAt: new Date().toISOString() })));
+    log.scoresSaved = true;
+  }
+  writes.push(putConfigDoc(env, 'livePointsWork', {
+    date: day, gameStats: gameStats, gameStates: gameStates, gameSig: gameSig, fetchedAt: fetchedAt,
+    liveSig: liveSig, workerAt: new Date().toISOString()
+  }));
+  await Promise.all(writes);
+
+  log.ms = Date.now() - t0;
+  console.log('Live: ' + JSON.stringify(log));
 }

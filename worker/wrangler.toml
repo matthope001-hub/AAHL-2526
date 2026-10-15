@@ -11,6 +11,12 @@ routes = [
   { pattern = "api.theaahl.ca", custom_domain = true }
 ]
 
+# Live points: every minute from 11am to 4am ET (games only - other runs
+# stop after one small read). To switch off without a deploy, add a
+# variable LIVE_POINTS = off in the dashboard (Apps Script takes over).
+[triggers]
+crons = ["* 15-23,0-8 * * *"]
+
 # Public, non-secret settings. The three secrets (SUPABASE_SERVICE_KEY,
 # WORKER_SHARED_SECRET, LATE_INVITE_SECRET) are added in the Cloudflare
 # dashboard, never here - this file is public on GitHub.
