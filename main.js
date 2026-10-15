@@ -572,12 +572,14 @@ async function renderTodaysGames() {
 
 // Keep scores current on an open tab while Home or Standings is showing.
 // Two triggers, same refresh:
-//  1. Supabase Realtime: Apps Script saves todaysGamesCache / livePointsCache
+//  1. Supabase Realtime: the Worker (or Apps Script) saves todaysGamesCache / livePointsCache
 //     during games and Supabase tells every open page right away.
-//  2. Backup: re-check every 3 minutes (also covers the live connection
-//     dropping, a phone waking up, or supabase-js not loading).
+//  2. Backup: re-check every 3 minutes while Realtime isn't connected
+//     (connection dropped, supabase-js not loading), every 15 minutes
+//     while it is, and right away when a phone/tab wakes up.
 async function refreshLiveViews_() {
   if (document.hidden) return;
+  lastLiveRefresh_ = Date.now();
   const home = document.getElementById('view-home');
   const standings = document.getElementById('view-standings');
   const onHome = home && home.classList.contains('active');
@@ -603,7 +605,15 @@ async function refreshLiveViews_() {
     else renderStandingsTable();
   }
 }
-setInterval(refreshLiveViews_, 180000);
+// Backup check every 3 minutes - only while Realtime ISN'T connected
+// (connected pages get every change pushed). A connected page still
+// re-checks every 15 minutes as a safety net.
+let liveConnected_ = false;
+let lastLiveRefresh_ = 0;
+setInterval(() => {
+  if (liveConnected_ && Date.now() - lastLiveRefresh_ < 15 * 60000) return;
+  refreshLiveViews_();
+}, 180000);
 
 // Realtime: a save to either row triggers one refresh (the two rows are
 // saved seconds apart, so they're bundled). The page re-reads through the
@@ -623,9 +633,17 @@ function startLiveChannel_() {
     liveChannel_ = sb.channel('aahl-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'config', filter: 'id=eq.livePointsCache' }, onLivePush_)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'config', filter: 'id=eq.todaysGamesCache' }, onLivePush_)
-      .subscribe();
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') {
+          // (Re)connected: catch up on anything missed while disconnected.
+          if (!liveConnected_) { liveConnected_ = true; refreshLiveViews_(); }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          liveConnected_ = false; // the 3-minute check takes over
+        }
+      });
   } catch (e) {
     liveChannel_ = null; // the 3-minute check carries on regardless
+    liveConnected_ = false;
   }
 }
 // supabase-js loads in the background, so try a few times after page load.
