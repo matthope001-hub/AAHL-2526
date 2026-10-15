@@ -266,7 +266,57 @@ function renderAdminEntries(entries) {
   loadAdminPendingMoves(); // after innerHTML so the container exists
 }
 
+// ---------- Live pending-moves alerts ----------
+// Apps Script updates config/pendingMovesSignal (count + time only) whenever
+// a move is requested, approved or rejected. While Admin is open and signed
+// in, Supabase Realtime tells this page straight away and the pending list
+// reloads through the normal password-protected call. If supabase-js isn't
+// loaded, nothing changes: the list still loads when Admin opens.
+let adminMovesChannel_ = null;
+let adminMovesCount_ = null;
+let adminMovesTimer_ = null;
+function onAdminMovesSignal_(payload) {
+  const row = payload && payload.new;
+  const count = row && row.data && typeof row.data.count === 'number' ? row.data.count : null;
+  const grew = count != null && adminMovesCount_ != null && count > adminMovesCount_;
+  if (count != null) adminMovesCount_ = count;
+  if (!adminPassword || !document.getElementById('admin-pending-moves')) return;
+  clearTimeout(adminMovesTimer_);
+  adminMovesTimer_ = setTimeout(() => {
+    loadAdminPendingMoves();
+    if (grew) showAdminMovesBanner_();
+  }, 800);
+}
+function showAdminMovesBanner_() {
+  const container = document.getElementById('admin-pending-moves');
+  if (!container) return;
+  let b = document.getElementById('admin-moves-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'admin-moves-banner';
+    b.className = 'mono';
+    b.style.cssText = 'background:var(--bg-panel); border:1px solid var(--ice); color:var(--ice); border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:13px;';
+    container.parentNode.insertBefore(b, container);
+  }
+  b.textContent = '● New move request just came in';
+  clearTimeout(b._t);
+  b._t = setTimeout(() => b.remove(), 15000);
+}
+function startAdminMovesChannel_() {
+  if (adminMovesChannel_) return;
+  const sb = (typeof sbClient_get_ === 'function') ? sbClient_get_() : null;
+  if (!sb || typeof sb.channel !== 'function') return;
+  try {
+    adminMovesChannel_ = sb.channel('aahl-admin-moves')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'config', filter: 'id=eq.pendingMovesSignal' }, onAdminMovesSignal_)
+      .subscribe();
+  } catch (e) {
+    adminMovesChannel_ = null;
+  }
+}
+
 async function loadAdminPendingMoves() {
+  startAdminMovesChannel_();
   const container = document.getElementById('admin-pending-moves');
   if (!container) return;
   container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px;">Loading pending moves...</p>`;
@@ -283,6 +333,7 @@ async function loadAdminPendingMoves() {
     container.innerHTML = `<p class="status-msg error" style="margin-bottom:16px;">Pending moves failed to load: ${escapeHtml((result && result.error) || 'Unknown error')}</p>`;
     return;
   }
+  adminMovesCount_ = (result.data || []).length;
   if (!result.data || result.data.length === 0) {
     container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">No pending moves.</p>`;
     return;
