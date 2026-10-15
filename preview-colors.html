@@ -49,22 +49,9 @@ body.tint .aahl-pc[data-team] .aahl-pc-meta, body.tint .aahl-fc[data-team] .aahl
 body.tint .aahl-pc[data-team] .aahl-pc-wm, body.tint .aahl-fc[data-team] .aahl-fc-wm {
   filter: grayscale(1) brightness(2.2); opacity: .2;
 }
-
-/* 3. Pop-out 3D: card layers sit at different depths, so when the card
-   tilts the player lifts off it. (Cards must not clip for depth to show,
-   so the logo is pulled inside the card edge.) */
-body.pop .aahl-pc, body.pop .aahl-fc { overflow: visible; transform-style: preserve-3d; }
-body.pop .aahl-pc-wm { right: 8px; top: 8px; width: 112px; height: 112px; transform: translateZ(8px); }
-body.pop .aahl-fc-wm { right: 10px; top: 10px; width: 180px; height: 180px; transform: translateZ(8px); }
-body.pop .aahl-pc-top, body.pop .aahl-fc-top { transform-style: preserve-3d; transform: none; }
-body.pop .aahl-pc-info, body.pop .aahl-fc-info { transform: translateZ(45px); }
-body.pop .aahl-pc-hs { transform: translateX(-50%) translateZ(70px) scale(.93); }
-body.pop .aahl-fc-hs { transform: translateX(-50%) translateZ(80px) scale(.92); }
-body.pop .aahl-pc-strip, body.pop .aahl-fc-strip, body.pop .aahl-fc-pool { transform: translateZ(30px); }
-body.pop .aahl-pc-hs img, body.pop .aahl-fc-hs img { filter: drop-shadow(0 10px 12px rgba(0,0,0,.55)); }
 </style>
 </head>
-<body class="tint pop">
+<body class="tint">
 <div class="pv-wrap">
   <div class="pv-head">
     <img src="aahl-logo.png" alt="" style="height:34px" onerror="this.remove()">
@@ -82,10 +69,6 @@ body.pop .aahl-pc-hs img, body.pop .aahl-fc-hs img { filter: drop-shadow(0 10px 
     <div class="pc-view-toggle">
       <button class="filter-tab active" data-tint="on">Team colours</button>
       <button class="filter-tab" data-tint="off">Plain</button>
-    </div>
-    <div class="pc-view-toggle">
-      <button class="filter-tab active" data-pop="on">3D pop-out</button>
-      <button class="filter-tab" data-pop="off">Flat tilt</button>
     </div>
   </div>
   <div class="pv-status" id="pv-status">Reading team colours…</div>
@@ -233,10 +216,6 @@ document.querySelectorAll('#pv-pos [data-f]').forEach(b => b.addEventListener('c
   pos = b.dataset.f;
   document.querySelectorAll('#pv-pos [data-f]').forEach(x => x.classList.toggle('active', x === b));
   draw();
-}));
-document.querySelectorAll('[data-pop]').forEach(b => b.addEventListener('click', () => {
-  document.body.classList.toggle('pop', b.dataset.pop === 'on');
-  document.querySelectorAll('[data-pop]').forEach(x => x.classList.toggle('active', x === b));
 }));
 document.getElementById('pv-q').addEventListener('input', e => { q = e.target.value; draw(); });
 document.querySelectorAll('[data-tint]').forEach(b => b.addEventListener('click', () => {
