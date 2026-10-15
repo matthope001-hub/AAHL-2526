@@ -543,7 +543,7 @@ async function renderTodaysGames() {
 
     // Start with one still set of games.
     el.innerHTML = `
-      <h3 class="mini-title">🏒 Today's Games <span class="mono" style="font-weight:400; font-size:12px; text-transform:none; letter-spacing:0;">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span>
+      <h3 class="mini-title"><span class="tg-label">🏒 Today's Games</span> <span class="mono tg-count">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span>
         <span class="mono puck-drop" data-countdown="puck" hidden></span>
         <span class="mono updated-stamp" id="todays-games-stamp">${gamesStampHtml_(data)}</span></h3>
       ${games.length === 0

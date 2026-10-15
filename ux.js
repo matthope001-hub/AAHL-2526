@@ -277,7 +277,7 @@
         const t = n && cdText(n.date);
         if (t) {
           const time = n.date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-          const html = `· Next puck drop <b>${time}</b>${n.count > 1 ? ` (${n.count} games)` : ''} · in <b>${t}</b>`;
+          const html = `<span class="pd-sep">· </span>Next puck drop <b>${time}</b> · in <b>${t}</b>${n.count > 1 ? ` · ${n.count} games` : ''}`;
           if (el.innerHTML !== html) el.innerHTML = html;
           el.hidden = false;
         } else if (!el.hidden) {
