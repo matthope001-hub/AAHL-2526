@@ -54,7 +54,49 @@ async function fetchJsonWithRetry_(url, options) {
  * see setup_rls.sql. Falls back to null on any failure so callers can
  * fall back to the Apps Script path.
  */
+/**
+ * supabase-js (Supabase's official library, loaded in index.html just
+ * before this file). Every direct read below tries it first and, if the
+ * library didn't load or the request fails for any reason, falls back to
+ * the original hand-built fetch - so the site behaves exactly as before
+ * in the worst case. No login/session is used or stored.
+ * window.AAHL_DB_PATH shows which path served the last read ('supabase-js'
+ * or 'direct'), for checking in the browser console.
+ */
+let sbClient_ = null;
+function sbClient_get_() {
+  if (sbClient_) return sbClient_;
+  try {
+    if (typeof supabase !== 'undefined' && supabase && typeof supabase.createClient === 'function') {
+      sbClient_ = supabase.createClient(SUPABASE_DIRECT_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+      });
+    }
+  } catch (e) { sbClient_ = null; }
+  return sbClient_;
+}
+function markDbPath_(path) { try { window.AAHL_DB_PATH = path; } catch (e) { /* ignore */ } }
+
+/** supabase-js read; returns rows array, or undefined if it can't be used / failed. */
+async function sbSelect_(table, columns, id) {
+  const sb = sbClient_get_();
+  if (!sb) return undefined;
+  try {
+    let q = sb.from(table).select(columns);
+    if (id != null) q = q.eq('id', id);
+    const { data, error } = await q;
+    if (error || !Array.isArray(data)) return undefined;
+    markDbPath_('supabase-js');
+    return data;
+  } catch (e) {
+    return undefined;
+  }
+}
+
 async function supabaseDirectList_(table) {
+  const viaLib = await sbSelect_(table, 'id,data');
+  if (viaLib !== undefined) return viaLib.map(r => Object.assign({ id: r.id }, r.data));
+  markDbPath_('direct');
   try {
     const url = `${SUPABASE_DIRECT_URL}/rest/v1/${table}?select=id,data`;
     const rows = await fetchJsonWithRetry_(url, {
@@ -75,6 +117,9 @@ async function supabaseDirectList_(table) {
  *   is the signal callers use to fall back to the Apps Script path.
  */
 async function supabaseDirectGet_(table, id) {
+  const viaLib = await sbSelect_(table, 'data', id);
+  if (viaLib !== undefined) return viaLib.length > 0 ? viaLib[0].data : null;
+  markDbPath_('direct');
   try {
     const url = `${SUPABASE_DIRECT_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}&select=data`;
     const rows = await fetchJsonWithRetry_(url, {
@@ -254,6 +299,8 @@ let dataVersionPromise_ = null;
 function getDataVersion_() {
   if (!dataVersionPromise_) {
     dataVersionPromise_ = (async () => {
+      const viaLib = await sbSelect_('standings', 'v:data->>lastUpdated', 'current');
+      if (viaLib !== undefined) return (viaLib[0] && viaLib[0].v) || null;
       try {
         const url = `${SUPABASE_DIRECT_URL}/rest/v1/standings?id=eq.current&select=v:data->>lastUpdated`;
         const rows = await fetchJsonWithRetry_(url, {
