@@ -83,6 +83,9 @@ export default {
     }
 
     if (url.pathname === '/weekly-image') return weeklyImage(request, env);
+    // Only "/" carries API calls. Anything else (bot scans for /.aws, .php,
+    // .yml...) gets a bare 404 - no CORS, no JSON, no Supabase work.
+    if (url.pathname !== '/') return new Response('Not found', { status: 404 });
 
     let result;
     try {
