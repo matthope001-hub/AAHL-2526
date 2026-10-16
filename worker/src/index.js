@@ -1046,7 +1046,7 @@ async function adminRecap(env, body) {
 const BOX_PROJECTION_CRON = '0 10 * * 1';
 const NHL_TEAMS = ['ANA', 'BOS', 'BUF', 'CAR', 'CBJ', 'CGY', 'CHI', 'COL', 'DAL', 'DET', 'EDM', 'FLA', 'LAK', 'MIN', 'MTL', 'NJD',
   'NSH', 'NYI', 'NYR', 'OTT', 'PHI', 'PIT', 'SEA', 'SJS', 'STL', 'TBL', 'TOR', 'UTA', 'VAN', 'VGK', 'WPG', 'WSH'];
-const PROJECTION_KEEP = { F: 150, D: 50, G: 50 };
+const PROJECTION_KEEP = { F: 200, D: 70, G: 50 };
 
 async function buildBoxProjection(env) {
   const t0 = Date.now();
@@ -1096,13 +1096,52 @@ async function buildBoxProjection(env) {
     players.push(...ranked[g].slice(0, PROJECTION_KEEP[g]));
   });
 
+  // Extra stats for the Box Builder's what-if scoring (not used by the pool):
+  // NHL stats reports, only for the players kept (a few requests in total).
+  const extrasOk = await addProjectionExtras(players, season).catch(err => { console.log('Box projection extras failed: ' + err.message); return false; });
+
   const doc = {
     updatedAt: new Date().toISOString(), seasonStart: seasonStart,
-    counted: (totals || []).length, rosterTeams: rosterTeams,
+    counted: (totals || []).length, rosterTeams: rosterTeams, extras: !!extrasOk,
     maxGames: players.reduce((m, p) => Math.max(m, p.stats.gamesPlayed || 0), 0),
     players: players
   };
   await putConfigDoc(env, 'boxProjection', doc);
   console.log(`Box projection: ${doc.counted} players counted, ${players.length} kept, ${rosterTeams}/32 rosters, ${Date.now() - t0} ms`);
   return { success: true, data: { updatedAt: doc.updatedAt, counted: doc.counted, kept: players.length, rosterTeams: rosterTeams } };
+}
+
+const NHL_STATS = 'https://api.nhle.com/stats/rest/en';
+async function nhlStatsReport(report, season, ids) {
+  const exp = `seasonId=${season} and gameTypeId=2 and playerId in (${ids.join(',')})`;
+  const res = await fetch(`${NHL_STATS}/${report}?limit=-1&cayenneExp=${encodeURIComponent(exp)}`, { headers: { 'User-Agent': 'AAHL-Worker/1.0' } });
+  if (!res.ok) throw new Error(report + ' returned ' + res.status);
+  const j = await res.json();
+  return j.data || [];
+}
+
+// Adds hits, blocks, PPP, SHP, GWG, +/-, takeaways, giveaways (skaters) and
+// goals against (goalies) to each kept player's stats.
+async function addProjectionExtras(players, season) {
+  const skaters = players.filter(p => p.position !== 'G'), goalies = players.filter(p => p.position === 'G');
+  const byId = Object.fromEntries(players.map(p => [String(p.id), p]));
+  const chunks = (arr, n) => { const out = []; for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n)); return out; };
+  const skChunks = chunks(skaters.map(p => p.id), 140);
+  const jobs = [];
+  skChunks.forEach(ids => {
+    jobs.push(nhlStatsReport('skater/summary', season, ids).then(rows => rows.forEach(r => {
+      const p = byId[String(r.playerId)]; if (!p) return;
+      Object.assign(p.stats, { ppp: r.ppPoints || 0, shp: r.shPoints || 0, gwg: r.gameWinningGoals || 0, plusMinus: r.plusMinus || 0 });
+    })));
+    jobs.push(nhlStatsReport('skater/realtime', season, ids).then(rows => rows.forEach(r => {
+      const p = byId[String(r.playerId)]; if (!p) return;
+      Object.assign(p.stats, { hits: r.hits || 0, blocks: r.blockedShots || 0, takeaways: r.takeaways || 0, giveaways: r.giveaways || 0 });
+    })));
+  });
+  if (goalies.length) jobs.push(nhlStatsReport('goalie/summary', season, goalies.map(p => p.id)).then(rows => rows.forEach(r => {
+    const p = byId[String(r.playerId)]; if (!p) return;
+    Object.assign(p.stats, { goalsAgainst: r.goalsAgainst || 0 });
+  })));
+  await Promise.all(jobs);
+  return true;
 }

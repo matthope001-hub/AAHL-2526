@@ -135,8 +135,13 @@
     ['F', 'goalPtsF', 'Goals', 'goals', 1], ['F', 'assistPtsF', 'Assists', 'assists', 1], ['F', 'sogPtsF', 'Shots on goal', 'sog', 0.11],
     ['D', 'goalPtsD', 'Goals', 'goals', 1], ['D', 'assistPtsD', 'Assists', 'assists', 1], ['D', 'sogPtsD', 'Shots on goal', 'sog', 0.11], ['D', 'pimPtsD', 'Penalty minutes', 'pim', 0.25],
     ['FD', 'hatTrickBonus', 'Hat tricks', 'hatTricks', 3],
-    ['G', 'winPtsG', 'Wins', 'wins', 3], ['G', 'lossPtsG', 'Losses', 'losses', 1], ['G', 'otlPtsG', 'OT/SO losses', 'otl', 1.5], ['G', 'shutoutPtsG', 'Shutouts', 'shutouts', 2], ['G', 'savePtsG', 'Saves', 'saves', 0.02]
+    ['G', 'winPtsG', 'Wins', 'wins', 3], ['G', 'lossPtsG', 'Losses', 'losses', 1], ['G', 'otlPtsG', 'OT/SO losses', 'otl', 1.5], ['G', 'shutoutPtsG', 'Shutouts', 'shutouts', 2], ['G', 'savePtsG', 'Saves', 'saves', 0.02],
+    // Extra stats - NOT in the pool's scoring (0 = off). Try them here.
+    ['FDx', 'xPpp', 'Power-play points', 'ppp', 0], ['FDx', 'xShp', 'Short-handed points', 'shp', 0], ['FDx', 'xGwg', 'Game-winning goals', 'gwg', 0],
+    ['FDx', 'xPm', 'Plus / minus', 'plusMinus', 0], ['FDx', 'xHits', 'Hits', 'hits', 0], ['FDx', 'xBlocks', 'Blocked shots', 'blocks', 0],
+    ['FDx', 'xTk', 'Takeaways', 'takeaways', 0], ['FDx', 'xGv', 'Giveaways', 'giveaways', 0], ['Gx', 'xGa', 'Goals against', 'goalsAgainst', 0]
   ];
+  const isExtra = r => r[0].endsWith('x');
   let whatIf = {};
   const rate = (key, def) => (whatIf[key] ?? cfg[key] ?? def);
   function rulesFor(g) { return RULES.filter(r => r[0].includes(g)); }
@@ -227,7 +232,7 @@
     const p = players.find(x => String(x.id) === String(id));
     if (!p) return;
     const g = group(p), s = p.stats || {}, total = pts(p), games = gp(p);
-    const rows = rulesFor(g).map(r => {
+    const rows = rulesFor(g).filter(r => !isExtra(r) || rate(r[1], r[4]) !== 0).map(r => {
       const v = s[r[3]] || 0, rt = rate(r[1], r[4]);
       return `<tr><td>${r[2]}</td><td>${v}</td><td>× ${rt}</td><td>${(v * rt).toFixed(2)}</td></tr>`;
     }).join('');
@@ -237,8 +242,15 @@
         <div><b>${esc(p.fullName)}${isNew ? '<span class="badge-new">NEW</span>' : ''}</b><span>${esc(p.team)} · ${esc(p.position)} · ${games} GP · rank #${p._rank} ${g === 'G' ? 'goalie' : g === 'D' ? 'defence' : 'forward'}</span></div></div>
       <table class="pc-tbl"><tbody>${rows}
         <tr class="tot"><td>Pool points</td><td></td><td></td><td>${total.toFixed(2)}</td></tr></tbody></table>
+      ${extraLine(p, g)}
       <div class="pc-foot"><span>${games ? (total / games).toFixed(2) : '0.00'} per game</span><span>${Object.keys(whatIf).length ? 'what-if scoring' : '2026-27 pool scoring'}</span></div>`;
     ov.classList.add('on');
+  }
+  function extraLine(p, g) {
+    const s = p.stats || {};
+    const ex = rulesFor(g).filter(isExtra).filter(r => s[r[3]] != null);
+    if (!ex.length) return '';
+    return `<div class="pc-foot" style="display:block;line-height:1.6">Other stats: ${ex.map(r => `${r[2]} <b style="color:var(--text)">${s[r[3]]}</b>`).join(' · ')}</div>`;
   }
   ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('.x')) ov.classList.remove('on'); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') ov.classList.remove('on'); });
@@ -252,13 +264,16 @@
   function buildScoring() {
     const grid = document.getElementById('scGrid');
     const sec = [['F', 'Forwards'], ['D', 'Defence'], ['G', 'Goalies']];
-    grid.innerHTML = sec.map(([g, label]) => `<div class="sc-head">${label}</div>` + rulesFor(g).map(r =>
-      `<label>${r[2]}<input type="number" step="0.01" data-key="${r[1]}" value="${rate(r[1], r[4])}" class="${whatIf[r[1]] != null ? 'changed' : ''}"></label>`).join('')).join('');
+    const inp = r => `<label>${r[2]}<input type="number" step="0.01" data-key="${r[1]}" value="${rate(r[1], r[4])}" class="${whatIf[r[1]] != null ? 'changed' : ''}"></label>`;
+    grid.innerHTML = sec.map(([g, label]) => `<div class="sc-head">${label}</div>` + rulesFor(g).filter(r => !isExtra(r)).map(inp).join('')).join('')
+      + `<div class="sc-head" style="color:var(--gold)">Extra stats: not in the pool's scoring (0 = off)</div>`
+      + RULES.filter(isExtra).map(inp).join('');
   }
   document.getElementById('scBtn').addEventListener('click', () => { document.getElementById('scoring').classList.toggle('on'); buildScoring(); });
   document.getElementById('scGrid').addEventListener('change', e => {
     const inp = e.target.closest('input'); if (!inp) return;
-    const v = parseFloat(inp.value), base = cfg[inp.dataset.key];
+    const rule = RULES.find(r => r[1] === inp.dataset.key);
+    const v = parseFloat(inp.value), base = cfg[inp.dataset.key] ?? (rule ? rule[4] : undefined);
     if (isNaN(v) || v === base) delete whatIf[inp.dataset.key]; else whatIf[inp.dataset.key] = v;
     document.getElementById('whatif').classList.toggle('on', Object.keys(whatIf).length > 0);
     buildScoring(); autoFill(); applyMoves(); render();
