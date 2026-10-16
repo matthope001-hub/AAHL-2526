@@ -561,7 +561,9 @@ async function adminGetPendingMoves(env, body) {
 // One log line per run: "Live: {...}" (Cloudflare -> aahl-2526 -> Logs).
 
 const NHL_API = 'https://api-web.nhle.com/v1';
-const LIVE_REFETCH_MS = 3 * 60000;
+const LIVE_REFETCH_MS = 2 * 60000;   // a live game's box score is re-read at least this often
+const LIVE_MAX_FETCH = 4;               // at most this many box scores read per run (keeps CPU low)
+let liveWorkMem_ = null;                // last run's work row, kept in memory between runs
 const LOOKUP_TTL_MS = 5 * 60000;
 let liveLookups_ = null;
 
@@ -715,33 +717,49 @@ async function runLivePoints(env) {
   const started = games.filter(g => g.state === 'live' || g.state === 'final');
   log.games = games.length; log.started = started.length;
 
-  // 3. Box scores - only what changed.
-  const work = await getConfigDoc(env, 'livePointsWork');
+  // 3. Box scores - only what changed, and at most LIVE_MAX_FETCH per run
+  //    (goal/period changes first, then the longest-waiting). Only pool
+  //    players who've played are kept, so the work row stays small.
+  const memOk = liveWorkMem_ && liveWorkMem_.date === day && now - (liveWorkMem_.at || 0) < 3 * 60000;
+  const work = memOk ? liveWorkMem_.doc : await getConfigDoc(env, 'livePointsWork');
+  if (memOk) log.mem = true;
   const same = work && work.date === day;
   const prevStats = (same && work.gameStats) || {};
   const prevStates = (same && work.gameStates) || {};
   const prevSig = (same && work.gameSig) || {};
   const prevAt = (same && work.fetchedAt) || {};
+  const lk = await liveLookups(env);
   const gameStats = {}, gameStates = {}, gameSig = {}, fetchedAt = {};
   let fetched = 0, reused = 0, failed = 0;
 
-  await Promise.all(started.map(async g => {
+  const todo = [];
+  started.forEach(g => {
     const id = String(g.id);
-    const sig = [g.state, g.awayScore, g.homeScore, g.awaySog, g.homeSog, g.period, g.intermission].join('|');
+    const sig = [g.state, g.awayScore, g.homeScore, g.period, g.intermission].join('|');
     gameStates[id] = g.state; gameSig[id] = sig;
     const have = prevStats[id];
+    gameStats[id] = have || [];
+    fetchedAt[id] = prevAt[id] || 0;
     const finalDone = g.state === 'final' && prevStates[id] === 'final' && have;
-    const unchanged = have && prevSig[id] === sig && now - (prevAt[id] || 0) < LIVE_REFETCH_MS;
-    if (finalDone || unchanged) { gameStats[id] = have; fetchedAt[id] = prevAt[id] || now; reused++; return; }
+    if (finalDone) { reused++; return; }
+    const changed = !have || prevSig[id] !== sig;
+    const stale = now - (prevAt[id] || 0) >= LIVE_REFETCH_MS;
+    if (changed || stale) todo.push({ g, id, priority: changed ? 0 : 1, age: prevAt[id] || 0 });
+    else reused++;
+  });
+  todo.sort((a, b) => (a.priority - b.priority) || (a.age - b.age));
+  const now_ = todo.slice(0, LIVE_MAX_FETCH), later = todo.slice(LIVE_MAX_FETCH);
+  later.forEach(t => { if (prevSig[t.id] != null) gameSig[t.id] = prevSig[t.id]; reused++; }); // keep old sig so it's picked up next run
+  await Promise.all(now_.map(async ({ g, id }) => {
     try {
-      gameStats[id] = await boxScoreStats(g.id);
+      gameStats[id] = (await boxScoreStats(g.id)).filter(x => x.played && lk.players[x.playerId]);
       fetchedAt[id] = now; fetched++;
     } catch (err) {
       console.log('Live: box score ' + id + ' failed - ' + err.message);
-      gameStats[id] = have || []; fetchedAt[id] = prevAt[id] || 0; failed++;
+      gameSig[id] = prevSig[id]; failed++;
     }
   }));
-  log.fetched = fetched; log.reused = reused; if (failed) log.failed = failed;
+  log.fetched = fetched; log.reused = reused; if (later.length) log.queued = later.length; if (failed) log.failed = failed;
 
   // 4. Score pool players and total each team.
   const byPlayer = {}, stateOf = {};
@@ -749,7 +767,6 @@ async function runLivePoints(env) {
     if (!s.played) return;
     byPlayer[s.playerId] = s; stateOf[s.playerId] = gameStates[id];
   }));
-  const lk = await liveLookups(env);
   const players = scoreNight(byPlayer, stateOf, lk);
   const entries = {};
   lk.entries.forEach(e => {
@@ -771,10 +788,12 @@ async function runLivePoints(env) {
     writes.push(putConfigDoc(env, 'todaysGamesCache', Object.assign({}, cache, { games: games, updatedAt: new Date().toISOString() })));
     log.scoresSaved = true;
   }
-  writes.push(putConfigDoc(env, 'livePointsWork', {
+  const workDoc = {
     date: day, gameStats: gameStats, gameStates: gameStates, gameSig: gameSig, fetchedAt: fetchedAt,
     liveSig: liveSig, workerAt: new Date().toISOString()
-  }));
+  };
+  liveWorkMem_ = { date: day, at: now, doc: workDoc };
+  writes.push(putConfigDoc(env, 'livePointsWork', workDoc));
   await Promise.all(writes);
 
   log.ms = Date.now() - t0;
