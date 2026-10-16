@@ -48,6 +48,30 @@
   .legend { display:inline-flex; align-items:center; gap:6px; }
   .ghost { opacity:.35; } .chosen { background:#16222c !important; border-color:var(--ice) !important; cursor:grabbing; }
   .rank { color:#555; font-family:var(--mono); font-size:10px; }
+  .pl { cursor:pointer; }
+  .scoring { display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:14px; }
+  .scoring.on { display:block; }
+  .scoring h4 { font-size:16px; margin-bottom:2px; } .scoring p { font-family:var(--mono); font-size:11px; color:var(--dim); margin-bottom:8px; }
+  .sc-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px 14px; }
+  .sc-grid label { display:flex; justify-content:space-between; align-items:center; gap:6px; font-family:var(--mono); font-size:11.5px; color:var(--dim); }
+  .sc-grid input { width:64px; background:var(--alt); border:1px solid var(--line); color:var(--text); font-family:var(--mono); font-size:12px; padding:4px 6px; border-radius:6px; }
+  .sc-grid input.changed { border-color:var(--gold); color:var(--gold); }
+  .sc-head { grid-column:1/-1; font-family:var(--display); font-size:14px; font-weight:700; color:var(--ice); text-transform:uppercase; margin-top:4px; }
+  .whatif { display:none; font-family:var(--mono); font-size:11px; color:#0a0a0a; background:var(--gold); border-radius:4px; padding:2px 7px; margin-left:8px; vertical-align:3px; }
+  .whatif.on { display:inline-block; }
+  .ov { position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; z-index:50; padding:16px; }
+  .ov.on { display:flex; }
+  .pcard { width:100%; max-width:380px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; position:relative; }
+  .pcard .x { position:absolute; top:10px; right:12px; background:none; border:0; color:var(--dim); font-size:20px; cursor:pointer; }
+  .pc-top { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+  .pc-top img, .pc-top .ph { width:64px; height:64px; border-radius:50%; background:var(--alt); object-fit:cover; }
+  .pc-top b { display:block; font-size:24px; line-height:1; } .pc-top span { font-family:var(--mono); font-size:11px; color:var(--dim); }
+  .pc-tbl { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px; }
+  .pc-tbl td { padding:5px 4px; border-bottom:1px solid var(--line); }
+  .pc-tbl td:nth-child(2), .pc-tbl td:nth-child(3), .pc-tbl td:nth-child(4) { text-align:right; }
+  .pc-tbl td:nth-child(3) { color:var(--dim); } .pc-tbl td:last-child { color:var(--ice); }
+  .pc-tbl tr.tot td { border-bottom:0; font-weight:700; color:var(--text); padding-top:8px; } .pc-tbl tr.tot td:last-child { color:var(--ice); font-size:15px; }
+  .pc-foot { font-family:var(--mono); font-size:11px; color:var(--dim); margin-top:8px; display:flex; justify-content:space-between; }
   .status { font-family:var(--mono); font-size:13px; color:var(--dim); padding:30px; text-align:center; }
   @media (max-width:640px) { body { padding:12px; } h1 { font-size:28px; } }
 </style>
@@ -56,11 +80,12 @@
 <header>
   <div>
     <div class="eyebrow">COMMISSIONER · PROJECTION (CHANGES NOTHING)</div>
-    <h1>2027-28 <em>BOX BUILDER</em></h1>
+    <h1>2027-28 <em>BOX BUILDER</em><span class="whatif" id="whatif">WHAT-IF SCORING</span></h1>
     <div class="sub" id="sub">Loading this season's numbers…</div>
   </div>
   <div class="controls">
     <div class="seg" id="rankBy"><button data-v="total" class="on">Rank by total pts</button><button data-v="pg">Pts per game</button></div>
+    <button class="btn" id="scBtn">⚙ Scoring (what-if)</button>
     <button class="btn" id="reset">↺ Re-fill from rankings</button>
     <button class="btn pub" title="Publishing comes with the April off-season work">🔒 Publish (April)</button>
   </div>
@@ -72,6 +97,14 @@
   Each box shows its <b>total and average</b> so you can keep them balanced. <span class="legend"><span class="badge-new" style="margin:0">NEW</span> = not in this year's pool</span>.
   <br>Ranks <b>every NHL player</b> who has played this season (hat tricks included), refreshed <b>every Monday</b> (Admin → Tools can refresh it sooner). Your drags are remembered in this browser only.
 </div>
+
+<div class="scoring" id="scoring">
+  <h4>⚙ What-if scoring</h4>
+  <p>Try different point values and watch the boxes re-rank. Only on this screen. The pool's real scoring doesn't change (it's in the season settings, and should only change between seasons).</p>
+  <div class="sc-grid" id="scGrid"></div>
+  <div style="margin-top:10px"><button class="btn" id="scReset">Back to the pool's scoring</button></div>
+</div>
+<div class="ov" id="ov"><div class="pcard" id="pcard"></div></div>
 
 <div class="tabs" id="tabs"><button data-t="F" class="on">Forwards</button><button data-t="D">Defence</button><button data-t="G">Goalies</button></div>
 <div class="grid" id="grid"><div class="status">Loading players…</div></div>
@@ -92,12 +125,19 @@
     return r.json();
   };
   const group = p => p.position === 'G' ? 'G' : (p.position === 'D' ? 'D' : 'F');
+  // Point values: the pool's (config/season) unless changed in the what-if panel.
+  const RULES = [
+    ['F', 'goalPtsF', 'Goals', 'goals', 1], ['F', 'assistPtsF', 'Assists', 'assists', 1], ['F', 'sogPtsF', 'Shots on goal', 'sog', 0.11],
+    ['D', 'goalPtsD', 'Goals', 'goals', 1], ['D', 'assistPtsD', 'Assists', 'assists', 1], ['D', 'sogPtsD', 'Shots on goal', 'sog', 0.11], ['D', 'pimPtsD', 'Penalty minutes', 'pim', 0.25],
+    ['FD', 'hatTrickBonus', 'Hat tricks', 'hatTricks', 3],
+    ['G', 'winPtsG', 'Wins', 'wins', 3], ['G', 'lossPtsG', 'Losses', 'losses', 1], ['G', 'otlPtsG', 'OT/SO losses', 'otl', 1.5], ['G', 'shutoutPtsG', 'Shutouts', 'shutouts', 2], ['G', 'savePtsG', 'Saves', 'saves', 0.02]
+  ];
+  let whatIf = {};
+  const rate = (key, def) => (whatIf[key] ?? cfg[key] ?? def);
+  function rulesFor(g) { return RULES.filter(r => r[0].includes(g)); }
   function pts(p) { // same scoring as the site
-    const s = p.stats || {}, c = cfg, g = group(p), n = (v, d) => (v ?? d);
-    if (g === 'G') return (s.wins||0)*n(c.winPtsG,3) + (s.losses||0)*n(c.lossPtsG,1) + (s.otl||0)*n(c.otlPtsG,1.5) + (s.shutouts||0)*n(c.shutoutPtsG,2) + (s.saves||0)*n(c.savePtsG,0.02);
-    const d = g === 'D';
-    return (s.goals||0)*n(d?c.goalPtsD:c.goalPtsF,1) + (s.assists||0)*n(d?c.assistPtsD:c.assistPtsF,1) + (s.sog||0)*n(d?c.sogPtsD:c.sogPtsF,0.11)
-      + (d ? (s.pim||0)*n(c.pimPtsD,0.25) : 0) + (s.hatTricks||0)*n(c.hatTrickBonus,3);
+    const s = p.stats || {}, g = group(p);
+    return rulesFor(g).reduce((sum, r) => sum + (s[r[3]] || 0) * rate(r[1], r[4]), 0);
   }
   const gp = p => (p.stats && p.stats.gamesPlayed) || 0;
   const score = p => rankBy === 'pg' ? (gp(p) ? pts(p) / gp(p) : 0) : pts(p);
@@ -154,10 +194,12 @@
     grid.innerHTML = html.join('');
     if (window.Sortable) {
       grid.querySelectorAll('.list').forEach(el => Sortable.create(el, {
-        group: 'boxes-' + tab, animation: 150, ghostClass: 'ghost', chosenClass: 'chosen',
+        group: 'boxes-' + tab, animation: 150, ghostClass: 'ghost', chosenClass: 'chosen', delay: 120, delayOnTouchOnly: true,
+        onStart: () => { dragging = true; },
         onEnd: () => {
           grid.querySelectorAll('.list').forEach(l => { boxes[l.dataset.box] = [...l.querySelectorAll('.pl')].map(x => x.dataset.id); });
           saveMoves(); render();
+          setTimeout(() => { dragging = false; }, 50);
         }
       }));
     }
@@ -172,6 +214,52 @@
     rankBy = b.dataset.v; document.querySelectorAll('#rankBy button').forEach(x => x.classList.toggle('on', x === b)); autoFill(); applyMoves(); render();
   });
   document.getElementById('reset').addEventListener('click', () => { try { localStorage.removeItem(MOVES_KEY); } catch (e) {} autoFill(); render(); });
+
+  // Player card with the pool stats behind his points
+  const ov = document.getElementById('ov'), pcard = document.getElementById('pcard');
+  function openCard(id) {
+    const p = players.find(x => String(x.id) === String(id));
+    if (!p) return;
+    const g = group(p), s = p.stats || {}, total = pts(p), games = gp(p);
+    const rows = rulesFor(g).map(r => {
+      const v = s[r[3]] || 0, rt = rate(r[1], r[4]);
+      return `<tr><td>${r[2]}</td><td>${v}</td><td>× ${rt}</td><td>${(v * rt).toFixed(2)}</td></tr>`;
+    }).join('');
+    const isNew = poolIds.size && !poolIds.has(String(p.id));
+    pcard.innerHTML = `<button class="x" aria-label="Close">×</button>
+      <div class="pc-top">${p.headshotUrl ? `<img src="${esc(p.headshotUrl)}" alt="" width="64" height="64">` : '<span class="ph"></span>'}
+        <div><b>${esc(p.fullName)}${isNew ? '<span class="badge-new">NEW</span>' : ''}</b><span>${esc(p.team)} · ${esc(p.position)} · ${games} GP · rank #${p._rank} ${g === 'G' ? 'goalie' : g === 'D' ? 'defence' : 'forward'}</span></div></div>
+      <table class="pc-tbl"><tbody>${rows}
+        <tr class="tot"><td>Pool points</td><td></td><td></td><td>${total.toFixed(2)}</td></tr></tbody></table>
+      <div class="pc-foot"><span>${games ? (total / games).toFixed(2) : '0.00'} per game</span><span>${Object.keys(whatIf).length ? 'what-if scoring' : '2026-27 pool scoring'}</span></div>`;
+    ov.classList.add('on');
+  }
+  ov.addEventListener('click', e => { if (e.target === ov || e.target.closest('.x')) ov.classList.remove('on'); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') ov.classList.remove('on'); });
+  let dragging = false;
+  document.getElementById('grid').addEventListener('click', e => {
+    const el = e.target.closest('.pl');
+    if (el && !dragging) openCard(el.dataset.id);
+  });
+
+  // What-if scoring panel
+  function buildScoring() {
+    const grid = document.getElementById('scGrid');
+    const sec = [['F', 'Forwards'], ['D', 'Defence'], ['G', 'Goalies']];
+    grid.innerHTML = sec.map(([g, label]) => `<div class="sc-head">${label}</div>` + rulesFor(g).map(r =>
+      `<label>${r[2]}<input type="number" step="0.01" data-key="${r[1]}" value="${rate(r[1], r[4])}" class="${whatIf[r[1]] != null ? 'changed' : ''}"></label>`).join('')).join('');
+  }
+  document.getElementById('scBtn').addEventListener('click', () => { document.getElementById('scoring').classList.toggle('on'); buildScoring(); });
+  document.getElementById('scGrid').addEventListener('change', e => {
+    const inp = e.target.closest('input'); if (!inp) return;
+    const v = parseFloat(inp.value), base = cfg[inp.dataset.key];
+    if (isNaN(v) || v === base) delete whatIf[inp.dataset.key]; else whatIf[inp.dataset.key] = v;
+    document.getElementById('whatif').classList.toggle('on', Object.keys(whatIf).length > 0);
+    buildScoring(); autoFill(); applyMoves(); render();
+  });
+  document.getElementById('scReset').addEventListener('click', () => {
+    whatIf = {}; document.getElementById('whatif').classList.remove('on'); buildScoring(); autoFill(); applyMoves(); render();
+  });
 
   (async function load() {
     try {
