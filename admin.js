@@ -85,6 +85,7 @@ function renderAdminEntries(entries) {
   const toggleHtml = `
     <div id="admin-pending-moves"></div>
     <div id="admin-recap"></div>
+    <div id="admin-live-health"></div>
     <div class="panel" style="margin-bottom:16px;">
       <h3 style="margin-bottom:6px;">🔁 Process Trade (on behalf of a team)</h3>
       <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">Same as the owner doing it from My Team: counts as one of their moves, banks the outgoing player's points, logs it in Activity, and emails the owner. In-season it's auto-approved.</p>
@@ -143,6 +144,7 @@ function renderAdminEntries(entries) {
     wireAdminTradePanel_();
     loadAdminPendingMoves(); // after innerHTML so the container exists
     loadAdminRecap_();
+    loadAdminLiveHealth_();
     return;
   }
 
@@ -267,6 +269,38 @@ function renderAdminEntries(entries) {
   wireAdminTradePanel_();
   loadAdminPendingMoves(); // after innerHTML so the container exists
   loadAdminRecap_();
+  loadAdminLiveHealth_();
+}
+
+// ---------- Live points health (Cloudflare Worker, every minute during games) ----------
+async function loadAdminLiveHealth_() {
+  const box = document.getElementById('admin-live-health');
+  if (!box) return;
+  let hist = null, work = null;
+  try {
+    [hist, work] = await Promise.all([supabaseDirectGet_('config', 'liveHealthHistory'), supabaseDirectGet_('config', 'livePointsWork')]);
+  } catch (e) { /* shown as empty */ }
+  const rows = ((hist && hist.nights) || []).slice();
+  // Tonight / last night still in progress (not yet copied by the morning job).
+  if (work && work.health && !rows.some(n => n.date === work.date)) {
+    const h = work.health;
+    rows.unshift(Object.assign({ live: true, date: work.date, avgMs: h.runs ? Math.round(h.totalMs / h.runs) : 0, games: Object.keys(work.gameStates || {}).length }, h));
+  }
+  const ok = (n) => !n.failed && n.maxMs < 5000;
+  box.innerHTML = `
+    <div class="panel" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:6px;">📡 Live Points Health</h3>
+      <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">One row per game night from the fast server (updates every minute during games). "Queued" = games waiting a minute for their turn on busy nights. Exact CPU time is only in Cloudflare → aahl-2526 → Metrics.</p>
+      ${rows.length ? `<div class="players-table-scroll"><table class="data-table"><thead><tr>
+        <th>Night</th><th>Games</th><th>Most live</th><th>Runs</th><th>Box scores</th><th>Queued</th><th>Updates</th><th>Avg / slowest run</th><th>Failed</th><th></th>
+      </tr></thead><tbody>${rows.map(n => `<tr>
+        <td class="mono">${escapeHtml(n.date)}${n.live ? ' <span style="color:var(--ice)">(in progress)</span>' : ''}</td>
+        <td class="mono">${n.games || 0}</td><td class="mono">${n.maxGames || 0}</td><td class="mono">${n.runs || 0}</td>
+        <td class="mono">${n.fetched || 0}</td><td class="mono">${n.queued || 0}</td><td class="mono">${n.pointsSaves || 0}</td>
+        <td class="mono">${n.avgMs || 0} / ${n.maxMs || 0} ms</td><td class="mono" style="color:${n.failed ? '#ff5c5c' : 'inherit'}">${n.failed || 0}</td>
+        <td>${ok(n) ? '✅' : '⚠️'}</td></tr>`).join('')}</tbody></table></div>`
+      : '<p class="mono" style="color:var(--text-dim); font-size:13px;">No game nights recorded yet - the first row appears once games start.</p>'}
+    </div>`;
 }
 
 // ---------- Nightly recap ("Last Night in the AAHL", written by AI) ----------

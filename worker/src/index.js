@@ -116,7 +116,7 @@ export default {
   // Cron trigger (wrangler.toml [triggers]) - live points during games.
   async scheduled(event, env, ctx) {
     if (RECAP_CRONS.includes(event.cron)) {
-      if (env.RECAP === 'off') return;
+      if (env.RECAP === 'off') { ctx.waitUntil(saveLiveHealth(env).catch(() => {})); return; }
       ctx.waitUntil(runNightlyRecap(env, false).catch(err => console.log('Recap failed: ' + (err && err.stack || err))));
       return;
     }
@@ -788,9 +788,18 @@ async function runLivePoints(env) {
     writes.push(putConfigDoc(env, 'todaysGamesCache', Object.assign({}, cache, { games: games, updatedAt: new Date().toISOString() })));
     log.scoresSaved = true;
   }
+  // Night's running totals (copied to liveHealthHistory by the morning job).
+  const h = Object.assign({ runs: 0, fetched: 0, queued: 0, failed: 0, pointsSaves: 0, maxMs: 0, totalMs: 0, maxGames: 0, firstAt: new Date().toISOString() },
+    (same && work.health) || {});
+  const runMs = Date.now() - t0;
+  h.runs++; h.fetched += fetched; h.queued += later.length; h.failed += failed;
+  if (log.pointsSaved) h.pointsSaves++;
+  h.totalMs += runMs; h.maxMs = Math.max(h.maxMs, runMs);
+  h.maxGames = Math.max(h.maxGames, started.filter(g => g.state === 'live').length);
+  h.lastAt = new Date().toISOString();
   const workDoc = {
     date: day, gameStats: gameStats, gameStates: gameStates, gameSig: gameSig, fetchedAt: fetchedAt,
-    liveSig: liveSig, workerAt: new Date().toISOString()
+    liveSig: liveSig, workerAt: new Date().toISOString(), health: h
   };
   liveWorkMem_ = { date: day, at: now, doc: workDoc };
   writes.push(putConfigDoc(env, 'livePointsWork', workDoc));
@@ -967,7 +976,24 @@ async function writeRecap(env, f) {
   return { text: recapTemplate(f), source: 'template', note };
 }
 
+// Keeps the last 21 nights of live-points health in config/liveHealthHistory
+// (Admin -> Live Points Health). Runs with the morning recap job.
+async function saveLiveHealth(env) {
+  const work = await getConfigDoc(env, 'livePointsWork');
+  if (!work || !work.health || !work.date) return;
+  const hist = (await getConfigDoc(env, 'liveHealthHistory')) || { nights: [] };
+  if (hist.nights.some(n => n.date === work.date)) return;
+  const h = work.health;
+  hist.nights.unshift({ date: work.date, runs: h.runs, fetched: h.fetched, queued: h.queued, failed: h.failed,
+    pointsSaves: h.pointsSaves, maxMs: h.maxMs, avgMs: h.runs ? Math.round(h.totalMs / h.runs) : 0,
+    maxGames: h.maxGames, firstAt: h.firstAt, lastAt: h.lastAt, games: Object.keys(work.gameStates || {}).length });
+  hist.nights = hist.nights.slice(0, 21);
+  hist.updatedAt = new Date().toISOString();
+  await putConfigDoc(env, 'liveHealthHistory', hist);
+}
+
 async function runNightlyRecap(env, force) {
+  if (!force) { try { await saveLiveHealth(env); } catch (e) { console.log('Live health save failed: ' + e.message); } }
   const f = await recapFacts(env);
   if (!f) { console.log('Recap: 4am data not in yet - will try again.'); return { success: false, error: "Last night's stats aren't in yet." }; }
   const prev = await getConfigDoc(env, 'nightlyRecap');
