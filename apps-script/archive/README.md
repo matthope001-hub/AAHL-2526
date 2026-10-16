@@ -13,3 +13,8 @@ project on Oct 16, 2026. Kept here only so they can be restored if ever needed
 | migrate.gs | Copied Firestore -> Supabase (migration finished) |
 | moverepair.gs | One-time fix for trades misapplied as pre-season changes |
 | Diagnose.gs | Old Firestore connectivity check |
+| FirebaseAuth.gs | Firebase sign-in for the old Firestore backend (retired) |
+| FirestoreCRUD.gs | Old Firestore read/write code (clearListCache moved to DbSwitch.gs) |
+| DbSwitch-old.gs | DbSwitch.gs before Firestore was removed |
+| testrunner.gs | Ran all module tests - unsafe mid-season (creates test entries, changes config, removes triggers) |
+| RosterMovesTest.gs | Roster move test - creates a test entry and changes seasonStartDate |
