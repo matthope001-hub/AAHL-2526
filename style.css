@@ -1519,3 +1519,60 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
   #todays-games .mini-title .puck-drop { flex-basis: 100%; order: 3; }
   #todays-games .mini-title .pd-sep { display: none; }
 }
+
+/* ---------- Admin layout (tabs, chips, tidy table) ---------- */
+.adm-top { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.adm-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.adm-chip { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); background: var(--bg-panel); border: 1px solid var(--border); border-radius: 20px; padding: 5px 11px; }
+.adm-chip b { color: var(--text); font-weight: 600; margin-right: 2px; }
+.adm-chip.warn { border-color: var(--amber); }
+.adm-chip.warn b { color: #e88aa5; }
+.adm-builder { text-decoration: none; }
+.adm-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.adm-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-dim); font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; padding: 6px 12px; margin: 0 0 -1px; cursor: pointer; }
+.adm-tabs button.on { color: var(--ice); border-bottom-color: var(--ice); }
+.adm-tabs button span { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.adm-pane[hidden] { display: none; }
+.adm-teams-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.adm-teams-bar input[type="search"] { flex: 1; min-width: 200px; margin: 0; background: var(--bg-panel-alt); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; font-family: var(--font-mono); font-size: 13px; }
+.adm-teams-bar .admin-btn { margin: 0; }
+#admin-late-link-result:not(:empty) { margin-bottom: 10px; }
+.adm-bulk { margin-bottom: 10px; padding: 8px 12px; background: var(--bg-panel-alt); align-items: center; justify-content: space-between; gap: 10px; border-radius: 8px; }
+.adm-bulk span { color: var(--amber); }
+.adm-danger { border-color: #ff5c5c !important; color: #ff5c5c !important; }
+.adm-table td { vertical-align: middle; }
+.adm-team { font-weight: 700; }
+.adm-owner { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+.adm-email { font-size: 12px; color: var(--text-dim); }
+.adm-tag { display: inline-block; font-family: var(--font-mono); font-size: 11px; border-radius: 12px; padding: 2px 9px; border: 1px solid var(--border); margin: 2px 4px 2px 0; background: none; color: var(--text-dim); }
+.adm-tag.ok { color: var(--ice); border-color: color-mix(in srgb, var(--ice) 50%, transparent); }
+.adm-tag.warn { color: #e88aa5; border-color: var(--amber); }
+.adm-tag-btn { cursor: pointer; }
+.adm-tag-btn:hover { border-color: var(--ice); color: var(--text); }
+.adm-primary { border-color: var(--ice) !important; color: var(--ice) !important; }
+.adm-more { position: relative; display: inline-block; }
+.adm-more summary { list-style: none; cursor: pointer; padding: 4px 10px; }
+.adm-more summary::-webkit-details-marker { display: none; }
+.adm-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 170px; background: var(--bg-panel-alt); border: 1px solid var(--border); border-radius: 10px; padding: 4px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.adm-menu button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text); font-family: var(--font-mono); font-size: 12px; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin: 0; }
+.adm-menu button:hover { background: var(--bg-panel); }
+.adm-menu .adm-danger { border: 0 !important; }
+.adm-tools { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.adm-tool { margin: 0 !important; }
+.adm-tool h3 { margin-bottom: 4px; }
+.adm-wide { grid-column: 1 / -1; }
+.adm-help { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin-bottom: 10px; }
+.adm-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.adm-row select, .adm-row input { flex: 1 1 180px; margin: 0; }
+.adm-row button { margin: 0; }
+@media (max-width: 760px) {
+  .adm-tools { grid-template-columns: 1fr; }
+  .adm-tabs button { font-size: 16px; padding: 6px 8px; }
+}
+.adm-table .admin-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.adm-table .admin-btn { border-radius: 6px; }
+.adm-more summary.admin-btn { overflow: visible; }
+.adm-table td[data-label="Actions"] { width: 1%; white-space: nowrap; }
+.adm-menu button { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.adm-tag { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.adm-tool .admin-btn, .adm-teams-bar .admin-btn { border-radius: 6px; padding: 7px 12px; }

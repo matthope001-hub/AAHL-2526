@@ -3,6 +3,12 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.1 — Tidier Admin & next season's box builder
+_Oct 16, 2026_
+- **Admin redesign**: summary chips (teams, awaiting approval, unpaid, pending moves) and three tabs — **Today** (pending moves, last night's recap, live points health), **Teams** (searchable list, tap Paid/Unpaid to switch, extra actions under ⋯) and **Tools** (trades, IR list, weekly image, Sign Up button)
+- **2027-28 Box Builder** (Admin → 📦): next season's boxes filled automatically from this season's pool points, updated as the season goes; drag to adjust, balance check per box
+- Nightly recap now written by AI (model updated), live points tuned for 14-game nights, live-points health tracking in Admin
+
 ## v3.0 — Faster everything, live points every minute
 _Oct 15, 2026_
 ### New

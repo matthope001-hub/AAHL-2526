@@ -82,60 +82,148 @@ function renderAdminEntries(entries) {
   adminEntriesCache = entries;
 
   const ctaVisible = currentConfig.showSignupCta !== false;
-  const toggleHtml = `
-    <div id="admin-pending-moves"></div>
-    <div id="admin-recap"></div>
-    <div id="admin-live-health"></div>
-    <div class="panel" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:6px;">🔁 Process Trade (on behalf of a team)</h3>
-      <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">Same as the owner doing it from My Team: counts as one of their moves, banks the outgoing player's points, logs it in Activity, and emails the owner. In-season it's auto-approved.</p>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <select id="admin-trade-team" style="flex:2; min-width:200px; margin:0;"><option value="">Select team...</option></select>
-        <select id="admin-trade-box" style="flex:2; min-width:200px; margin:0;" disabled><option value="">Box...</option></select>
-        <select id="admin-trade-player" style="flex:2; min-width:200px; margin:0;" disabled><option value="">New player...</option></select>
-        <button id="admin-trade-btn" style="margin:0;" disabled>Process Trade</button>
+  const pendingCount = entries.filter(e => !e.approved).length;
+  const unpaidCount = entries.filter(e => !e.paymentReceived).length;
+  let tab = 'today';
+  try { tab = localStorage.getItem('aahl_admin_tab') || 'today'; } catch (e) { /* private mode */ }
+
+  el.innerHTML = `
+    <div class="adm-top">
+      <div class="adm-chips">
+        <span class="adm-chip"><b>${entries.length}</b> teams</span>
+        <span class="adm-chip${pendingCount ? ' warn' : ''}"><b>${pendingCount}</b> awaiting approval</span>
+        <span class="adm-chip${unpaidCount ? ' warn' : ''}"><b>${unpaidCount}</b> unpaid</span>
+        <span class="adm-chip" id="adm-chip-moves"><b>…</b> pending moves</span>
       </div>
-      <div id="admin-trade-info" class="mono" style="font-size:12px; margin-top:8px;"></div>
-      <div id="admin-trade-status" class="status-msg"></div>
+      <a class="admin-btn adm-builder" href="box-builder.html" target="_blank" rel="noopener">📦 2027-28 Box Builder</a>
     </div>
-    <div class="panel" style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between;">
-      <span>Sign Up button on Home page</span>
-      <label class="toggle-switch">
-        <input type="checkbox" id="admin-toggle-cta" ${ctaVisible ? 'checked' : ''}>
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
-    <div class="panel" style="margin-bottom:16px;">
-      <button id="admin-add-late-entry-btn" style="margin:0;">+ Add Late Entry</button>
-      <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">For a late joiner after the public deadline has passed.</span>
-    </div>
-    <div class="panel" style="margin-bottom:16px;">
-      <button id="admin-create-late-link-btn" style="margin:0;">🔗 Create Late Entry Link</button>
-      <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">Send someone a private link so they can fill in the form themselves. One entry per link, expires in 7 days.</span>
-      <div id="admin-late-link-result" style="margin-top:10px;"></div>
-    </div>
-    <div class="panel" style="margin-bottom:16px;">
-      <button id="admin-weekly-image-btn" style="margin:0;">📸 Weekly Standings Image</button>
-      <span class="mono" style="color:var(--text-dim); font-size:12px; margin-left:10px;">A ready-to-post picture of last week's standings for the Facebook group.</span>
-      <div id="admin-weekly-image-result" style="margin-top:10px;"></div>
-    </div>
-    <div class="panel" style="margin-bottom:16px;">
-      <h3 style="margin-bottom:6px;">Player Status (IR List)</h3>
-      <p class="mono" style="color:var(--text-dim); font-size:12px; margin-bottom:10px;">The IR List fills itself from the NHL injury feed every 4 hours. Use this to add someone it missed, correct a status, or mark a player healthy.</p>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <select id="admin-inj-player" style="flex:2; min-width:200px; margin:0;"><option value="">Loading players...</option></select>
-        <select id="admin-inj-code" style="flex:1; min-width:170px; margin:0;"></select>
-        <input type="text" id="admin-inj-note" placeholder="Details (e.g. Knee)" style="flex:1; min-width:150px; margin:0;">
-        <button id="admin-inj-set-btn" style="margin:0;">Set</button>
-        <button id="admin-inj-refresh-btn" class="admin-btn">Refresh from feed now</button>
+
+    <nav class="adm-tabs" id="adm-tabs">
+      <button data-pane="today">Today</button>
+      <button data-pane="teams">Teams <span class="mono">${entries.length}</span></button>
+      <button data-pane="tools">Tools</button>
+    </nav>
+
+    <section class="adm-pane" data-pane="today">
+      <div id="admin-pending-moves"></div>
+      <div id="admin-recap"></div>
+      <div id="admin-live-health"></div>
+    </section>
+
+    <section class="adm-pane" data-pane="teams">
+      <div class="adm-teams-bar">
+        <input type="search" id="adm-team-search" placeholder="Search team, owner or email…" aria-label="Search teams">
+        <button id="admin-add-late-entry-btn" class="admin-btn" title="For a late joiner after the public deadline has passed.">+ Add Late Entry</button>
+        <button id="admin-create-late-link-btn" class="admin-btn" title="A private one-entry link, expires in 7 days.">🔗 Late Entry Link</button>
       </div>
-      <div id="admin-inj-status" class="status-msg"></div>
-      <div id="admin-inj-overrides" style="margin-top:10px;"></div>
-    </div>
+      <div id="admin-late-link-result"></div>
+      <div id="admin-bulk-bar" class="adm-bulk" style="display:none;">
+        <span class="mono" id="admin-bulk-count"></span>
+        <button class="admin-btn adm-danger" id="admin-bulk-delete-btn">Delete Selected</button>
+      </div>
+      ${entries.length === 0 ? '<p class="mono" style="color:var(--text-dim)">No entries yet.</p>' : `
+      <table class="admin-entries-table adm-table">
+        <thead><tr><th><input type="checkbox" id="admin-select-all" aria-label="Select all"></th><th>Team</th><th>Email</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${entries.map(e => `
+            <tr data-entry-id="${e.id}" data-search="${escapeHtml((e.teamName + ' ' + e.ownerName + ' ' + e.email).toLowerCase())}">
+              <td data-label="Select"><input type="checkbox" class="admin-row-select" data-id="${e.id}" aria-label="Select ${escapeHtml(e.teamName)}"></td>
+              <td data-label="Team"><div class="adm-team">${escapeHtml(e.teamName)}</div><div class="adm-owner">${escapeHtml(e.ownerName)}</div></td>
+              <td class="mono adm-email" data-label="Email">${escapeHtml(e.email)}</td>
+              <td data-label="Status">
+                <span class="adm-tag ${e.approved ? 'ok' : 'warn'}">${e.approved ? 'Approved' : 'Pending'}</span>
+                <button class="adm-tag adm-tag-btn admin-toggle-paid ${e.paymentReceived ? 'ok' : 'off'}" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}" title="Click to mark ${e.paymentReceived ? 'unpaid' : 'paid'}">${e.paymentReceived ? '✓ Paid' : 'Unpaid'}</button>
+              </td>
+              <td data-label="Actions">
+                <div class="admin-actions">
+                  ${!e.approved ? `<button class="admin-btn admin-approve adm-primary" data-id="${e.id}">Approve</button>` : ''}
+                  <button class="admin-btn admin-view-picks" data-id="${e.id}">View</button>
+                  <details class="adm-more">
+                    <summary class="admin-btn" aria-label="More actions">⋯</summary>
+                    <div class="adm-menu">
+                      <button class="admin-edit-picks" data-id="${e.id}">✏️ Edit picks</button>
+                      <button class="admin-rename" data-id="${e.id}">🏷️ Rename team</button>
+                      <button class="admin-resend-email" data-id="${e.id}">✉️ Resend email</button>
+                      <button class="admin-delete adm-danger" data-id="${e.id}">🗑️ Delete team</button>
+                    </div>
+                  </details>
+                </div>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`}
+    </section>
+
+    <section class="adm-pane" data-pane="tools">
+      <div class="adm-tools">
+        <div class="panel adm-tool adm-wide">
+          <h3>🔁 Process Trade</h3>
+          <p class="adm-help">Same as the owner doing it from My Team: counts as one of their moves, banks the outgoing player's points, logs it in Activity and emails the owner. In-season it's auto-approved.</p>
+          <div class="adm-row">
+            <select id="admin-trade-team"><option value="">Select team...</option></select>
+            <select id="admin-trade-box" disabled><option value="">Box...</option></select>
+            <select id="admin-trade-player" disabled><option value="">New player...</option></select>
+            <button id="admin-trade-btn" disabled>Process Trade</button>
+          </div>
+          <div id="admin-trade-info" class="mono" style="font-size:12px; margin-top:8px;"></div>
+          <div id="admin-trade-status" class="status-msg"></div>
+        </div>
+        <div class="panel adm-tool adm-wide">
+          <h3>🩹 Player Status (IR List)</h3>
+          <p class="adm-help">Fills itself from the NHL injury feed every 4 hours. Use this to add someone it missed, correct a status or mark a player healthy.</p>
+          <div class="adm-row">
+            <select id="admin-inj-player"><option value="">Loading players...</option></select>
+            <select id="admin-inj-code"></select>
+            <input type="text" id="admin-inj-note" placeholder="Details (e.g. Knee)">
+            <button id="admin-inj-set-btn">Set</button>
+            <button id="admin-inj-refresh-btn" class="admin-btn">Refresh from feed</button>
+          </div>
+          <div id="admin-inj-status" class="status-msg"></div>
+          <div id="admin-inj-overrides" style="margin-top:10px;"></div>
+        </div>
+        <div class="panel adm-tool">
+          <h3>📸 Weekly Standings Image</h3>
+          <p class="adm-help">A ready-to-post picture of last week's standings (also attached to the Monday email).</p>
+          <button id="admin-weekly-image-btn" class="admin-btn">Make image</button>
+          <div id="admin-weekly-image-result" style="margin-top:10px;"></div>
+        </div>
+        <div class="panel adm-tool">
+          <h3>🏒 Sign Up button</h3>
+          <p class="adm-help">Show the Sign Up button on the Home page.</p>
+          <label class="toggle-switch">
+            <input type="checkbox" id="admin-toggle-cta" ${ctaVisible ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </section>
   `;
 
+  // Tabs (remembered per browser)
+  const showPane = (name) => {
+    el.querySelectorAll('.adm-pane').forEach(p => { p.hidden = p.dataset.pane !== name; });
+    el.querySelectorAll('#adm-tabs button').forEach(b => b.classList.toggle('on', b.dataset.pane === name));
+    try { localStorage.setItem('aahl_admin_tab', name); } catch (e) { /* private mode */ }
+  };
+  el.querySelectorAll('#adm-tabs button').forEach(b => b.addEventListener('click', () => showPane(b.dataset.pane)));
+  showPane(['today', 'teams', 'tools'].includes(tab) ? tab : 'today');
+
+  // Team search
+  const search = document.getElementById('adm-team-search');
+  if (search) search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    el.querySelectorAll('.adm-table tbody tr').forEach(tr => { tr.hidden = !!q && !tr.dataset.search.includes(q); });
+  });
+
+  // Close any open "⋯" menu when another opens or you click elsewhere
+  el.querySelectorAll('.adm-more').forEach(d => d.addEventListener('toggle', () => {
+    if (d.open) el.querySelectorAll('.adm-more[open]').forEach(o => { if (o !== d) o.open = false; });
+  }));
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('.adm-more')) el.querySelectorAll('.adm-more[open]').forEach(o => { o.open = false; });
+  });
+
   if (entries.length === 0) {
-    el.innerHTML = toggleHtml + `<p class="mono" style="color:var(--text-dim)">No entries yet.</p>`;
     wireAdminCtaToggle_();
     wireAdminAddLateEntryButton_();
     wireAdminCreateLateLinkButton_();
@@ -147,39 +235,6 @@ function renderAdminEntries(entries) {
     loadAdminLiveHealth_();
     return;
   }
-
-  el.innerHTML = toggleHtml + `
-    <div id="admin-bulk-bar" style="display:none; margin-bottom:10px; padding:8px 12px; background:var(--bg-panel-alt); align-items:center; justify-content:space-between; gap:10px;">
-      <span class="mono" id="admin-bulk-count" style="color:var(--amber);"></span>
-      <button class="admin-btn" id="admin-bulk-delete-btn" style="margin:0; border-color:#ff5c5c; color:#ff5c5c;">Delete Selected</button>
-    </div>
-    <table class="admin-entries-table">
-      <thead><tr><th><input type="checkbox" id="admin-select-all"></th><th>Team</th><th>Owner</th><th>Email</th><th>Status</th><th>Paid</th><th>Actions</th></tr></thead>
-      <tbody>
-        ${entries.map(e => `
-          <tr data-entry-id="${e.id}">
-            <td data-label="Select"><input type="checkbox" class="admin-row-select" data-id="${e.id}"></td>
-            <td data-label="Team">${escapeHtml(e.teamName)}</td>
-            <td data-label="Owner">${escapeHtml(e.ownerName)}</td>
-            <td class="mono" data-label="Email">${escapeHtml(e.email)}</td>
-            <td data-label="Status">${e.approved ? '<span style="color:var(--ice)">Approved</span>' : '<span style="color:var(--amber)">Pending</span>'}</td>
-            <td data-label="Paid">${e.paymentReceived ? '<span style="color:var(--ice)">✓ Paid</span>' : '<span style="color:var(--text-dim)">Unpaid</span>'}</td>
-            <td data-label="Actions">
-              <div class="admin-actions">
-                ${!e.approved ? `<button class="admin-btn admin-approve" data-id="${e.id}">Approve</button>` : ''}
-                <button class="admin-btn admin-view-picks" data-id="${e.id}">View Picks</button>
-                <button class="admin-btn admin-edit-picks" data-id="${e.id}">Edit</button>
-                <button class="admin-btn admin-resend-email" data-id="${e.id}">Resend Email</button>
-                <button class="admin-btn admin-toggle-paid" data-id="${e.id}" data-paid="${e.paymentReceived ? '1' : '0'}">${e.paymentReceived ? 'Mark Unpaid' : 'Mark Paid'}</button>
-                <button class="admin-btn admin-rename" data-id="${e.id}">Rename</button>
-                <button class="admin-btn admin-delete" data-id="${e.id}">Delete</button>
-              </div>
-            </td>
-          </tr>`).join('')}
-      </tbody>
-    </table>
-    <div class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">${entries.length} team${entries.length === 1 ? '' : 's'}</div>
-  `;
 
   function updateBulkBar_() {
     const checked = el.querySelectorAll('.admin-row-select:checked');
@@ -377,6 +432,13 @@ function startAdminMovesChannel_() {
   }
 }
 
+function updateAdminMovesChip_() {
+  const chip = document.getElementById('adm-chip-moves');
+  if (!chip) return;
+  chip.innerHTML = `<b>${adminMovesCount_}</b> pending move${adminMovesCount_ === 1 ? '' : 's'}`;
+  chip.classList.toggle('warn', adminMovesCount_ > 0);
+}
+
 async function loadAdminPendingMoves() {
   startAdminMovesChannel_();
   const container = document.getElementById('admin-pending-moves');
@@ -396,6 +458,7 @@ async function loadAdminPendingMoves() {
     return;
   }
   adminMovesCount_ = (result.data || []).length;
+  updateAdminMovesChip_();
   if (!result.data || result.data.length === 0) {
     container.innerHTML = `<p class="mono" style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">No pending moves.</p>`;
     return;
