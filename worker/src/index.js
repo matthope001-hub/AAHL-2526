@@ -855,7 +855,9 @@ async function weeklyImage(request, env) {
 // or hide it (adminRecap). Off switch: Worker variable RECAP = off.
 
 const RECAP_CRONS = ['30 9,10,11 * * *'];
-const RECAP_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+// Tried in order (the first is better at sticking to the facts; the second
+// is a smaller backup). Old llama-3.1-8b-instruct was retired May 2026.
+const RECAP_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct-fast'];
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const f1 = (n) => (Math.round((Number(n) || 0) * 10) / 10).toFixed(1);
@@ -954,8 +956,9 @@ async function writeRecap(env, f) {
   if (!env.AI || typeof env.AI.run !== 'function') return { text: recapTemplate(f), source: 'template', note: 'AI not set up' };
   let note = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
+    const model = RECAP_MODELS[attempt - 1];
     try {
-      const out = await env.AI.run(RECAP_MODEL, {
+      const out = await env.AI.run(model, {
         messages: [
           { role: 'system', content: 'You write the "Last Night in the AAHL" blurb for a friendly fantasy hockey pool website. Write 2 or 3 short, fun sentences in the voice of an upbeat hockey broadcaster. Use ONLY the facts given - never invent stats, scores, players, teams or numbers, and copy numbers exactly as written. Mention the top star and the best pool team; mention the pool leader if they are new. Light teasing of the quietest team is fine, never mean. Plain text only: no hashtags, no emojis, no quotes, no title.' },
           { role: 'user', content: facts }
@@ -966,10 +969,10 @@ async function writeRecap(env, f) {
       const text = String((out && (out.response || out.result && out.result.response)) || '').replace(/^["\s]+|["\s]+$/g, '').replace(/\s+/g, ' ');
       const problem = recapCheck(text, f, facts);
       if (!problem) return { text, source: 'ai' };
-      note = 'AI text failed the check (' + problem + '): ' + text.slice(0, 200);
+      note = model.split('/').pop() + ': AI text failed the check (' + problem + '): ' + text.slice(0, 200);
       console.log('Recap: ' + note);
     } catch (err) {
-      note = 'AI error: ' + err.message;
+      note = model.split('/').pop() + ': AI error: ' + err.message;
       console.log('Recap: ' + note);
     }
   }
