@@ -1052,11 +1052,14 @@ async function buildBoxProjection(env) {
   const t0 = Date.now();
   const config = await getConfig(env);
   const seasonStart = String(config.seasonStartDate || '2026-09-01').slice(0, 10);
+  // Exact season URL: '/current' redirects, and every redirect counts toward
+  // the free plan's 50 outgoing requests per run (32 rosters + 4 database).
+  const season = String(config.currentSeason || '20262027');
 
   const [totals, poolRows, rosters] = await Promise.all([
     sb(env, 'rpc/season_player_totals', { method: 'POST', body: JSON.stringify({ season_start: seasonStart }) }),
     sb(env, 'players?select=id,name:data->>fullName,team:data->>team,position:data->>position,headshot:data->>headshotUrl'),
-    Promise.all(NHL_TEAMS.map(t => nhl('/roster/' + t + '/current').then(r => ({ t, r })).catch(() => ({ t, r: null }))))
+    Promise.all(NHL_TEAMS.map(t => nhl('/roster/' + t + '/' + season).then(r => ({ t, r })).catch(() => ({ t, r: null }))))
   ]);
 
   // Who's who: current rosters first, then our own player list as backup.
