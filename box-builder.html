@@ -29,11 +29,14 @@
   .tabs button.on { color:var(--ice); border-color:var(--ice); }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; }
   .box { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .box-h { display:flex; justify-content:space-between; align-items:baseline; padding:8px 12px; background:var(--alt); border-bottom:1px solid var(--line); }
-  .box-h b { font-size:18px; } .box-h span { font-family:var(--mono); font-size:11px; color:var(--dim); }
-  .box-h span i { font-style:normal; color:var(--ice); }
+  .box-h { display:grid; grid-template-columns:1fr auto; grid-template-rows:auto auto; column-gap:10px; row-gap:3px; align-items:baseline; padding:9px 12px 8px; background:var(--alt); border-bottom:1px solid var(--line); }
+  .box-h b { font-size:18px; font-weight:800; letter-spacing:.3px; text-transform:uppercase; white-space:nowrap; }
+  .box-h .tot { font-family:var(--mono); font-size:16px; font-weight:500; color:var(--ice); text-align:right; white-space:nowrap; }
+  .box-h .meta { grid-column:1 / -1; display:flex; gap:6px; align-items:center; font-family:var(--mono); font-size:10.5px; color:var(--dim); white-space:nowrap; }
+  .box-h .meta .newc { color:#0a0a0a; background:var(--green); border-radius:4px; padding:0 5px; font-weight:700; }
+  .box-h .meta .lbl { color:#666; }
   .list { min-height:60px; padding:6px; }
-  .pl { display:grid; grid-template-columns:30px 1fr auto; gap:8px; align-items:center; padding:5px 6px; border-radius:8px; cursor:grab; border:1px solid transparent; }
+  .pl { display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:8px; align-items:center; padding:5px 6px; border-radius:8px; cursor:grab; border:1px solid transparent; }
   .pl:hover { background:#1a1a1a; border-color:var(--line); }
   .pl img, .pl .ph { width:30px; height:30px; border-radius:50%; object-fit:cover; background:var(--alt); }
   .pl .nm { font-size:16px; font-weight:700; line-height:1.05; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -49,6 +52,8 @@
   .ghost { opacity:.35; } .chosen { background:#16222c !important; border-color:var(--ice) !important; cursor:grabbing; }
   .rank { color:#555; font-family:var(--mono); font-size:10px; }
   .pl { cursor:pointer; }
+  .pl > div { min-width:0; }
+  .pl .nm { display:flex; align-items:center; overflow:visible; } .pl .nmt { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .pl .nm .badge-new { flex-shrink:0; }
   .scoring { display:none; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:8px; padding:10px 12px; margin-bottom:14px; }
   .scoring.on { display:block; }
   .scoring h4 { font-size:16px; margin-bottom:2px; } .scoring p { font-family:var(--mono); font-size:11px; color:var(--dim); margin-bottom:8px; }
@@ -182,11 +187,12 @@
       const list = (boxes[key] || []).map(id => byId[id]).filter(Boolean);
       const total = list.reduce((s, p) => s + pts(p), 0);
       const newCount = poolIds.size ? list.filter(p => !poolIds.has(String(p.id))).length : 0;
-      html.push(`<div class="box"><div class="box-h"><b>${L.label} ${i + 1}</b><span>${newCount ? `<em>${newCount} new</em> · ` : ''}total <i>${total.toFixed(1)}</i> · avg ${list.length ? (total / list.length).toFixed(1) : '0.0'}</span></div>
+      html.push(`<div class="box"><div class="box-h"><b>${L.label} ${i + 1}</b><span class="tot" title="Box total">${total.toFixed(1)}</span>
+        <div class="meta"><span>avg ${list.length ? (total / list.length).toFixed(1) : '0.0'} per player</span>${newCount ? `<span class="lbl">·</span><span class="newc">${newCount} NEW</span>` : ''}</div></div>
         <div class="list" data-box="${key}">${list.map(p => `
           <div class="pl${autoBox[p.id] !== key ? ' moved' : ''}${poolIds.size && !poolIds.has(String(p.id)) ? ' new' : ''}" data-id="${esc(p.id)}">
             ${p.headshotUrl ? `<img src="${esc(p.headshotUrl)}" alt="" width="30" height="30" loading="lazy">` : '<span class="ph"></span>'}
-            <div><div class="nm">${esc(p.fullName)}${poolIds.size && !poolIds.has(String(p.id)) ? '<span class="badge-new" title="Not in this year\'s pool">NEW</span>' : ''}</div><div class="mt">${esc(p.team)} · ${esc(p.position)} · ${gp(p)}GP <span class="rank">#${p._rank}</span></div></div>
+            <div><div class="nm"><span class="nmt">${esc(p.fullName)}</span>${poolIds.size && !poolIds.has(String(p.id)) ? '<span class="badge-new" title="Not in this year\'s pool">NEW</span>' : ''}</div><div class="mt">${esc(p.team)} · ${esc(p.position)} · ${gp(p)}GP <span class="rank">#${p._rank}</span></div></div>
             <div class="pt">${pts(p).toFixed(1)}<small>${gp(p) ? (pts(p) / gp(p)).toFixed(2) : '0.00'}/gm</small></div>
           </div>`).join('')}</div></div>`);
     }
