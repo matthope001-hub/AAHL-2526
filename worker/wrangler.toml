@@ -26,6 +26,13 @@ binding = "AI"
 [browser]
 binding = "BROWSER"
 
+# Workers Logs: keeps console.log lines + per-run CPU time for 3 days so
+# they can be searched (Cloudflare -> aahl-2526 -> Observability). Free plan
+# allowance is far above our ~1,500 runs a day.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 # Public, non-secret settings. The three secrets (SUPABASE_SERVICE_KEY,
 # WORKER_SHARED_SECRET, LATE_INVITE_SECRET) are added in the Cloudflare
 # dashboard, never here - this file is public on GitHub.
