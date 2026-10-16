@@ -42,6 +42,10 @@
   .pl .pt small { display:block; font-size:9.5px; color:var(--dim); }
   .pl.moved { border-color:var(--amber); background:#1c1015; }
   .pl.moved .nm::after { content:' ✎'; color:var(--amber); font-size:12px; }
+  .pl.new { background:linear-gradient(90deg, rgba(62,207,106,.13), transparent 70%); border-color:rgba(62,207,106,.45); }
+  .badge-new { display:inline-block; font-family:var(--mono); font-size:9px; font-weight:700; letter-spacing:1px; color:#0a0a0a; background:var(--green); border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:2px; }
+  .box-h span em { font-style:normal; color:var(--green); }
+  .legend { display:inline-flex; align-items:center; gap:6px; }
   .ghost { opacity:.35; } .chosen { background:#16222c !important; border-color:var(--ice) !important; cursor:grabbing; }
   .rank { color:#555; font-family:var(--mono); font-size:10px; }
   .status { font-family:var(--mono); font-size:13px; color:var(--dim); padding:30px; text-align:center; }
@@ -65,7 +69,7 @@
 <div class="note">
   Boxes <b>fill themselves</b> from this season's pool points, using our scoring: best 6 forwards → Forward 1, next 6 → Forward 2, and so on (16 F · 5 D · 6 G boxes of 6).
   Re-filled automatically every time you open it, so it tracks the season. <b>Drag</b> a player to another box to adjust; moved players get a <span style="color:var(--amber)">✎</span>.
-  Each box shows its <b>total and average</b> so you can keep them balanced.
+  Each box shows its <b>total and average</b> so you can keep them balanced. <span class="legend"><span class="badge-new" style="margin:0">NEW</span> = not in this year's pool</span>.
   <br>Ranks <b>every NHL player</b> who has played this season (hat tricks included), refreshed <b>every Monday</b> (Admin → Tools can refresh it sooner). Your drags are remembered in this browser only.
 </div>
 
@@ -80,7 +84,7 @@
   const LAYOUT = { F: { boxes: 16, label: 'Forward' }, D: { boxes: 5, label: 'Defence' }, G: { boxes: 6, label: 'Goalie' } };
   const PER_BOX = 6;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  let players = [], cfg = {}, rankBy = 'total', tab = 'F', boxes = {}, autoBox = {};
+  let players = [], cfg = {}, rankBy = 'total', tab = 'F', boxes = {}, autoBox = {}, poolIds = new Set();
 
   const get = async (path) => {
     const r = await fetch(SB + path, { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY } });
@@ -137,11 +141,12 @@
       const key = tab + (i + 1);
       const list = (boxes[key] || []).map(id => byId[id]).filter(Boolean);
       const total = list.reduce((s, p) => s + pts(p), 0);
-      html.push(`<div class="box"><div class="box-h"><b>${L.label} ${i + 1}</b><span>total <i>${total.toFixed(1)}</i> · avg ${list.length ? (total / list.length).toFixed(1) : '0.0'}</span></div>
+      const newCount = poolIds.size ? list.filter(p => !poolIds.has(String(p.id))).length : 0;
+      html.push(`<div class="box"><div class="box-h"><b>${L.label} ${i + 1}</b><span>${newCount ? `<em>${newCount} new</em> · ` : ''}total <i>${total.toFixed(1)}</i> · avg ${list.length ? (total / list.length).toFixed(1) : '0.0'}</span></div>
         <div class="list" data-box="${key}">${list.map(p => `
-          <div class="pl${autoBox[p.id] !== key ? ' moved' : ''}" data-id="${esc(p.id)}">
+          <div class="pl${autoBox[p.id] !== key ? ' moved' : ''}${poolIds.size && !poolIds.has(String(p.id)) ? ' new' : ''}" data-id="${esc(p.id)}">
             ${p.headshotUrl ? `<img src="${esc(p.headshotUrl)}" alt="" width="30" height="30" loading="lazy">` : '<span class="ph"></span>'}
-            <div><div class="nm">${esc(p.fullName)}</div><div class="mt">${esc(p.team)} · ${esc(p.position)} · ${gp(p)}GP <span class="rank">#${p._rank}</span></div></div>
+            <div><div class="nm">${esc(p.fullName)}${poolIds.size && !poolIds.has(String(p.id)) ? '<span class="badge-new" title="Not in this year\'s pool">NEW</span>' : ''}</div><div class="mt">${esc(p.team)} · ${esc(p.position)} · ${gp(p)}GP <span class="rank">#${p._rank}</span></div></div>
             <div class="pt">${pts(p).toFixed(1)}<small>${gp(p) ? (pts(p) / gp(p)).toFixed(2) : '0.00'}/gm</small></div>
           </div>`).join('')}</div></div>`);
     }
@@ -170,7 +175,8 @@
 
   (async function load() {
     try {
-      const [proj, season] = await Promise.all([get('config?id=eq.boxProjection&select=data'), get('config?id=eq.season&select=data')]);
+      const [proj, season, boxRows] = await Promise.all([get('config?id=eq.boxProjection&select=data'), get('config?id=eq.season&select=data'), get('boxes?select=data').catch(() => [])]);
+      (boxRows || []).forEach(b => ((b.data && b.data.players) || []).forEach(x => poolIds.add(String(x.playerId))));
       cfg = (season[0] && season[0].data) || {};
       const pj = proj[0] && proj[0].data;
       if (pj && pj.players && pj.players.length) {
