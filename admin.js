@@ -188,6 +188,15 @@ function renderAdminEntries(entries) {
           <div id="admin-weekly-image-result" style="margin-top:10px;"></div>
         </div>
         <div class="panel adm-tool">
+          <h3>📦 2027-28 Box Builder</h3>
+          <p class="adm-help">Next season's boxes from this season's points, all NHL players. Refreshes every Monday.</p>
+          <div class="adm-row">
+            <a class="admin-btn" href="box-builder.html" target="_blank" rel="noopener" style="text-decoration:none;">Open</a>
+            <button id="admin-box-proj-btn" class="admin-btn">Refresh now</button>
+          </div>
+          <div id="admin-box-proj-status" class="status-msg"></div>
+        </div>
+        <div class="panel adm-tool">
           <h3>🏒 Sign Up button</h3>
           <p class="adm-help">Show the Sign Up button on the Home page.</p>
           <label class="toggle-switch">
@@ -198,6 +207,17 @@ function renderAdminEntries(entries) {
       </div>
     </section>
   `;
+
+  // Box Builder: rebuild the all-NHL projection now
+  const projBtn = document.getElementById('admin-box-proj-btn');
+  if (projBtn) projBtn.addEventListener('click', async () => {
+    const st = document.getElementById('admin-box-proj-status');
+    projBtn.disabled = true; st.className = 'status-msg'; st.textContent = 'Building… (about 10 seconds)';
+    const r = await adminBoxProjection(adminPassword);
+    projBtn.disabled = false;
+    st.className = 'status-msg' + (r && r.success ? '' : ' error');
+    st.textContent = r && r.success ? `Done: ${r.data.counted} players counted, top ${r.data.kept} kept (${r.data.rosterTeams}/32 rosters).` : ((r && r.error) || 'Failed');
+  });
 
   // Tabs (remembered per browser)
   const showPane = (name) => {

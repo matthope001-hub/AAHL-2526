@@ -15,7 +15,9 @@
  *   POST /weekly-image          - PNG screenshot of theaahl.ca/weekly.html for the
  *                                 Monday email (WeeklyImage.gs; shared secret)
  *   POST adminRecap             - Admin: rewrite / hide / show the nightly recap
+ *   POST adminBoxProjection     - Admin: rebuild next season's box projection now
  *   CRON (mornings)               - "Last Night in the AAHL" recap (Workers AI)
+ *   CRON (Mondays)                - next season's box projection (all NHL players)
  *   CRON (every minute, evenings) - live pool points + Today's Games scores
  *                                 during games (see "live points" below)
  *
@@ -41,7 +43,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -101,6 +103,11 @@ export default {
           case 'adminGetEntries': result = await adminGetEntries(env, body); break;
           case 'adminGetPendingMoves': result = await adminGetPendingMoves(env, body); break;
           case 'adminRecap': result = await adminRecap(env, body); break;
+          case 'adminBoxProjection': {
+            const denied = adminDenied(env, body);
+            result = denied ? Object.assign(denied, { fallback: false }) : await buildBoxProjection(env);
+            break;
+          }
           default: result = { success: false, error: 'Unknown action: ' + body.action };
         }
       } else {
@@ -115,6 +122,10 @@ export default {
 
   // Cron trigger (wrangler.toml [triggers]) - live points during games.
   async scheduled(event, env, ctx) {
+    if (event.cron === BOX_PROJECTION_CRON) {
+      ctx.waitUntil(buildBoxProjection(env).catch(err => console.log('Box projection failed: ' + (err && err.stack || err))));
+      return;
+    }
     if (RECAP_CRONS.includes(event.cron)) {
       if (env.RECAP === 'off') { ctx.waitUntil(saveLiveHealth(env).catch(() => {})); return; }
       ctx.waitUntil(runNightlyRecap(env, false).catch(err => console.log('Recap failed: ' + (err && err.stack || err))));
@@ -1021,4 +1032,74 @@ async function adminRecap(env, body) {
   }
   if (body.op === 'get') return { success: true, data: await getConfigDoc(env, 'nightlyRecap') };
   return { success: false, error: 'Unknown recap action' };
+}
+
+// ------------------------------------------------- box projection (weekly)
+// Next season's boxes are built from this season's pool points. Every NHL
+// player who has dressed is included: season totals come from our own
+// nightly box-score snapshots (Postgres function season_player_totals - so
+// hat tricks count too), names/positions from the 32 NHL team rosters.
+// Keeps the top candidates per position (more than the boxes need, so
+// there's room to swap) in config/boxProjection, which box-builder.html
+// reads. Weekly (Mondays) + Admin "refresh now". Read-only for the pool.
+
+const BOX_PROJECTION_CRON = '0 10 * * 1';
+const NHL_TEAMS = ['ANA', 'BOS', 'BUF', 'CAR', 'CBJ', 'CGY', 'CHI', 'COL', 'DAL', 'DET', 'EDM', 'FLA', 'LAK', 'MIN', 'MTL', 'NJD',
+  'NSH', 'NYI', 'NYR', 'OTT', 'PHI', 'PIT', 'SEA', 'SJS', 'STL', 'TBL', 'TOR', 'UTA', 'VAN', 'VGK', 'WPG', 'WSH'];
+const PROJECTION_KEEP = { F: 150, D: 50, G: 50 };
+
+async function buildBoxProjection(env) {
+  const t0 = Date.now();
+  const config = await getConfig(env);
+  const seasonStart = String(config.seasonStartDate || '2026-09-01').slice(0, 10);
+
+  const [totals, poolRows, rosters] = await Promise.all([
+    sb(env, 'rpc/season_player_totals', { method: 'POST', body: JSON.stringify({ season_start: seasonStart }) }),
+    sb(env, 'players?select=id,name:data->>fullName,team:data->>team,position:data->>position,headshot:data->>headshotUrl'),
+    Promise.all(NHL_TEAMS.map(t => nhl('/roster/' + t + '/current').then(r => ({ t, r })).catch(() => ({ t, r: null }))))
+  ]);
+
+  // Who's who: current rosters first, then our own player list as backup.
+  const info = {};
+  (poolRows || []).forEach(p => { info[p.id] = { name: p.name, team: p.team, position: p.position, headshot: p.headshot }; });
+  let rosterTeams = 0;
+  rosters.forEach(({ t, r }) => {
+    if (!r) return;
+    rosterTeams++;
+    ['forwards', 'defensemen', 'goalies'].forEach(grp => (r[grp] || []).forEach(p => {
+      const name = [(p.firstName && p.firstName.default) || '', (p.lastName && p.lastName.default) || ''].join(' ').trim();
+      info[String(p.id)] = { name: name, team: t, position: p.positionCode || (grp === 'goalies' ? 'G' : grp === 'defensemen' ? 'D' : 'C'), headshot: p.headshot || '' };
+    }));
+  });
+
+  const groupOf = (pos, goalie) => goalie || pos === 'G' ? 'G' : pos === 'D' ? 'D' : 'F';
+  const ranked = { F: [], D: [], G: [] };
+  (totals || []).forEach(t => {
+    const who = info[t.player_id];
+    if (!who || !who.name) return; // not on an NHL roster now (e.g. sent down) and not in the pool
+    const g = groupOf(who.position, t.is_goalie);
+    const stats = g === 'G'
+      ? { wins: t.wins, losses: t.losses, otl: t.otl, shutouts: t.shutouts, saves: t.saves }
+      : { goals: t.goals, assists: t.assists, sog: t.sog, pim: t.pim, hatTricks: t.hat_tricks };
+    const pts = computePlayerPoints({ position: g === 'G' ? 'G' : who.position, stats: stats }, config);
+    ranked[g].push({
+      id: t.player_id, fullName: who.name, team: who.team, position: g === 'G' ? 'G' : who.position, headshotUrl: who.headshot,
+      stats: Object.assign({ gamesPlayed: t.gp }, stats), pts: Math.round(pts * 100) / 100
+    });
+  });
+  const players = [];
+  Object.keys(ranked).forEach(g => {
+    ranked[g].sort((a, b) => b.pts - a.pts);
+    players.push(...ranked[g].slice(0, PROJECTION_KEEP[g]));
+  });
+
+  const doc = {
+    updatedAt: new Date().toISOString(), seasonStart: seasonStart,
+    counted: (totals || []).length, rosterTeams: rosterTeams,
+    maxGames: players.reduce((m, p) => Math.max(m, p.stats.gamesPlayed || 0), 0),
+    players: players
+  };
+  await putConfigDoc(env, 'boxProjection', doc);
+  console.log(`Box projection: ${doc.counted} players counted, ${players.length} kept, ${rosterTeams}/32 rosters, ${Date.now() - t0} ms`);
+  return { success: true, data: { updatedAt: doc.updatedAt, counted: doc.counted, kept: players.length, rosterTeams: rosterTeams } };
 }

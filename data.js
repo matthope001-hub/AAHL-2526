@@ -590,6 +590,19 @@ async function adminRecap(password, op) {
   }
 }
 
+// Rebuild next season's box projection now (Worker only).
+async function adminBoxProjection(password) {
+  try {
+    return await fetchJsonWithRetry_(WORKER_URL + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'adminBoxProjection', password })
+    });
+  } catch (e) {
+    return { success: false, error: "Couldn't reach the server." };
+  }
+}
+
 async function adminGetEntries(password) {
   return adminRead_('adminGetEntries', password);
 }

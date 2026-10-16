@@ -66,7 +66,7 @@
   Boxes <b>fill themselves</b> from this season's pool points, using our scoring: best 6 forwards → Forward 1, next 6 → Forward 2, and so on (16 F · 5 D · 6 G boxes of 6).
   Re-filled automatically every time you open it, so it tracks the season. <b>Drag</b> a player to another box to adjust; moved players get a <span style="color:var(--amber)">✎</span>.
   Each box shows its <b>total and average</b> so you can keep them balanced.
-  <br>Your drags are remembered in this browser only. Ranks the 162 players in this season's boxes for now; the April version ranks <b>every NHL player</b> and can publish.
+  <br>Ranks <b>every NHL player</b> who has played this season (hat tricks included), refreshed <b>every Monday</b> (Admin → Tools can refresh it sooner). Your drags are remembered in this browser only.
 </div>
 
 <div class="tabs" id="tabs"><button data-t="F" class="on">Forwards</button><button data-t="D">Defence</button><button data-t="G">Goalies</button></div>
@@ -170,11 +170,21 @@
 
   (async function load() {
     try {
-      const [rows, season] = await Promise.all([get('players?select=id,data'), get('config?id=eq.season&select=data')]);
+      const [proj, season] = await Promise.all([get('config?id=eq.boxProjection&select=data'), get('config?id=eq.season&select=data')]);
       cfg = (season[0] && season[0].data) || {};
-      players = rows.map(r => Object.assign({ id: r.id }, r.data)).filter(p => p.position);
-      const games = players.reduce((m, p) => Math.max(m, gp(p)), 0);
-      document.getElementById('sub').textContent = `Based on 2026-27 pool points so far (up to ${games} games played) · ${players.length} players · updated live`;
+      const pj = proj[0] && proj[0].data;
+      if (pj && pj.players && pj.players.length) {
+        // Weekly projection: every NHL player who has dressed (incl. hat tricks).
+        players = pj.players;
+        const when = new Date(pj.updatedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        document.getElementById('sub').textContent = `All NHL players · 2026-27 pool points so far (up to ${pj.maxGames} games) · ${pj.counted} players counted · updated ${when} (weekly)`;
+      } else {
+        // Not built yet: fall back to this season's pool players.
+        const rows = await get('players?select=id,data');
+        players = rows.map(r => Object.assign({ id: r.id }, r.data)).filter(p => p.position);
+        const games = players.reduce((m, p) => Math.max(m, gp(p)), 0);
+        document.getElementById('sub').textContent = `This season's 162 pool players only (all-NHL list not built yet) · up to ${games} games`;
+      }
       autoFill(); applyMoves(); render();
     } catch (err) {
       document.getElementById('grid').innerHTML = `<div class="status">Couldn't load players (${esc(err.message)}). Open this file in a normal browser tab.</div>`;
