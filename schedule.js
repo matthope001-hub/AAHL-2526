@@ -19,6 +19,10 @@
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
 
   function load(date) {
+    if (!date) {
+      var now = new Date();
+      if (now.getDay() === 0) { now.setDate(now.getDate() + 1); date = fmt(now); }
+    }
     var k = date || 'cur';
     if (mem[k]) { st.data = mem[k]; st.start = mem[k].start; render(); return; }
     st.el.innerHTML = '<div class="sg-msg">Loading schedule…</div>';

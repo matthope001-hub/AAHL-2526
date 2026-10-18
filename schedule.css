@@ -14,12 +14,13 @@
 .sg-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
 .sg-kicker { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .12em; color: var(--sg-dim); }
 .sg-sub { font-size: 15px; color: var(--sg-dim); }
-.sg-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.sg-nav { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .sg-btn {
   background: var(--sg-panel); color: var(--sg-text); border: 1px solid var(--sg-line);
   font: 600 14px 'Barlow Condensed', sans-serif; text-transform: uppercase; letter-spacing: .06em;
   padding: 6px 12px; border-radius: 4px; cursor: pointer;
 }
+.sg-root button.sg-btn { width: auto !important; margin: 0 !important; padding: 6px 12px !important; font-size: 14px !important; }
 .sg-btn:hover { border-color: var(--sg-ice); color: var(--sg-ice); }
 .sg-btn.sg-on { background: var(--sg-ice); color: var(--sg-bg); border-color: var(--sg-ice); }
 
