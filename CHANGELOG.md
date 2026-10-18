@@ -9,13 +9,16 @@ _Oct 18, 2026_
 - **Best & Worst schedules**: the teams with the most and fewest games this week, shown as cards above the grid
 - Flip between weeks with ◀ / ▶; on Sundays it opens next week automatically
 - **Tap a game** on Today's Games: it flips over into a card of the pool players in that game — who has points (live during the game, final after), their goals, assists or saves, and how many pool teams have them (tap to see which). Before puck drop it lists each side's pool players. 🎩 marks a hat trick
+- The game card updates on its own as live points come in, and the ticker pauses while it's open
 - Fixes: schedule buttons no longer stretch full-width on phones; bigger close button on the game card
+- Behind the scenes: the schedule comes from the fast server (api.theaahl.ca), cached for 6 hours
 
 ## v3.1 — Tidier Admin & next season's box builder
 _Oct 16, 2026_
 - **Admin redesign**: summary chips (teams, awaiting approval, unpaid, pending moves) and three tabs — **Today** (pending moves, last night's recap, live points health), **Teams** (searchable list, tap Paid/Unpaid to switch, extra actions under ⋯) and **Tools** (trades, IR list, weekly image, Sign Up button)
-- **2027-28 Box Builder** (Admin → 📦): next season's boxes filled automatically from this season's pool points, updated as the season goes; drag to adjust, balance check per box; tap a player for stats; **what-if scoring** including extra stats (hits, blocks, PPP, +/-, takeaways and more)
+- **2027-28 Box Builder** (Admin → 📦): next season's boxes filled automatically from this season's pool points, updated as the season goes; drag to adjust, balance check per box; **NEW** badge on players new to the pool; tap a player for stats; **what-if scoring** including extra stats (hits, blocks, PPP, +/-, takeaways and more)
 - Nightly recap now written by AI (model updated), live points tuned for 14-game nights, live-points health tracking in Admin
+- Behind the scenes: fast server now blocks junk bot traffic and keeps searchable logs; retired Apps Script files archived
 
 ## v3.0 — Faster everything, live points every minute
 _Oct 15, 2026_
