@@ -100,6 +100,14 @@
     return h + '</div>';
   }
 
+  // Any pool player in this game with 3+ goals?
+  function hatTrick(g, pts) {
+    return (typeof allPlayers !== 'undefined' ? allPlayers : []).some(function (p) {
+      var s = pts[p.id];
+      return s && (s.goals || 0) >= 3 && (p.team === g.away || p.team === g.home) && poolPlayerIds.has(p.id);
+    });
+  }
+
   function cardHtml(g) {
     var pts = tonightPts();
     var started = g.state === 'live' || g.state === 'final';
@@ -120,7 +128,9 @@
       '</div>' +
       '<div class="gc-title">' + (started ? 'Pool points' : 'Pool players in this game') + '</div>' +
       '<div class="gc-body">' + teamBlock(g.away, g, pts) + teamBlock(g.home, g, pts) + '</div>' +
-      (updated ? '<div class="gc-foot">' + esc(updated) + '</div>' : '') +
+      ((updated || hatTrick(g, pts)) ? '<div class="gc-foot">' +
+        (hatTrick(g, pts) ? '<div class="gc-hat">🎩 = hat trick · bonus points included</div>' : '') +
+        esc(updated) + '</div>' : '') +
       '</div>';
   }
 

@@ -3,6 +3,14 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.2 — Weekly schedule & tap-a-game pool points
+_Oct 18, 2026_
+- **Weekly Schedule** (More → Schedule): every NHL team night by night, Monday to Sunday — home games filled, away games outlined, light nights (fewer than 8 games) shaded, with games and light-night totals for each team
+- **Best & Worst schedules**: the teams with the most and fewest games this week, shown as cards above the grid
+- Flip between weeks with ◀ / ▶; on Sundays it opens next week automatically
+- **Tap a game** on Today's Games: it flips over into a card of the pool players in that game — who has points (live during the game, final after), their goals, assists or saves, and how many pool teams have them (tap to see which). Before puck drop it lists each side's pool players. 🎩 marks a hat trick
+- Fixes: schedule buttons no longer stretch full-width on phones; bigger close button on the game card
+
 ## v3.1 — Tidier Admin & next season's box builder
 _Oct 16, 2026_
 - **Admin redesign**: summary chips (teams, awaiting approval, unpaid, pending moves) and three tabs — **Today** (pending moves, last night's recap, live points health), **Teams** (searchable list, tap Paid/Unpaid to switch, extra actions under ⋯) and **Tools** (trades, IR list, weekly image, Sign Up button)

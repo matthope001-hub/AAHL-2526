@@ -1634,3 +1634,5 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .gc-more summary { cursor: pointer; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); padding: 8px 0 4px; }
 .gc-foot { padding: 8px 14px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
 @media (max-width: 480px) { .gc-abbr { font-size: 18px; } .gc-score { font-size: 20px; } .gc-row { grid-template-columns: 30px 1fr auto 52px; } .gc-shot { width: 30px; height: 30px; } }
+
+.gc-hat { color: var(--text); margin-bottom: 2px; }
