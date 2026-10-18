@@ -1576,3 +1576,57 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .adm-menu button { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .adm-tag { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .adm-tool .admin-btn, .adm-teams-bar .admin-btn { border-radius: 6px; padding: 7px 12px; }
+
+
+/* ---------- Game card (tap a game on the Today's Games ticker) ---------- */
+#todays-games .game-chip { cursor: pointer; transition: border-color .15s; }
+#todays-games .game-chip:hover, #todays-games .game-chip:focus-visible { border-color: var(--ice); outline: none; }
+.game-chip.gc-flip { animation: gcChipFlip .55s ease-in-out; }
+@keyframes gcChipFlip { 0% { transform: perspective(500px) rotateY(0); } 50% { transform: perspective(500px) rotateY(90deg); } 100% { transform: perspective(500px) rotateY(0); } }
+
+.gc-overlay {
+  display: none; position: fixed; inset: 0; z-index: 95; background: rgba(0,0,0,.72);
+  align-items: center; justify-content: center; padding: 16px; perspective: 1200px;
+}
+.gc-overlay.gc-open { display: flex; }
+.gc-card {
+  position: relative; width: 100%; max-width: 460px; max-height: 86vh; display: flex; flex-direction: column;
+  background: var(--bg); border: 1px solid var(--ice); border-top: 4px solid var(--ice); border-radius: 12px;
+  color: var(--text); overflow: hidden; transform-origin: center;
+  animation: gcCardIn .45s cubic-bezier(.2,.8,.25,1) both .2s;
+}
+@keyframes gcCardIn { 0% { transform: rotateY(-90deg) scale(.7); opacity: 0; } 60% { opacity: 1; } 100% { transform: rotateY(0) scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .gc-card { animation: none; } .game-chip.gc-flip { animation: none; } }
+.gc-x {
+  position: absolute; top: 6px; right: 8px; background: none !important; border: 0; color: var(--text-dim);
+  font-size: 26px; line-height: 1; cursor: pointer; margin: 0 !important; padding: 4px 8px !important; width: auto !important; z-index: 2;
+}
+.gc-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 16px 40px 10px 14px; background: var(--bg-panel); border-bottom: 1px solid var(--border); }
+.gc-side { display: flex; align-items: center; gap: 6px; }
+.gc-home { justify-content: flex-end; }
+.gc-logo { width: 30px; height: 30px; }
+.gc-abbr { font-size: 22px; font-weight: 700; letter-spacing: .04em; }
+.gc-score { font-family: var(--font-mono); font-size: 24px; font-weight: 700; }
+.gc-status { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; text-align: center; white-space: nowrap; }
+.gc-live { color: var(--amber); } .gc-final { color: var(--text-dim); } .gc-pre { color: var(--ice); }
+.gc-title { padding: 10px 14px 4px; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-dim); }
+.gc-body { overflow-y: auto; padding: 0 14px 12px; -webkit-overflow-scrolling: touch; }
+.gc-team { margin-top: 8px; }
+.gc-team-hd { display: flex; align-items: center; gap: 6px; font-size: 17px; font-weight: 700; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.gc-team-hd .gc-logo { width: 22px; height: 22px; }
+.gc-team-tot { margin-left: auto; font-family: var(--font-mono); font-size: 14px; color: var(--ice); }
+.gc-dimtxt { color: var(--text-dim); font-size: 12px; }
+.gc-row { display: grid; grid-template-columns: 34px 1fr auto 58px; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.gc-row:last-child { border-bottom: 0; }
+.gc-shot { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: var(--bg-panel-alt); }
+.gc-shot-empty { display: inline-block; }
+.gc-who { display: flex; flex-direction: column; min-width: 0; }
+.gc-name { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gc-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+.gc-stat { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+.gc-pts { font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--ice); text-align: right; }
+.gc-dim .gc-name { color: var(--text-dim); } .gc-dim .gc-pts { color: var(--text-dim); font-weight: 400; }
+.gc-empty { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); padding: 8px 0; }
+.gc-more summary { cursor: pointer; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); padding: 8px 0 4px; }
+.gc-foot { padding: 8px 14px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+@media (max-width: 480px) { .gc-abbr { font-size: 18px; } .gc-score { font-size: 20px; } .gc-row { grid-template-columns: 30px 1fr auto 52px; } .gc-shot { width: 30px; height: 30px; } }

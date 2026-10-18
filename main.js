@@ -540,7 +540,7 @@ async function renderTodaysGames() {
     }
     todaysGamesKey_ = key;
 
-    const cardHtml = (g) => `<div class="game-chip" data-game-id="${g.id}">${gameCardInner_(g)}</div>`;
+    const cardHtml = (g) => `<div class="game-chip" data-game-id="${g.id}" role="button" tabindex="0" title="Tap for pool points">${gameCardInner_(g)}</div>`;
 
     // Start with one still set of games.
     el.innerHTML = `
@@ -593,6 +593,7 @@ async function refreshLiveViews_() {
   // table's scroll position.
   const before = livePoints && livePoints.updatedAt;
   await loadTonight_(true);
+  if (window.GameCard) GameCard.refresh(); // open game card: show the new points
   if (!livePoints || livePoints.updatedAt === before) return;
   if (onHome) {
     const box = document.querySelector('#home-standings-preview .players-table-scroll');
