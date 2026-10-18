@@ -9,6 +9,7 @@
  *                                 division picks), also used by Admin trades
  *   GET  findEntryForMoves      - My Team look-up (entry ID + email)
  *   GET  checkLateInvite        - is a late invite link still good?
+ *   GET  schedule               - NHL weekly schedule grid (Mon-Sun, read-only)
  *   POST adminGetEntries        - Admin: all entries (password checked)
  *   POST adminGetPendingMoves   - Admin: pending move requests (password checked)
  *   GET  /health                - quick "is it up" check
@@ -94,6 +95,7 @@ export default {
         switch (p.get('action')) {
           case 'findEntryForMoves': result = await findEntryForMoves(env, p.get('entryId'), p.get('email')); break;
           case 'checkLateInvite': result = await checkLateInvite(env, p.get('token')); break;
+          case 'schedule': result = await getWeekSchedule(p.get('date')); break;
           default: result = { success: false, error: 'Unknown action: ' + p.get('action') };
         }
       } else if (request.method === 'POST') {
@@ -1147,4 +1149,48 @@ async function addProjectionExtras(players, season) {
   })));
   await Promise.all(jobs);
   return true;
+}
+
+// ---------- Weekly schedule grid (read-only, no Supabase) ----------
+// Mon-Sun regular season games from the public NHL API, cached 6h at
+// Cloudflare's edge. Shape: { start, end, days: [{ date, games: [{ away, home }] }] }
+const SCHEDULE_TZ = 'America/Toronto';
+
+function scheduleYmd_(d) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: SCHEDULE_TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+function scheduleAddDays_(ymd, n) {
+  const d = new Date(ymd + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function scheduleMondayOf_(dateStr) {
+  const ymd = /^\d{4}-\d{2}-\d{2}$/.test(dateStr || '') ? dateStr : scheduleYmd_(new Date());
+  const dow = new Date(ymd + 'T12:00:00Z').getUTCDay() || 7; // 1=Mon ... 7=Sun
+  return scheduleAddDays_(ymd, 1 - dow);
+}
+async function scheduleFetchWeek_(ymd) {
+  const res = await fetch('https://api-web.nhle.com/v1/schedule/' + ymd, { cf: { cacheTtl: 21600, cacheEverything: true } });
+  if (!res.ok) throw new Error('NHL schedule fetch failed (' + res.status + ')');
+  return (await res.json()).gameWeek || [];
+}
+async function getWeekSchedule(dateStr) {
+  const start = scheduleMondayOf_(dateStr);
+  let week = await scheduleFetchWeek_(start);
+  // NHL sometimes returns fewer than 7 days - fetch again from the first missing date.
+  const have = new Set(week.map(d => d.date));
+  for (let i = 0; i < 7; i++) {
+    const d = scheduleAddDays_(start, i);
+    if (!have.has(d)) { week = week.concat(await scheduleFetchWeek_(d)); break; }
+  }
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const date = scheduleAddDays_(start, i);
+    const src = week.find(d => d.date === date);
+    const games = (src && src.games ? src.games : [])
+      .filter(g => g.gameType === 2)
+      .map(g => ({ away: g.awayTeam.abbrev, home: g.homeTeam.abbrev }));
+    days.push({ date, games });
+  }
+  return { success: true, data: { start, end: scheduleAddDays_(start, 6), days } };
 }

@@ -142,7 +142,7 @@ async function supabaseDirectGet_(table, id) {
  */
 const WORKER_URL = 'https://api.theaahl.ca';
 const USE_WORKER = true;
-const WORKER_GET_ACTIONS = ['findEntryForMoves', 'checkLateInvite'];
+const WORKER_GET_ACTIONS = ['findEntryForMoves', 'checkLateInvite', 'schedule'];
 const WORKER_POST_ACTIONS = ['createEntry', 'createLateEntry', 'submitBatchTeamChanges'];
 
 /**
