@@ -79,6 +79,8 @@
       (hl.length ? '<button class="sg-btn' + (st.mine ? ' sg-on' : '') + '" data-sg="mine">My teams</button>' : '') +
       '</div></div>';
 
+    h += cards(b);
+
     h += '<div class="sg-wrap"><table class="sg-table"><thead><tr><th class="sg-team">Team</th>';
     b.slate.forEach(function (s, i) {
       h += '<th class="' + (s.light ? 'sg-light' : '') + '"><span class="sg-day">' + DAYS[i] + '</span>' +
@@ -103,6 +105,39 @@
     h += '</tbody></table></div>' +
       '<div class="sg-legend">filled = home · @ = away · G = games · LN = light-night games · regular season only</div>';
     st.el.innerHTML = h;
+  }
+
+  // Best / worst schedule cards (like the r/fantasyhockey grids)
+  function cards(b) {
+    if (!b.rows.length) return '';
+    var best = b.rows.slice(0, 6);
+    var worst = b.rows.slice().sort(function (a, c) {
+      return a.g - c.g || a.ln - c.ln || a.team.localeCompare(c.team);
+    }).slice(0, 8);
+    return '<div class="sg-cards">' +
+      card('Best schedules', best, 'sg-good', b) +
+      card('Worst schedules', worst, 'sg-bad', b) +
+      '</div>';
+  }
+
+  function card(title, rows, tone, b) {
+    var h = '<div class="sg-card"><div class="sg-card-title">' + title + '</div>' +
+      '<div class="sg-crow sg-chead"><span></span>';
+    for (var i = 0; i < 7; i++) {
+      h += '<span class="sg-ccell' + (b.slate[i].light ? ' sg-light' : '') + '">' + DAYS[i].charAt(0) + '</span>';
+    }
+    h += '<span class="sg-ctot">G · LN</span></div>';
+    rows.forEach(function (r) {
+      h += '<div class="sg-crow' + (st.hl.indexOf(r.team) > -1 ? ' sg-hl' : '') + '"><span class="sg-cteam">' + esc(r.team) + '</span>';
+      for (var i = 0; i < 7; i++) {
+        var c = r.cells[i];
+        h += '<span class="sg-ccell' + (b.slate[i].light ? ' sg-light' : '') + '">' + (c
+          ? '<span class="sg-mini ' + (c.home ? 'sg-home' : 'sg-away') + '">' + esc(c.opp) + '</span>'
+          : '<span class="sg-dash">—</span>') + '</span>';
+      }
+      h += '<span class="sg-ctot ' + tone + '">' + r.g + ' · ' + r.ln + '</span></div>';
+    });
+    return h + '</div>';
   }
 
   function onClick(e) {

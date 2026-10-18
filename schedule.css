@@ -61,6 +61,26 @@ tbody tr:hover td { background-image: linear-gradient(rgba(255, 255, 255, .03), 
 .sg-msg { padding: 24px; text-align: center; color: var(--sg-dim); font-family: 'JetBrains Mono', monospace; font-size: 13px; }
 .sg-err { color: var(--sg-amber); }
 
+/* Best / worst cards */
+.sg-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.sg-card { background: var(--sg-panel); border: 1px solid var(--sg-line); border-radius: 6px; padding: 10px 10px 6px; }
+.sg-card-title { font-size: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.sg-crow { display: grid; grid-template-columns: 42px repeat(7, 1fr) 54px; align-items: center; border-bottom: 1px solid var(--sg-line); min-height: 34px; }
+.sg-crow:last-child { border-bottom: 0; }
+.sg-chead { min-height: 22px; font-size: 13px; font-weight: 700; color: var(--sg-dim); text-transform: uppercase; }
+.sg-chead .sg-light { color: var(--sg-amber); }
+.sg-ccell { display: flex; align-items: center; justify-content: center; align-self: stretch; }
+.sg-ccell.sg-light { background: var(--sg-light); }
+.sg-cteam { font-size: 16px; font-weight: 700; letter-spacing: .04em; }
+.sg-ctot { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; text-align: right; }
+.sg-chead .sg-ctot { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; color: var(--sg-dim); }
+.sg-mini {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 22px; border-radius: 999px;
+  font-family: 'JetBrains Mono', monospace; font-size: 8.5px; font-weight: 700; letter-spacing: -.02em;
+}
+.sg-dash { color: var(--sg-line); }
+.sg-crow.sg-hl .sg-cteam { color: var(--sg-ice); }
+
 @media (max-width: 480px) {
   .sg-chip { min-width: 42px; font-size: 10px; padding: 2px 4px; }
   .sg-team { font-size: 15px; }
