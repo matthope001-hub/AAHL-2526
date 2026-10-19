@@ -51,6 +51,13 @@
   .auth-ids { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; }
   .auth-ids .row { display:flex; justify-content:space-between; font:12px var(--font-mono); color:var(--text-dim); margin:4px 0; }
   .auth-linkrow { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .header-auth-btn { margin:0; padding:7px 16px; background:transparent; color:var(--ice); border:1px solid var(--ice);
+    font-size:14px; letter-spacing:1px; flex-shrink:0; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; }
+  .header-auth-btn:hover { background:var(--ice); color:#fff; opacity:1; }
+  .header-auth-btn.signed-in { text-transform:none; letter-spacing:0; font-weight:600; }
+  @media (max-width: 640px) {
+    .header-auth-btn { position:absolute; top:10px; right:16px; padding:5px 12px; font-size:13px; max-width:150px; }
+  }
   `;
   const styleEl = document.createElement('style');
   styleEl.textContent = css;
@@ -175,8 +182,33 @@
 
   function setStatus(msg) { statusMsg = msg; render(); }
 
+  // ---------- header button ----------
+  function updateHeader() {
+    const btn = document.getElementById('header-auth-btn');
+    if (!btn) return;
+    if (session) {
+      const email = (session.user && session.user.email) || '';
+      btn.textContent = '👤 ' + (email.split('@')[0] || 'My Teams');
+      btn.title = 'Signed in as ' + email + ' - open My Teams';
+      btn.classList.add('signed-in');
+    } else {
+      btn.textContent = 'Sign in';
+      btn.title = 'Sign in to see all your teams (optional)';
+      btn.classList.remove('signed-in');
+    }
+  }
+  function goToMyTeam() {
+    const link = document.querySelector('.nav-link[data-view="managemoves"]');
+    if (link) link.click();
+    setTimeout(() => {
+      const panel = document.getElementById('auth-panel');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 300);
+  }
+
   // ---------- render ----------
   function render() {
+    updateHeader();
     const el = document.getElementById('auth-panel');
     if (!el) return;
 
@@ -235,6 +267,9 @@
 
   // ---------- startup ----------
   async function start() {
+    const hb = document.getElementById('header-auth-btn');
+    if (hb) hb.addEventListener('click', goToMyTeam);
+    updateHeader();
     await getClient();
     let returning = false;
     try { returning = sessionStorage.getItem(RETURN_FLAG) === '1'; sessionStorage.removeItem(RETURN_FLAG); } catch (e) { /* ignore */ }
