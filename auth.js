@@ -14,7 +14,8 @@
   const PROVIDERS = [
     { id: 'google',   label: 'Google',             icon: 'G', bg: '#ffffff', fg: '#000000' },
     { id: 'azure',    label: 'Hotmail / Outlook',  icon: 'M', bg: '#00a4ef', fg: '#ffffff' },
-    { id: 'facebook', label: 'Facebook',           icon: 'f', bg: '#1877f2', fg: '#ffffff' },
+    // Facebook hidden until Meta approves the app (App Review) - set hidden: false to show it again.
+    { id: 'facebook', label: 'Facebook',           icon: 'f', bg: '#1877f2', fg: '#ffffff', hidden: true },
     { id: 'custom:yahoo', label: 'Yahoo',          icon: 'Y', bg: '#6001d2', fg: '#ffffff' }
   ];
   const PROVIDER_NAMES = { google: 'Google', azure: 'Microsoft', facebook: 'Facebook', 'custom:yahoo': 'Yahoo', email: 'Email link' };
@@ -260,7 +261,7 @@
         <div class="panel auth-panel">
           <div class="auth-title">SIGN IN <span class="mono" style="font-size:12px;color:var(--text-dim);font-weight:400;">(optional)</span></div>
           <div class="auth-sub">Sign in once to see all of your teams. No Entry ID needed.</div>
-          ${PROVIDERS.map(p => `<button class="auth-btn" data-provider="${p.id}">
+          ${PROVIDERS.filter(p => !p.hidden).map(p => `<button class="auth-btn" data-provider="${p.id}">
             <span class="auth-ic" style="background:${p.bg};color:${p.fg};">${p.icon}</span>Continue with ${p.label}</button>`).join('')}
           <div class="auth-or">— or any email —</div>
           <input type="email" id="auth-email-input" placeholder="you@email.com">
@@ -285,7 +286,7 @@
     }
 
     const linkedIds = new Set(identities.map(i => i.provider));
-    const linkable = PROVIDERS.filter(p => !linkedIds.has(p.id));
+    const linkable = PROVIDERS.filter(p => !p.hidden && !linkedIds.has(p.id));
 
     el.innerHTML = `
       <div class="panel auth-panel">
