@@ -9,6 +9,7 @@
  *                                 division picks), also used by Admin trades
  *   GET  findEntryForMoves      - My Team look-up (entry ID + email)
  *   POST myEntries              - My Team for signed-in members (Supabase Auth)
+ *   POST adminSignins           - Admin: who has signed in, how, and which teams (password checked)
  *   GET  checkLateInvite        - is a late invite link still good?
  *   GET  schedule               - NHL weekly schedule grid (Mon-Sun, read-only)
  *   POST adminGetEntries        - Admin: all entries (password checked)
@@ -107,6 +108,7 @@ export default {
           case 'createLateEntry': result = await createEntry(env, ctx, body, true); break;
           case 'submitBatchTeamChanges': result = await submitBatchTeamChanges(env, ctx, body); break;
           case 'myEntries': result = await myEntries(env, body); break;
+          case 'adminSignins': result = await adminSignins(env, body); break;
           case 'adminGetEntries': result = await adminGetEntries(env, body); break;
           case 'adminGetPendingMoves': result = await adminGetPendingMoves(env, body); break;
           case 'adminRecap': result = await adminRecap(env, body); break;
@@ -426,6 +428,68 @@ async function myEntries(env, body) {
   }
   entries.sort((a, b) => String(a.teamName).localeCompare(String(b.teamName)));
   return { success: true, data: { entries, identities } };
+}
+
+/** Admin: every signed-in member - emails, how they sign in, first/last sign-in, teams matched. */
+async function adminSignins(env, body) {
+  const denied = adminDenied(env, body);
+  if (denied) return Object.assign(denied, { fallback: false });
+  const base = String(env.SUPABASE_URL).replace(/\/+$/, '');
+  const key = env.SUPABASE_SERVICE_KEY;
+  const users = [];
+  for (let page = 1; page <= 10; page++) {
+    const res = await fetch(`${base}/auth/v1/admin/users?page=${page}&per_page=200`, {
+      headers: { apikey: key, Authorization: 'Bearer ' + key, 'User-Agent': 'AAHL-Worker/1.0' }
+    });
+    if (!res.ok) return { success: false, fallback: false, error: 'Could not read sign-ins (' + res.status + ')' };
+    const j = await res.json();
+    const list = j.users || [];
+    users.push(...list);
+    if (list.length < 200) break;
+  }
+
+  const byEmail = {};
+  let totalTeams = 0;
+  for (let from = 0; ; from += 1000) {
+    const rows = await sb(env, `entries?select=id,data&order=id&limit=1000&offset=${from}`);
+    (rows || []).forEach(r => {
+      totalTeams++;
+      const e = String((r.data && r.data.email) || '').trim().toLowerCase();
+      if (e) (byEmail[e] = byEmail[e] || []).push({ entryId: r.id, teamName: (r.data && r.data.teamName) || r.id });
+    });
+    if (!rows || rows.length < 1000) break;
+  }
+
+  const clean = e => String(e || '').trim().toLowerCase();
+  const claimed = new Set();
+  const out = users.map(u => {
+    const emails = new Set();
+    const providers = new Set();
+    (u.identities || []).forEach(i => {
+      const data = i.identity_data || {};
+      providers.add(i.provider);
+      const email = clean(data.email || (i.provider === 'email' ? u.email : ''));
+      if (!email) return;
+      if (i.provider === 'email' && !u.email_confirmed_at) return;
+      if (data.email_verified === false) return;
+      emails.add(email);
+    });
+    if (u.email && u.email_confirmed_at) emails.add(clean(u.email));
+    const teams = [];
+    emails.forEach(e => (byEmail[e] || []).forEach(t => { teams.push(t); claimed.add(t.entryId); }));
+    const meta = u.user_metadata || {};
+    return {
+      email: u.email || [...emails][0] || '',
+      name: meta.full_name || meta.name || '',
+      emails: [...emails],
+      providers: [...providers],
+      createdAt: u.created_at || null,
+      lastSignIn: u.last_sign_in_at || null,
+      teams
+    };
+  });
+  out.sort((a, b) => String(b.lastSignIn || '').localeCompare(String(a.lastSignIn || '')));
+  return { success: true, data: { users: out, totals: { users: out.length, teamsClaimed: claimed.size, totalTeams } } };
 }
 
 // ----------------------------------------------------------- team changes

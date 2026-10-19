@@ -603,6 +603,18 @@ async function adminBoxProjection(password) {
   }
 }
 
+async function adminSignins(password) {
+  try {
+    return await fetchJsonWithRetry_(WORKER_URL + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'adminSignins', password })
+    });
+  } catch (e) {
+    return { success: false, error: "Couldn't reach the server." };
+  }
+}
+
 async function adminGetEntries(password) {
   return adminRead_('adminGetEntries', password);
 }

@@ -181,6 +181,12 @@ function renderAdminEntries(entries) {
           <div id="admin-inj-status" class="status-msg"></div>
           <div id="admin-inj-overrides" style="margin-top:10px;"></div>
         </div>
+        <div class="panel adm-tool adm-wide">
+          <h3>👤 Sign-ins</h3>
+          <p class="adm-help">Members who signed in (Google, Microsoft, Facebook, Yahoo or email link), how, when, and which teams their emails matched.</p>
+          <button id="admin-signins-btn" class="admin-btn">Load sign-ins</button>
+          <div id="admin-signins" style="margin-top:10px;"></div>
+        </div>
         <div class="panel adm-tool">
           <h3>📸 Weekly Standings Image</h3>
           <p class="adm-help">A ready-to-post picture of last week's standings (also attached to the Monday email).</p>
@@ -207,6 +213,29 @@ function renderAdminEntries(entries) {
       </div>
     </section>
   `;
+
+  // Sign-ins: who has used the optional sign-in
+  const siBtn = document.getElementById('admin-signins-btn');
+  if (siBtn) siBtn.addEventListener('click', async () => {
+    const box = document.getElementById('admin-signins');
+    siBtn.disabled = true;
+    box.innerHTML = '<p class="mono" style="font-size:12px;color:var(--text-dim);">Loading…</p>';
+    const r = await adminSignins(adminPassword);
+    siBtn.disabled = false;
+    if (!r || !r.success) { box.innerHTML = `<div class="status-msg error">${escapeHtml((r && r.error) || 'Failed')}</div>`; return; }
+    const t = r.data.totals;
+    const names = { google: 'Google', azure: 'Microsoft', facebook: 'Facebook', 'custom:yahoo': 'Yahoo', email: 'Email link' };
+    const fmt = d => d ? new Date(d).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+    const rows = r.data.users.map(u => `<tr>
+        <td>${escapeHtml(u.name || '')}<div class="mono" style="font-size:11px;color:var(--text-dim);">${escapeHtml(u.emails.join(', ') || u.email)}</div></td>
+        <td>${u.teams.length ? u.teams.map(x => escapeHtml(x.teamName)).join('<br>') : '<span style="color:var(--text-dim);">none</span>'}</td>
+        <td class="mono" style="font-size:12px;">${u.providers.map(p => names[p] || p).join(', ')}</td>
+        <td class="mono" style="font-size:12px;">${fmt(u.createdAt)}</td>
+        <td class="mono" style="font-size:12px;">${fmt(u.lastSignIn)}</td></tr>`).join('');
+    box.innerHTML = `<div class="mono" style="font-size:13px;margin-bottom:8px;">${t.users} signed in · ${t.teamsClaimed} of ${t.totalTeams} teams claimed</div>
+      <div style="overflow-x:auto;"><table class="data-table"><thead><tr><th>Member</th><th>Teams</th><th>Via</th><th>First</th><th>Last sign-in</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="5" style="color:var(--text-dim);">No sign-ins yet.</td></tr>'}</tbody></table></div>`;
+  });
 
   // Box Builder: rebuild the all-NHL projection now
   const projBtn = document.getElementById('admin-box-proj-btn');
