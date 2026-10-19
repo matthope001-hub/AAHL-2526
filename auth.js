@@ -14,9 +14,10 @@
   const PROVIDERS = [
     { id: 'google',   label: 'Google',             icon: 'G', bg: '#ffffff', fg: '#000000' },
     { id: 'azure',    label: 'Hotmail / Outlook',  icon: 'M', bg: '#00a4ef', fg: '#ffffff' },
-    { id: 'facebook', label: 'Facebook',           icon: 'f', bg: '#1877f2', fg: '#ffffff' }
+    { id: 'facebook', label: 'Facebook',           icon: 'f', bg: '#1877f2', fg: '#ffffff' },
+    { id: 'custom:yahoo', label: 'Yahoo',          icon: 'Y', bg: '#6001d2', fg: '#ffffff' }
   ];
-  const PROVIDER_NAMES = { google: 'Google', azure: 'Microsoft', facebook: 'Facebook', email: 'Email link' };
+  const PROVIDER_NAMES = { google: 'Google', azure: 'Microsoft', facebook: 'Facebook', 'custom:yahoo': 'Yahoo', email: 'Email link' };
   const RETURN_FLAG = 'aahl_auth_return';
 
   let client = null;
