@@ -513,8 +513,9 @@ let myTeamEntry = null;
 function renderManageMoves() {
   const el = document.getElementById('managemoves-content');
   el.innerHTML = `
+    <div id="auth-panel"></div>
     <div class="panel" style="margin-bottom:16px;">
-      <p style="color:var(--text-dim); font-size:14px; margin-bottom:14px;">Look up your team using the Entry ID and email from your confirmation email. Before the season starts, you can change your picks freely at no cost. Once the season begins, you get 2 roster moves total, each needing commissioner approval before it counts, and all moves must be requested before the NHL trade deadline (March 1, 2027)<span class="cd-inline" data-countdown="trade"></span>.</p>
+      <p style="color:var(--text-dim); font-size:14px; margin-bottom:14px;">Or look up your team using the Entry ID and email from your confirmation email. Before the season starts, you can change your picks freely at no cost. Once the season begins, you get 2 roster moves total, each needing commissioner approval before it counts, and all moves must be requested before the NHL trade deadline (March 1, 2027)<span class="cd-inline" data-countdown="trade"></span>.</p>
       <label for="moves-entryid-input">Entry ID</label>
       <input type="text" id="moves-entryid-input" placeholder="From your confirmation email">
       <label for="moves-email-input">Email</label>
@@ -524,6 +525,7 @@ function renderManageMoves() {
     </div>
     <div id="moves-team-panel"></div>
   `;
+  if (window.AAHLAuth) AAHLAuth.render();
 
   document.getElementById('moves-lookup-btn').addEventListener('click', async () => {
     const entryId = document.getElementById('moves-entryid-input').value.trim();

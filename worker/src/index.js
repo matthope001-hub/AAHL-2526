@@ -8,6 +8,7 @@
  *   POST submitBatchTeamChanges - My Team "Submit all changes" (box moves +
  *                                 division picks), also used by Admin trades
  *   GET  findEntryForMoves      - My Team look-up (entry ID + email)
+ *   POST myEntries              - My Team for signed-in members (Supabase Auth)
  *   GET  checkLateInvite        - is a late invite link still good?
  *   GET  schedule               - NHL weekly schedule grid (Mon-Sun, read-only)
  *   POST adminGetEntries        - Admin: all entries (password checked)
@@ -105,6 +106,7 @@ export default {
           case 'createEntry': result = await createEntry(env, ctx, body, false); break;
           case 'createLateEntry': result = await createEntry(env, ctx, body, true); break;
           case 'submitBatchTeamChanges': result = await submitBatchTeamChanges(env, ctx, body); break;
+          case 'myEntries': result = await myEntries(env, body); break;
           case 'adminGetEntries': result = await adminGetEntries(env, body); break;
           case 'adminGetPendingMoves': result = await adminGetPendingMoves(env, body); break;
           case 'adminRecap': result = await adminRecap(env, body); break;
@@ -377,6 +379,53 @@ async function findEntryForMoves(env, entryId, email) {
       }))
     }
   };
+}
+
+// ----------------------------------------------------------- signed-in teams
+
+/**
+ * Optional sign-in (auth.js). Checks the member's Supabase Auth token with
+ * Supabase itself, collects their VERIFIED emails (a confirmed email-link
+ * address plus any Google / Microsoft / Facebook accounts they linked), and
+ * returns every entry on those emails. The site then opens a team with the
+ * normal entry ID + email look-up, so saves are unchanged.
+ */
+async function myEntries(env, body) {
+  const token = body && body.accessToken;
+  if (!token) return { success: false, error: 'Not signed in.' };
+  const base = String(env.SUPABASE_URL).replace(/\/+$/, '');
+  const res = await fetch(base + '/auth/v1/user', {
+    headers: {
+      apikey: env.SUPABASE_SERVICE_KEY,
+      Authorization: 'Bearer ' + token,
+      'User-Agent': 'AAHL-Worker/1.0'
+    }
+  });
+  if (!res.ok) return { success: false, error: 'Your sign-in expired. Sign out and sign in again.' };
+  const user = await res.json();
+
+  const emails = new Set();
+  const identities = [];
+  const clean = e => String(e || '').trim().toLowerCase();
+  (user.identities || []).forEach(i => {
+    const data = i.identity_data || {};
+    const email = clean(data.email || (i.provider === 'email' ? user.email : ''));
+    if (!email) return;
+    // Email-link accounts only count once the link was clicked (confirmed).
+    if (i.provider === 'email' && !user.email_confirmed_at) return;
+    if (data.email_verified === false) return;
+    emails.add(email);
+    identities.push({ provider: i.provider, email });
+  });
+  if (user.email && user.email_confirmed_at) emails.add(clean(user.email));
+
+  const entries = [];
+  for (const email of emails) {
+    const rows = await listWhere(env, 'entries', 'email', email);
+    rows.forEach(e => entries.push({ entryId: e.id, teamName: e.teamName || '', email: clean(e.email) }));
+  }
+  entries.sort((a, b) => String(a.teamName).localeCompare(String(b.teamName)));
+  return { success: true, data: { entries, identities } };
 }
 
 // ----------------------------------------------------------- team changes
