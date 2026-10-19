@@ -55,8 +55,16 @@
     font-size:14px; letter-spacing:1px; flex-shrink:0; white-space:nowrap; max-width:200px; overflow:hidden; text-overflow:ellipsis; }
   .header-auth-btn:hover { background:var(--ice); color:#fff; opacity:1; }
   .header-auth-btn.signed-in { text-transform:none; letter-spacing:0; font-weight:600; }
+  .auth-menu-wrap { position:relative; flex-shrink:0; }
+  .auth-menu { display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:50; min-width:170px;
+    background:var(--bg-panel); border:1px solid var(--border); flex-direction:column; box-shadow:0 6px 18px rgba(0,0,0,.5); }
+  .auth-menu.open { display:flex; }
+  .auth-menu .am-email { font:11px var(--font-mono); color:var(--text-dim); padding:10px 14px 6px; word-break:break-all; }
+  .auth-menu button { margin:0; background:none; color:var(--text); text-align:left; padding:10px 14px; font-size:14px; text-transform:none; letter-spacing:0; border-top:1px solid var(--border); }
+  .auth-menu button:hover { background:var(--bg-panel-alt); color:var(--ice); opacity:1; }
   @media (max-width: 640px) {
-    .header-auth-btn { position:absolute; top:10px; right:16px; padding:5px 12px; font-size:13px; max-width:150px; }
+    .auth-menu-wrap { position:absolute; top:10px; right:16px; }
+    .header-auth-btn { padding:5px 12px; font-size:13px; max-width:150px; }
   }
   `;
   const styleEl = document.createElement('style');
@@ -182,20 +190,55 @@
 
   function setStatus(msg) { statusMsg = msg; render(); }
 
-  // ---------- header button ----------
+  // ---------- header button + profile menu ----------
+  function headerMenu() {
+    let menu = document.getElementById('auth-menu');
+    if (menu) return menu;
+    const btn = document.getElementById('header-auth-btn');
+    if (!btn) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'auth-menu-wrap';
+    btn.parentNode.insertBefore(wrap, btn);
+    wrap.appendChild(btn);
+    menu = document.createElement('div');
+    menu.id = 'auth-menu';
+    menu.className = 'auth-menu';
+    menu.innerHTML = `<div class="am-email"></div>
+      <button type="button" data-act="teams">My Teams</button>
+      <button type="button" data-act="logout">Log out</button>`;
+    wrap.appendChild(menu);
+    menu.addEventListener('click', e => {
+      const act = e.target.dataset && e.target.dataset.act;
+      if (!act) return;
+      menu.classList.remove('open');
+      if (act === 'teams') goToMyTeam();
+      if (act === 'logout') signOut();
+    });
+    document.addEventListener('click', e => { if (!wrap.contains(e.target)) menu.classList.remove('open'); });
+    return menu;
+  }
   function updateHeader() {
     const btn = document.getElementById('header-auth-btn');
     if (!btn) return;
+    const menu = headerMenu();
     if (session) {
       const email = (session.user && session.user.email) || '';
-      btn.textContent = '👤 ' + (email.split('@')[0] || 'My Teams');
-      btn.title = 'Signed in as ' + email + ' - open My Teams';
+      btn.textContent = '👤 ' + (email.split('@')[0] || 'My Teams') + ' ▾';
+      btn.title = 'Signed in as ' + email;
       btn.classList.add('signed-in');
+      if (menu) menu.querySelector('.am-email').textContent = email;
     } else {
       btn.textContent = 'Sign in';
       btn.title = 'Sign in to see all your teams (optional)';
       btn.classList.remove('signed-in');
+      if (menu) menu.classList.remove('open');
     }
+  }
+  function onHeaderClick(e) {
+    e.stopPropagation();
+    const menu = headerMenu();
+    if (session && menu) menu.classList.toggle('open');
+    else goToMyTeam();
   }
   function goToMyTeam() {
     const link = document.querySelector('.nav-link[data-view="managemoves"]');
@@ -248,7 +291,7 @@
       <div class="panel auth-panel">
         <div class="auth-head">
           <div class="auth-title">MY TEAMS</div>
-          <button class="auth-link-btn" id="auth-signout">Sign out</button>
+          <button class="auth-link-btn" id="auth-signout">Log out</button>
         </div>
         <div class="auth-sub mono" style="font-size:12px;">Signed in as ${esc(who)}</div>
         ${list}
@@ -268,7 +311,7 @@
   // ---------- startup ----------
   async function start() {
     const hb = document.getElementById('header-auth-btn');
-    if (hb) hb.addEventListener('click', goToMyTeam);
+    if (hb) hb.addEventListener('click', onHeaderClick);
     updateHeader();
     await getClient();
     let returning = false;
