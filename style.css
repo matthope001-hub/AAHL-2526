@@ -556,6 +556,8 @@ button:hover { opacity: 0.85; }
 .ticker-chip .ticker-name { font-weight: 700; color: var(--ice); }
 .ticker-chip .ticker-stats { color: var(--text-dim); }
 .ticker-chip .ticker-pts { color: var(--amber); font-weight: 700; }
+/* Hint under the Today's Games ticker — the cards are tappable */
+.tg-hint { font-size: 12px; color: var(--text-dim); text-align: center; margin-top: 6px; }
 
 .brand { display: inline-flex; align-items: center; }
 

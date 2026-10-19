@@ -551,7 +551,8 @@ async function renderTodaysGames() {
         ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
         : `<div class="games-ticker"><div class="games-ticker-track" style="animation:none;">
             ${games.map(cardHtml).join('')}
-          </div></div>`}
+          </div></div>
+          <div class="tg-hint mono">👆 Tap a game to see pool players &amp; points</div>`}
     `;
     el.style.display = 'block';
 
