@@ -3,6 +3,15 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.3 — Sign in to see all your teams
+_Oct 19, 2026_
+- **Optional sign-in** on My Team: continue with **Google**, **Hotmail / Outlook**, **Facebook**, **Yahoo**, or get a sign-in link by email — no password, no Entry ID needed
+- **All your teams in one place**: once signed in, My Team lists every team on your email; tap one to manage roster moves and division picks. One team? It opens automatically
+- **Link another account**: own teams under a different email? Link that account and those teams show up too
+- Signing in is never required — the Entry ID + email look-up still works exactly as before, and Standings stay open to everyone
+- New **Privacy Policy** page (theaahl.ca/privacy.html) — your email is never shown publicly or shared
+- Behind the scenes: sign-in runs on Supabase Auth; the fast server only returns teams for verified emails
+
 ## v3.2 — Weekly schedule & tap-a-game pool points
 _Oct 18, 2026_
 - **Weekly Schedule** (More → Schedule): every NHL team night by night, Monday to Sunday — home games filled, away games outlined, light nights (fewer than 8 games) shaded, with games and light-night totals for each team
