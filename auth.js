@@ -72,7 +72,8 @@
   .auth-menu button:hover { background:var(--bg-panel-alt); color:var(--ice); opacity:1; }
   @media (max-width: 640px) {
     .auth-menu-wrap { position:absolute; top:10px; right:16px; }
-    .header-auth-btn { padding:5px 12px; font-size:13px; max-width:150px; }
+    /* id selector beats style.css's mobile 'button { width:100%; padding:14px }' rule */
+    #header-auth-btn { width:auto; padding:5px 12px; font-size:13px; line-height:1.2; max-width:150px; }
   }
   `;
   const styleEl = document.createElement('style');
