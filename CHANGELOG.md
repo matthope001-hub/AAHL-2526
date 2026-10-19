@@ -7,7 +7,7 @@ Every update to theaahl.ca, newest first. The site's **More → What's New** pag
 _Oct 19, 2026_
 - **Optional sign-in** on My Team: continue with **Google**, **Hotmail / Outlook**, **Facebook**, **Yahoo**, or get a sign-in link by email — no password, no Entry ID needed
 - **All your teams in one place**: once signed in, My Team lists every team on your email; tap one to manage roster moves and division picks. One team? It opens automatically
-- **Sign in button** at the top right of every page — once signed in it shows your name and takes you straight to your teams
+- **Sign in button** at the top right of every page — once signed in it shows your name with a menu for **My Teams** and **Log out**
 - Commissioner **Admin** moved into the **More** menu
 - **Link another account**: own teams under a different email? Link that account and those teams show up too
 - Signing in is never required — the Entry ID + email look-up still works exactly as before, and Standings stay open to everyone
