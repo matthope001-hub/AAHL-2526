@@ -18,6 +18,13 @@
     { id: 'facebook', label: 'Facebook',           icon: 'f', bg: '#1877f2', fg: '#ffffff', hidden: true },
     { id: 'custom:yahoo', label: 'Yahoo',          icon: 'Y', bg: '#6001d2', fg: '#ffffff' }
   ];
+  // ?fb=1 shows hidden providers (for Meta's App Review tester); remembered in this browser.
+  let showHidden = false;
+  try {
+    if (/[?&]fb=1\b/.test(location.search)) localStorage.setItem('aahl_show_fb', '1');
+    showHidden = localStorage.getItem('aahl_show_fb') === '1';
+  } catch (e) { showHidden = /[?&]fb=1\b/.test(location.search); }
+  if (showHidden) PROVIDERS.forEach(p => { p.hidden = false; });
   const PROVIDER_NAMES = { google: 'Google', azure: 'Microsoft', facebook: 'Facebook', 'custom:yahoo': 'Yahoo', email: 'Email link' };
   const RETURN_FLAG = 'aahl_auth_return';
 
