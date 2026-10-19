@@ -1126,6 +1126,13 @@ a.hero-badge { cursor: pointer; }
   animation: games-ticker-scroll linear infinite;
 }
 .games-ticker-track .game-chip { flex: 0 0 142px; margin: 0; }
+/* Pause while a mouse is over the strip (or a game has keyboard focus) so
+   desktop users aren't clicking a moving target. Touch screens are excluded:
+   their "hover" sticks after a tap and would leave the ticker frozen. */
+@media (hover: hover) and (pointer: fine) {
+  .games-ticker:hover .games-ticker-track { animation-play-state: paused; }
+}
+.games-ticker:focus-within .games-ticker-track { animation-play-state: paused; }
 @keyframes games-ticker-scroll {
   0% { transform: translateX(0); }
   100% { transform: translateX(calc(-50% - 4px)); }
