@@ -20,6 +20,7 @@
  *   POST adminRecap             - Admin: rewrite / hide / show the nightly recap
  *   POST adminBoxProjection     - Admin: rebuild next season's box projection now
  *   CRON (mornings)               - "Last Night in the AAHL" recap (Workers AI)
+ *                                 + builds the new day's Today's Games schedule
  *   CRON (Mondays)                - next season's box projection (all NHL players)
  *   CRON (every minute, evenings) - live pool points + Today's Games scores
  *                                 during games (see "live points" below)
@@ -46,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -136,6 +137,8 @@ export default {
       return;
     }
     if (RECAP_CRONS.includes(event.cron)) {
+      // New hockey day starts at 5am ET: build today's schedule + records.
+      ctx.waitUntil(ensureTodaysGames(env).catch(err => console.log('Today build failed: ' + (err && err.stack || err))));
       if (env.RECAP === 'off') { ctx.waitUntil(saveLiveHealth(env).catch(() => {})); return; }
       ctx.waitUntil(runNightlyRecap(env, false).catch(err => console.log('Recap failed: ' + (err && err.stack || err))));
       return;
@@ -826,14 +829,45 @@ async function sha256(text) {
   return [...buf].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Today's Games: builds config/todaysGamesCache for a new hockey day
+// (same as TodaysGames.gs refreshTodaysGames). Runs from the morning recap
+// crons (5:30/6:30am ET) and from live points if the day is still missing.
+// Apps Script keeps its 10-minute trigger as the backup.
+async function teamRecords() {
+  const records = {};
+  const s = await nhl('/standings/now');
+  (s.standings || []).forEach(t => {
+    const abbrev = t.teamAbbrev && t.teamAbbrev.default;
+    if (abbrev) records[abbrev] = (t.wins || 0) + '-' + (t.losses || 0) + '-' + (t.otLosses || 0);
+  });
+  return records;
+}
+
+async function ensureTodaysGames(env, day) {
+  day = day || hockeyDay();
+  const cache = await getConfigDoc(env, 'todaysGamesCache');
+  if (cache && cache.date === day) return cache;
+  let records = {};
+  try { records = await teamRecords(); }
+  catch (err) { console.log('Today: team records failed (games saved without them) - ' + err.message); }
+  const feed = await nhl('/score/' + day);
+  const games = (feed.games || []).filter(g => g.gameType === 2)
+    .map(g => tickerGame(g, records))
+    .sort((a, b) => String(a.startTimeUTC).localeCompare(String(b.startTimeUTC)));
+  const doc = { date: day, games: games, records: records, updatedAt: new Date().toISOString() };
+  await putConfigDoc(env, 'todaysGamesCache', doc);
+  console.log('Today: built ' + day + ' - ' + games.length + ' game(s)');
+  return doc;
+}
+
 async function runLivePoints(env) {
   const t0 = Date.now();
   const day = hockeyDay();
   const log = { day: day };
 
-  // 1. Is anything on? (Apps Script builds the day's schedule + records.)
-  const cache = await getConfigDoc(env, 'todaysGamesCache');
-  if (!cache || cache.date !== day || !(cache.games || []).length) return;
+  // 1. Is anything on? (builds the day's schedule + records if missing)
+  const cache = await ensureTodaysGames(env, day);
+  if (!cache || !(cache.games || []).length) return;
   const now = Date.now();
   const anyOn = cache.games.some(g => g.state !== 'final' && new Date(g.startTimeUTC).getTime() <= now + 60000);
   if (!anyOn) return;
