@@ -599,9 +599,15 @@ async function refreshLiveViews_() {
   if (onHome) {
     const box = document.querySelector('#home-standings-preview .players-table-scroll');
     const top = box ? box.scrollTop : 0;
-    renderHomeStandingsPreview();
-    const again = document.querySelector('#home-standings-preview .players-table-scroll');
-    if (again) again.scrollTop = top;
+    const redraw = () => {
+      renderHomeStandingsPreview();
+      const again = document.querySelector('#home-standings-preview .players-table-scroll');
+      if (again) again.scrollTop = top;
+    };
+    // Rows slide to their new live spots as teams pass each other.
+    const wrap = document.getElementById('home-standings-preview');
+    if (wrap && typeof flipStandingsRows_ === 'function') flipStandingsRows_(wrap, redraw);
+    else redraw();
   }
   if (onStandings) {
     const el = document.getElementById('standings-table');
@@ -1097,7 +1103,7 @@ function flipStandingsRows_(el, redraw) {
  * (positive = moved up). Only in normal rank order.
  */
 async function animateOvernightMoves_(el) {
-  if (!standingsMotionOk_() || standingsSort.key !== 'rank') return;
+  if (!standingsMotionOk_() || standingsSort.key !== 'rank' || liveActive_()) return; // live order: rows slide on each update instead
   let version = null;
   try { version = await getDataVersion_(); } catch (e) { /* use date */ }
   const key = version || new Date().toISOString().slice(0, 10);
@@ -1133,12 +1139,45 @@ function tradesCellHtml_(e) {
   return `<span title="${escapeHtml(title)}" style="color:${color}; white-space:nowrap;">${used}/${max}${pending ? ` <span style="color:var(--amber);">⏳${pending}</span>` : ''}</span>`;
 }
 
+/**
+ * During tonight's games: copies of the rows with tonight's live points
+ * added to pts and re-ranked by that total, so Rank, Points, Projected and
+ * Payout all follow the live order. officialRank keeps the 4am rank;
+ * liveMove = spots gained (+) or lost (-) tonight. Ties share a rank and
+ * keep their official order. After the 4am run liveActive_() is null and
+ * the official rows are used untouched.
+ */
+function liveStandings_(rows, live) {
+  const tonight = e => (live.entries && live.entries[e.entryId] && live.entries[e.entryId].pts) || 0;
+  const out = rows.map(e => Object.assign({}, e, {
+    pts: (e.pts || 0) + tonight(e),
+    officialRank: e.rank
+  }));
+  const ranked = out.filter(e => e.rank != null)
+    .sort((a, b) => (b.pts - a.pts) || (a.officialRank - b.officialRank));
+  ranked.forEach((e, i) => {
+    e.rank = (i > 0 && Math.abs(e.pts - ranked[i - 1].pts) < 0.005) ? ranked[i - 1].rank : i + 1;
+    e.liveMove = e.officialRank - e.rank;
+  });
+  const unranked = out.filter(e => e.rank == null);
+  return [...ranked, ...unranked];
+}
+
+/** Small ▲2 / ▼1 beside the rank for spots gained or lost tonight. */
+function liveMoveHtml_(e) {
+  if (!e.liveMove) return '';
+  return e.liveMove > 0
+    ? ` <span class="mono live-move" style="color:#3ecf6a; font-size:10px;" title="Up ${e.liveMove} tonight">▲${e.liveMove}</span>`
+    : ` <span class="mono live-move" style="color:#ff5c5c; font-size:10px;" title="Down ${-e.liveMove} tonight">▼${-e.liveMove}</span>`;
+}
+
 function standingsTableHtml_(sorted, deltaLabel) {
   const hasDiv = !!(divisionProjection && divisionProjection.byEntry);
   const final = currentConfig.seasonComplete === true;
+  const live = liveActive_();
+  if (live) sorted = liveStandings_(sorted, live);
   const approvedRanks = sorted.filter(e => e.approved && e.rank != null).map(e => e.rank);
   const lastRank = approvedRanks.length > 0 ? Math.max(...approvedRanks) : null;
-  const live = liveActive_();
   if (!live && standingsSort.key === 'tonight') standingsSort = { key: 'rank', dir: 'asc' };
   if (!hasDiv && standingsSort.key !== 'rank' && standingsSort.key !== 'tonight') standingsSort = { key: 'rank', dir: 'asc' };
   sorted = applyStandingsSort_(sorted);
@@ -1152,7 +1191,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
     <table class="standings-full data-table">
       <thead><tr>
         ${hasDiv || live ? sortHead('rank', 'Rank', '', 'Back to the normal ranking') : '<th>Rank</th>'}<th>Team</th>
-        ${live ? sortHead('tonight', '<span class="game-chip-live">●</span> Tonight', 'num', 'Live points from tonight\'s games (estimate until the 4am update) - click to sort') : ''}
+        ${live ? sortHead('tonight', '<span class="game-chip-live">●</span> Tonight', 'num', 'Live points from tonight\'s games, already included in the totals (estimate until the 4am update) - click to sort') : ''}
         ${hasDiv
           ? `${sortHead('players', 'Players', 'num', 'Points earned by players - click to sort')}
              ${sortHead('div', 'Div' + (final ? '' : '*'), '', 'Division winner picks leading now, +25 each - click to sort')}
@@ -1165,7 +1204,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
           const b = pointsBreakdown_(e);
           return `
           <tr data-entry="${escapeHtml(e.entryId || '')}">
-            <td class="${e.rank === 1 ? 'rank-1' : ''}">${e.rank ?? '—'}</td>
+            <td class="${e.rank === 1 ? 'rank-1' : ''}" style="white-space:nowrap;">${e.rank ?? '—'}${live ? liveMoveHtml_(e) : ''}</td>
             <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
             ${live ? (() => { const t = live.entries && live.entries[e.entryId]; return `<td class="num mono" style="color:${t && t.pts ? '#3ecf6a' : 'var(--text-dim)'}; white-space:nowrap;">${t ? '+' + t.pts.toFixed(2) : '—'}${t && t.players ? ` <span style="color:var(--text-dim); font-size:10px;">(${t.players})</span>` : ''}</td>`; })() : ''}
             ${hasDiv
@@ -1181,7 +1220,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
         }).join('')}
       </tbody>
     </table>
-    ${live ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;"><span class="game-chip-live">●</span> Tonight = live points from tonight's games so far (number of players who've played in brackets). An estimate, updated every 10 minutes; the official points come in the 4am update.</p>` : ''}
+    ${live ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;"><span class="game-chip-live">●</span> Tonight = live points from tonight's games so far (number of players who've played in brackets). While games are on, Rank, Points and Payout include tonight's points and update within a minute or two of each goal (▲/▼ = spots gained or lost tonight). An estimate; the official points come in the 4am update.</p>` : ''}
     <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">Trades = in-season trades used out of ${sorted[0] && sorted[0].tradesMax ? sorted[0].tradesMax : 2}. ⏳ = waiting for commissioner approval.</p>
     ${hasDiv && !final ? `<p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:10px;">* <span class="div-dot div-dot-on"></span> = a division pick that is leading now. Projected = players + 25 for each one, if the season ended today. Not counted in the ranking until the season ends.</p>` : ''}`;
 }
