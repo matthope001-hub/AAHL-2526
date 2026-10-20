@@ -3,6 +3,14 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.4 — Live standings during games
+_Oct 20, 2026_
+- **Standings move live**: while games are on, Rank, Points and Payout include tonight's points, on both Home and the Standings page
+- Teams **slide up and down** as they pass each other, within a minute or two of each goal
+- **▲ / ▼ beside the rank** shows spots gained or lost tonight
+- The **Tonight** column still shows the points earned so far tonight
+- Live numbers are an estimate; the official standings come in the 4am update
+
 ## v3.3 — Sign in to see all your teams
 _Oct 19, 2026_
 - **Optional sign-in** on My Team: continue with **Google**, **Hotmail / Outlook**, **Yahoo**, or get a sign-in link by email — no password, no Entry ID needed
