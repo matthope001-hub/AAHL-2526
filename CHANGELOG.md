@@ -3,6 +3,14 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.6 — Player card popup refresh
+_Oct 21, 2026_
+- **Player card popup** now sits flat and centred on phones — no more tilting off-screen when you hold your phone
+- Bigger, easier-to-tap **× close button** in the top-right corner (tapping outside or Esc still closes it)
+- **Background blurs** and stops scrolling while a card is open
+- **For This Team** only shows when it differs from the season total (e.g. traded-in players), so no more duplicate numbers
+- Cleaner headshot and logo sizing; long cards scroll inside the popup
+
 ## v3.5 — Highlights
 _Oct 21, 2026_
 - New **Highlights** page (top menu): a card for every **goal** and **assist** by a pool player, within minutes of the play

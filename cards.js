@@ -120,7 +120,10 @@ async function openPlayerCard(playerId, extra) {
   const num = p.sweaterNumber || p.number || '';
   const stats = cardStatList_(s, type);
   const moved = x.moves && x.moves.length;
-  const forTeam = x.contributionSinceAcquired != null ? cardF2_(x.contributionSinceAcquired) : null;
+  const season = cardF2_(cardSeasonPts_(s, type, p.id ? p : null));
+  const forTeamRaw = x.contributionSinceAcquired != null ? cardF2_(x.contributionSinceAcquired) : null;
+  // Only show the second number when it tells you something new.
+  const forTeam = forTeamRaw != null && (moved || forTeamRaw !== season) ? forTeamRaw : null;
   const badge = typeof statusBadge_ === 'function' ? statusBadge_(playerId) : '';
 
   const ov = ensureCardOverlay_();
@@ -138,21 +141,25 @@ async function openPlayerCard(playerId, extra) {
         <div class="aahl-fc-hs">${hs ? `<img src="${escapeHtml(hs)}" alt="" onerror="this.remove()">` : ''}</div>
       </div>
       <div class="aahl-fc-pool">
-        <div><small>SEASON POOL PTS</small><br><b>${cardF2_(cardSeasonPts_(s, type, p.id ? p : null))}</b></div>
-        ${forTeam != null ? `<div style="text-align:right"><small>${moved ? 'SINCE ACQUIRED' : 'FOR THIS TEAM'}</small><br><b style="font-size:20px">${moved ? '+' : ''}${forTeam}</b></div>` : ''}
+        <div><small>SEASON POOL PTS</small><br><b>${season}</b></div>
+        ${forTeam != null ? `<div class="alt"><small>${moved ? 'SINCE ACQUIRED' : 'FOR THIS TEAM'}</small><br><b>${moved ? '+' : ''}${forTeam}</b></div>` : ''}
       </div>
       <div class="aahl-fc-strip" style="grid-template-columns:repeat(${stats.length},1fr)">
         ${stats.map(t => `<div><b class="${t[2] && t[0] ? t[2] : ''}">${t[0]}</b><small>${t[1]}</small></div>`).join('')}
       </div>
       ${moved ? `<div class="aahl-fc-moves">${x.moves.map(mv => `<div>⇄ Replaced ${escapeHtml(mv.outPlayerName)} · banked +${cardF2_(mv.bankedAmount)}${mv.resolvedAt || mv.requestedAt ? ' · ' + escapeHtml(String(mv.resolvedAt || mv.requestedAt).slice(0, 10)) : ''}</div>`).join('')}</div>` : ''}
     </div>`;
-  ov.querySelector('.aahl-fc-x').addEventListener('click', closePlayerCard);
+  const xBtn = ov.querySelector('.aahl-fc-x');
+  xBtn.addEventListener('click', closePlayerCard);
   ov.classList.add('on');
+  document.documentElement.classList.add('aahl-noscroll');
+  try { xBtn.focus({ preventScroll: true }); } catch (e) { /* old browser */ }
 }
 
 function closePlayerCard() {
   const ov = document.getElementById('aahl-card-ov');
   if (ov) ov.classList.remove('on');
+  document.documentElement.classList.remove('aahl-noscroll');
 }
 
 // One delegated listener: mini cards and any player cell open the card.
@@ -169,7 +176,8 @@ document.addEventListener('keydown', e => {
 
 // ---------- 3D tilt (VanillaTilt) ----------
 // Player cards (Players, Boxes, Last Night) and the full card popup tilt
-// toward the mouse with a shine. The popup also follows phone tilt.
+// toward the mouse with a shine. The popup tilts on mouse devices only —
+// on phones it stays flat and centred so it's easy to read.
 // A watcher applies it to any card as soon as it's drawn, so pages don't
 // need to call anything. Skipped if VanillaTilt didn't load or the
 // device is set to reduce motion.
@@ -177,12 +185,13 @@ document.addEventListener('keydown', e => {
   if (typeof VanillaTilt === 'undefined') return;
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const GRID = { max: 12, speed: 400, scale: 1.03, glare: true, 'max-glare': 0.3, gyroscope: false };
-  const POPUP = { max: 8, speed: 500, scale: 1, glare: true, 'max-glare': 0.25, gyroscope: true, gyroscopeMinAngleX: -20, gyroscopeMaxAngleX: 20, gyroscopeMinAngleY: -20, gyroscopeMaxAngleY: 20 };
+  const POPUP = { max: 6, speed: 500, scale: 1, glare: true, 'max-glare': 0.2, gyroscope: false };
+  const FINE = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   let queued = false;
   function apply() {
     queued = false;
     document.querySelectorAll('.aahl-pc:not([data-tilted])').forEach(el => { el.dataset.tilted = '1'; VanillaTilt.init(el, GRID); });
-    document.querySelectorAll('.aahl-fc:not([data-tilted])').forEach(el => { el.dataset.tilted = '1'; VanillaTilt.init(el, POPUP); });
+    if (FINE) document.querySelectorAll('.aahl-fc:not([data-tilted])').forEach(el => { el.dataset.tilted = '1'; el.classList.add('tilt'); VanillaTilt.init(el, POPUP); });
   }
   new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(apply); } })
     .observe(document.body, { childList: true, subtree: true });

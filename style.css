@@ -1364,33 +1364,40 @@ a.hero-badge { cursor: pointer; }
 .aahl-mc-bx { position: absolute; bottom: 10px; left: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
 .aahl-mc-tr { position: absolute; top: 6px; right: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--amber); border: 1px solid var(--amber); border-radius: 4px; padding: 0 4px; background: var(--bg); }
 
-.aahl-card-ov { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
+.aahl-card-ov { position: fixed; inset: 0; background: rgba(0,0,0,.6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 200; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
 .aahl-card-ov.on { display: flex; }
-.aahl-fc { width: 100%; max-width: 440px; background: var(--bg); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; position: relative; animation: aahlPop .2s ease-out; color: var(--text); }
+.aahl-fc { width: 100%; max-width: 420px; max-height: calc(100dvh - 32px); overflow-x: hidden; overflow-y: auto; margin: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 18px; position: relative; animation: aahlPop .2s ease-out; color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
 @keyframes aahlPop { from { transform: scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
-.aahl-fc-wm { position: absolute; right: -40px; top: -30px; width: 240px; height: 240px; opacity: .14; pointer-events: none; }
-.aahl-fc-x { position: absolute; top: 8px; right: 12px; background: none; border: 0; color: var(--text-dim); font-size: 28px; cursor: pointer; z-index: 2; line-height: 1; }
+.aahl-fc-wm { position: absolute; right: -24px; top: -16px; width: 200px; height: 200px; opacity: .14; pointer-events: none; }
+/* #id beats the mobile full-width button rule */
+#aahl-card-ov .aahl-fc-x { position: absolute; top: 10px; right: 10px; left: auto; width: 40px; height: 40px; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.4); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; z-index: 5; opacity: 1; }
+#aahl-card-ov .aahl-fc-x:hover, #aahl-card-ov .aahl-fc-x:focus-visible { background: rgba(0,0,0,.65); outline: 2px solid var(--ice); outline-offset: 2px; }
 .aahl-fc-top { display: flex; position: relative; min-height: 190px; }
-.aahl-fc-info { flex: 1; padding: 20px 0 14px 20px; min-width: 0; }
-.aahl-fc-nm { font-family: var(--font-display); font-weight: 800; font-size: 30px; line-height: .95; letter-spacing: .5px; text-transform: uppercase; }
+.aahl-fc-info { flex: 1; padding: 20px 56px 14px 20px; min-width: 0; }
+.aahl-fc-nm { font-family: var(--font-display); font-weight: 800; font-size: 30px; line-height: .95; letter-spacing: .5px; text-transform: uppercase; overflow-wrap: anywhere; }
 .aahl-fc-meta { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); margin: 10px 0 6px; display: flex; align-items: center; gap: 6px; }
 .aahl-fc-meta img { width: 20px; height: 20px; }
 .aahl-fc-sub { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
 .aahl-fc-badge { margin-top: 4px; }
-.aahl-fc-hs { width: 160px; align-self: flex-end; position: relative; }
-.aahl-fc-hs img { width: 160px; display: block; }
-.aahl-fc-pool { display: flex; justify-content: space-between; align-items: baseline; margin: 0 12px 8px; padding: 10px 14px; border: 1px solid var(--ice); border-radius: 12px; background: var(--bg-panel); position: relative; }
+.aahl-fc-hs { width: 150px; align-self: flex-end; position: relative; pointer-events: none; }
+.aahl-fc-hs img { width: 150px; height: 150px; object-fit: contain; object-position: bottom; display: block; }
+.aahl-fc-pool { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin: 0 12px 8px; padding: 10px 14px; border: 1px solid var(--ice); border-radius: 12px; background: var(--bg-panel); position: relative; }
 .aahl-fc-pool small, .aahl-fc-strip small { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); letter-spacing: .5px; }
 .aahl-fc-pool b { font-family: var(--font-mono); font-size: 26px; color: var(--ice); font-weight: 700; }
+.aahl-fc-pool .alt { text-align: right; }
+.aahl-fc-pool .alt b { font-size: 20px; }
 .aahl-fc-strip { margin: 0 12px 12px; border: 1px solid var(--border); border-radius: 12px; display: grid; padding: 12px 4px; background: var(--bg-panel); position: relative; }
-.aahl-fc-strip div { text-align: center; }
+.aahl-fc-strip div { text-align: center; min-width: 0; }
 .aahl-fc-strip b { display: block; font-family: var(--font-mono); font-size: 20px; font-weight: 500; }
 .aahl-fc-strip b.ht { color: var(--amber); }
 .aahl-fc-moves { margin: 0 12px 12px; font-family: var(--font-mono); font-size: 11px; color: var(--amber); position: relative; }
 .aahl-fc-moves div { padding: 6px 10px; border: 1px solid var(--border); background: var(--bg-panel); border-radius: 8px; margin-top: 6px; }
+html.aahl-noscroll, html.aahl-noscroll body { overflow: hidden; }
 @media (max-width: 520px) {
-  .aahl-fc-hs, .aahl-fc-hs img { width: 120px; }
+  .aahl-fc-hs, .aahl-fc-hs img { width: 120px; height: 120px; }
+  .aahl-fc-top { min-height: 170px; }
   .aahl-fc-nm { font-size: 26px; }
+  .aahl-fc-strip b { font-size: 18px; }
 }
 
 /* ---------- Players page card view (stats.js) ---------- */
@@ -1400,9 +1407,9 @@ a.hero-badge { cursor: pointer; }
 .aahl-pc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .aahl-pc { background: var(--bg); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; position: relative; cursor: pointer; transition: border-color .15s, transform .15s; }
 .aahl-pc:hover, .aahl-pc:focus { border-color: var(--ice); outline: none; }
-.aahl-pc, .aahl-fc { transform-style: preserve-3d; will-change: transform; }
-.aahl-pc-top, .aahl-fc-top { transform: translateZ(24px); }
-.aahl-pc-strip, .aahl-fc-strip, .aahl-fc-pool { transform: translateZ(16px); }
+.aahl-pc, .aahl-fc.tilt { transform-style: preserve-3d; will-change: transform; }
+.aahl-pc-top, .aahl-fc.tilt .aahl-fc-top { transform: translateZ(24px); }
+.aahl-pc-strip, .aahl-fc.tilt .aahl-fc-strip, .aahl-fc.tilt .aahl-fc-pool { transform: translateZ(16px); }
 .aahl-pc-wm { position: absolute; right: -24px; top: -18px; width: 150px; height: 150px; opacity: .13; pointer-events: none; }
 .aahl-pc-top { display: flex; position: relative; min-height: 132px; }
 .aahl-pc-info { flex: 1; padding: 14px 0 10px 14px; min-width: 0; }
