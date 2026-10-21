@@ -58,7 +58,7 @@
 
   function card_(i) {
     if (i.type === 'fight') {
-      return `<div class="hl-card hl-fight hl-wait">
+      return `<button type="button" class="hl-card hl-fight" data-id="${esc(i.id)}">
       <img class="hl-mug" src="https://assets.nhle.com/mugs/nhl/20262027/${esc(i.team)}/${esc(i.playerId)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
       <span class="hl-body">
         <span class="hl-top"><span class="hl-tag mono">F</span><strong>${esc(i.name)}</strong></span>
@@ -66,7 +66,7 @@
         <span class="hl-line hl-dim">${i.opponent ? 'vs ' + esc(i.opponent) + (i.opponentTeam ? ' (' + esc(i.opponentTeam) + ')' : '') + ' · ' : ''}${esc(i.matchup)}</span>
       </span>
       <span class="hl-play mono">🥊</span>
-    </div>`;
+    </button>`;
     }
     const what = i.type === 'goal'
       ? 'Goal' + (i.strength === 'pp' ? ' · PPG' : i.strength === 'sh' ? ' · SHG' : '') + (i.modifier === 'empty-net' ? ' · EN' : '')
@@ -100,15 +100,23 @@
       : `<div class="hl-empty">No pool player points ${state.date === hockeyDay_() ? 'yet tonight' : 'that day'}.</div>`;
   }
 
+  function fightLinks_(item) {
+    const q = encodeURIComponent([item.name.replace(/^[A-Z]\. /, ''), item.opponent ? item.opponent.replace(/^[A-Z]\. /, '') : '', 'fight'].join(' ').trim());
+    return `<a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">Find the video on YouTube</a>
+      <a href="https://www.nhl.com/gamecenter/${esc(item.gameId)}" target="_blank" rel="noopener">Game on NHL.com</a>`;
+  }
+
   function open_(item) {
     close_();
     const wrap = document.createElement('div');
     wrap.className = 'hl-modal';
     wrap.innerHTML = `<div class="hl-sheet" role="dialog" aria-label="${esc(item.name)} highlight">
-      <div class="hl-video"><iframe src="${esc(item.embed)}&autoplay=1" allow="autoplay; fullscreen; encrypted-media" allowfullscreen></iframe></div>
+      ${item.type === 'fight'
+        ? `<div class="hl-fight-box"><div class="hl-fight-icon">🥊</div><div><strong>${esc(item.name)}</strong> vs <strong>${esc(item.opponent || 'unknown')}</strong></div><div class="hl-dim">${esc(item.matchup)} · ${esc(item.period)} ${esc(item.time)} · 5 min fighting major</div><div class="hl-dim">The NHL doesn't post fight video.</div></div>`
+        : `<div class="hl-video"><iframe src="${esc(item.embed)}&autoplay=1" allow="autoplay; fullscreen; encrypted-media" allowfullscreen></iframe></div>`}
       <div class="hl-meta">
-        <div><strong>${esc(item.name)}</strong> <span class="hl-dim">${item.type === 'goal' ? 'Goal' : 'Assist on ' + esc(item.scorer) + '\'s goal'} · ${esc(item.matchup)} · ${esc(item.period)} ${esc(item.time)}</span></div>
-        ${item.clipUrl ? `<a href="${esc(item.clipUrl)}" target="_blank" rel="noopener">Open on NHL.com</a>` : ''}
+        ${item.type === 'fight' ? fightLinks_(item) : `<div><strong>${esc(item.name)}</strong> <span class="hl-dim">${item.type === 'goal' ? 'Goal' : 'Assist on ' + esc(item.scorer) + '\'s goal'} · ${esc(item.matchup)} · ${esc(item.period)} ${esc(item.time)}</span></div>
+        ${item.clipUrl ? `<a href="${esc(item.clipUrl)}" target="_blank" rel="noopener">Open on NHL.com</a>` : ''}`}
         <button class="hl-close" aria-label="Close">✕</button>
       </div>
     </div>`;
