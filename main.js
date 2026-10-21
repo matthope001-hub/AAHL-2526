@@ -16,7 +16,7 @@ const DEFAULT_TRADE_DEADLINE = '2027-03-01T23:59:00-05:00';
 
 // ---------- Navigation ----------
 const VIEW_TITLES = {
-  home: 'Home', standings: 'Standings', players: 'Players', lastnight: "Last Night", schedule: 'Schedule',
+  home: 'Home', standings: 'Standings', players: 'Players', lastnight: "Last Night", highlights: 'Highlights', schedule: 'Schedule',
   records: 'Records', activity: 'Activity', rules: 'Rules', boxes: 'Boxes', ir: 'IR List',
   signup: 'Sign Up', managemoves: 'My Team', admin: 'Commissioner', whatsnew: "What's New"
 };
@@ -40,6 +40,7 @@ document.querySelectorAll('.nav-link').forEach(link => {
     if (view === 'standings') refreshAndRenderStandings();
     if (view === 'players') { await Promise.all([ensurePlayersLoaded(), ensurePickCountsLoaded_()]); renderPlayersTable(); }
     if (view === 'lastnight') { await ensurePlayersLoaded(); renderLastNightStats(); }
+    if (view === 'highlights' && window.Highlights) Highlights.mount('#highlights-content');
     if (view === 'schedule' && window.ScheduleGrid) ScheduleGrid.mount('#schedule-grid');
     if (view === 'records') renderRecordsPage();
     if (view === 'whatsnew' && typeof renderWhatsNew_ === 'function') renderWhatsNew_();

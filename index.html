@@ -32,6 +32,7 @@
       <a href="#" data-view="standings" class="nav-link">Standings</a>
       <a href="#" data-view="players" class="nav-link">Players</a>
       <a href="#" data-view="lastnight" class="nav-link">Last Night</a>
+      <a href="#" data-view="highlights" class="nav-link">Highlights</a>
       <a href="#" data-view="managemoves" class="nav-link">My Team</a>
       <div class="nav-more">
         <button type="button" class="nav-more-btn" id="nav-more-btn" aria-haspopup="true" aria-expanded="false">More ▾<span class="new-dot" hidden></span></button>
@@ -156,6 +157,11 @@
     <div id="lastnight-content"></div>
   </section>
 
+  <section id="view-highlights" class="view">
+    <h2 class="section-title">Highlights</h2>
+    <div id="highlights-content"></div>
+  </section>
+
   <section id="view-schedule" class="view">
     <h2 class="section-title">Weekly Schedule</h2>
     <div id="schedule-grid"></div>
@@ -232,6 +238,7 @@
 <script src="schedule.js?v=3"></script>
 <script src="main.js?v=5"></script>
 <script src="gamecard.js?v=2"></script>
+<script src="highlights.js?v=1"></script>
 <!-- Extras (ux.js): stat tooltips, pull to refresh (installed app), loading bar, countdowns. Optional - the site works without them. -->
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/tippy.js/6.3.7/tippy-bundle.umd.min.js"></script>

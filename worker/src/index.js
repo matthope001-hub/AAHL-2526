@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -99,6 +99,7 @@ export default {
           case 'findEntryForMoves': result = await findEntryForMoves(env, p.get('entryId'), p.get('email')); break;
           case 'checkLateInvite': result = await checkLateInvite(env, p.get('token')); break;
           case 'schedule': result = await getWeekSchedule(p.get('date')); break;
+          case 'highlights': result = await getHighlights(env, p.get('date')); break;
           default: result = { success: false, error: 'Unknown action: ' + p.get('action') };
         }
       } else if (request.method === 'POST') {
@@ -870,7 +871,7 @@ async function runLivePoints(env) {
   if (!cache || !(cache.games || []).length) return;
   const now = Date.now();
   const anyOn = cache.games.some(g => g.state !== 'final' && new Date(g.startTimeUTC).getTime() <= now + 60000);
-  if (!anyOn) return;
+  if (!anyOn) { await chaseLateClips(env, day, now).catch(err => console.log('Highlights: late clips failed - ' + err.message)); return; }
 
   // 2. Fresh scores for the whole day (one request).
   const feed = await nhl('/score/' + day);
@@ -892,6 +893,8 @@ async function runLivePoints(env) {
   const prevSig = (same && work.gameSig) || {};
   const prevAt = (same && work.fetchedAt) || {};
   const lk = await liveLookups(env);
+  try { log.highlights = await updateHighlights(env, day, feed.games || [], lk.players); }
+  catch (err) { console.log('Highlights: update failed - ' + err.message); }
   const gameStats = {}, gameStates = {}, gameSig = {}, fetchedAt = {};
   let fetched = 0, reused = 0, failed = 0;
 
@@ -970,6 +973,102 @@ async function runLivePoints(env) {
 
   log.ms = Date.now() - t0;
   console.log('Live: ' + JSON.stringify(log));
+}
+
+// ----------------------------------------------------------- highlights
+// Goal and assist clips for pool players. The /score feed live points
+// already reads carries every goal with its NHL clip ids, so this costs no
+// extra NHL requests while games are on. Saved per hockey day in
+// config/highlights_YYYY-MM-DD, written only when something changes.
+// After the last game ends, the feed is re-read every few minutes (for up
+// to 3 hours) until every clip has been posted.
+const BRIGHTCOVE_EMBED = 'https://players.brightcove.net/6415718365001/EXtG1xJ7H_default/index.html?videoId=';
+const LATE_CLIP_EVERY_MS = 3 * 60000;
+const LATE_CLIP_FOR_MS = 3 * 3600000;
+let highlightsMem_ = null; // { day, sig, pending, at }
+
+function periodLabel_(pd) {
+  pd = pd || {};
+  if (pd.periodType === 'OT') return 'OT';
+  if (pd.periodType === 'SO') return 'SO';
+  return ['', '1st', '2nd', '3rd'][pd.number] || (pd.number ? 'P' + pd.number : '');
+}
+
+function buildHighlights_(games, poolPlayers) {
+  const items = [];
+  games.filter(g => g.gameType === 2).forEach(g => {
+    const away = (g.awayTeam && g.awayTeam.abbrev) || '', home = (g.homeTeam && g.homeTeam.abbrev) || '';
+    (g.goals || []).forEach(goal => {
+      if (goal.periodDescriptor && goal.periodDescriptor.periodType === 'SO') return; // shootout attempts aren't goals
+      const scorerId = String(goal.playerId || '');
+      const scorer = (goal.name && goal.name.default) || '';
+      const base = {
+        gameId: g.id, matchup: away + ' @ ' + home, team: (goal.teamAbbrev && (goal.teamAbbrev.default || goal.teamAbbrev)) || '',
+        period: periodLabel_(goal.periodDescriptor), time: goal.timeInPeriod || '',
+        strength: goal.strength || 'ev', modifier: goal.goalModifier && goal.goalModifier !== 'none' ? goal.goalModifier : '',
+        score: away + ' ' + (goal.awayScore || 0) + ', ' + home + ' ' + (goal.homeScore || 0),
+        clip: goal.highlightClip ? String(goal.highlightClip) : '',
+        clipUrl: goal.highlightClipSharingUrl || ''
+      };
+      const key = g.id + '-' + (goal.periodDescriptor ? goal.periodDescriptor.number : goal.period) + '-' + base.time;
+      if (poolPlayers[scorerId]) {
+        items.push(Object.assign({ id: key + '-G-' + scorerId, type: 'goal', playerId: scorerId, name: scorer, toDate: goal.goalsToDate || 0 }, base));
+      }
+      (goal.assists || []).forEach((a, i) => {
+        const aid = String(a.playerId || '');
+        if (!poolPlayers[aid]) return;
+        items.push(Object.assign({
+          id: key + '-A-' + aid, type: 'assist', playerId: aid, name: (a.name && a.name.default) || '',
+          primary: i === 0, scorer: scorer, toDate: a.assistsToDate || 0
+        }, base));
+      });
+    });
+  });
+  return items;
+}
+
+async function updateHighlights(env, day, games, poolPlayers) {
+  const items = buildHighlights_(games, poolPlayers);
+  const pending = items.filter(i => !i.clip).length;
+  const sig = await sha256(JSON.stringify(items));
+  let prevSig = highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.sig : null;
+  if (prevSig == null) {
+    const doc = await getConfigDoc(env, 'highlights_' + day);
+    prevSig = doc ? doc.sig : '';
+  }
+  if (sig !== prevSig && (items.length || prevSig)) {
+    await putConfigDoc(env, 'highlights_' + day, { date: day, sig: sig, items: items, updatedAt: new Date().toISOString() });
+  }
+  highlightsMem_ = { day: day, sig: sig, pending: pending, at: Date.now() };
+  return { items: items.length, pending: pending };
+}
+
+// No games on: keep re-reading the feed while clips are still missing.
+async function chaseLateClips(env, day, now) {
+  if (highlightsMem_ && highlightsMem_.day === day) {
+    if (!highlightsMem_.pending || now - highlightsMem_.at < LATE_CLIP_EVERY_MS) return;
+  } else {
+    const doc = await getConfigDoc(env, 'highlights_' + day);
+    if (!doc || !(doc.items || []).some(i => !i.clip)) {
+      highlightsMem_ = { day: day, sig: doc ? doc.sig : '', pending: 0, at: now };
+      return;
+    }
+    if (now - new Date(doc.updatedAt).getTime() > LATE_CLIP_FOR_MS) return;
+  }
+  const feed = await nhl('/score/' + day);
+  const games = feed.games || [];
+  const lastStart = Math.max(0, ...games.map(g => new Date(g.startTimeUTC).getTime() || 0));
+  if (now - lastStart > LATE_CLIP_FOR_MS + 4 * 3600000) { highlightsMem_ = { day: day, sig: highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.sig : null, pending: 0, at: now }; return; }
+  const lk = await liveLookups(env);
+  const r = await updateHighlights(env, day, games, lk.players);
+  console.log('Highlights: late clip check ' + JSON.stringify(r));
+}
+
+async function getHighlights(env, date) {
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : hockeyDay();
+  const doc = await getConfigDoc(env, 'highlights_' + day);
+  const items = ((doc && doc.items) || []).map(i => Object.assign({}, i, { embed: i.clip ? BRIGHTCOVE_EMBED + i.clip : '' }));
+  return { success: true, date: day, items: items, updatedAt: doc ? doc.updatedAt : null };
 }
 
 // --------------------------------------------------------- weekly image
