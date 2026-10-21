@@ -7,7 +7,7 @@
 (function () {
   const API = 'https://api.theaahl.ca/';
   const TZ = 'America/Toronto';
-  const state = { root: null, date: null, filter: 'all', items: [], timer: null, loading: false };
+  const state = { root: null, date: null, filter: 'all', items: [], timer: null };
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -28,22 +28,32 @@
     return new Date(ymd + 'T12:00:00Z').toLocaleDateString('en-CA', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   }
 
+  // Latest request wins: a tap on ‹ / › never waits on (or is blocked by)
+  // an earlier load. Each load gives up after 20s.
+  let reqSeq_ = 0;
   async function load_(quiet) {
-    if (state.loading) return;
-    state.loading = true;
-    if (!quiet) state.root.querySelector('.hl-feed').innerHTML = '<div class="hl-empty">Loading highlights…</div>';
+    const seq = ++reqSeq_, date = state.date;
+    if (!quiet) {
+      state.items = [];
+      state.root.querySelector('.hl-day').textContent = dayLabel_(date);
+      state.root.querySelector('.hl-next').disabled = date >= hockeyDay_();
+      state.root.querySelector('.hl-feed').innerHTML = '<div class="hl-empty">Loading highlights…</div>';
+    }
+    const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : null;
     try {
-      const res = await fetch(API + '?action=highlights&date=' + encodeURIComponent(state.date), { cache: 'no-store' });
+      const res = await fetch(API + '?action=highlights&date=' + encodeURIComponent(date), { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Could not load highlights');
+      if (seq !== reqSeq_) return; // a newer day was picked meanwhile
       state.items = (json.items || []).slice().reverse(); // newest first
+      render_();
     } catch (err) {
-      if (!quiet) state.root.querySelector('.hl-feed').innerHTML = '<div class="hl-empty">Couldn\'t load highlights. Try again in a minute.</div>';
-      state.loading = false;
-      return;
+      if (seq !== reqSeq_ || quiet) return;
+      state.root.querySelector('.hl-feed').innerHTML = '<div class="hl-empty">Couldn\'t load highlights. Try again in a minute.</div>';
+    } finally {
+      if (timer) clearTimeout(timer);
     }
-    state.loading = false;
-    render_();
   }
 
   function card_(i) {
@@ -119,9 +129,9 @@
       state.root = root;
       state.date = hockeyDay_();
       root.innerHTML = `<div class="hl-bar">
-          <button class="hl-prev filter-tab" aria-label="Previous day">‹</button>
+          <button type="button" class="hl-prev filter-tab" aria-label="Previous day">‹</button>
           <span class="hl-day mono"></span>
-          <button class="hl-next filter-tab" aria-label="Next day">›</button>
+          <button type="button" class="hl-next filter-tab" aria-label="Next day">›</button>
           <span class="hl-filters">
             <button class="filter-tab active" data-f="all">All</button>
             <button class="filter-tab" data-f="goal">Goals</button>
