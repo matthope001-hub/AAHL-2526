@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.7.0';
+const VERSION = '1.7.1';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1027,7 +1027,7 @@ function buildHighlights_(games, poolPlayers) {
   return items;
 }
 
-async function updateHighlights(env, day, games, poolPlayers) {
+async function updateHighlights(env, day, games, poolPlayers, saveEmpty) {
   const items = buildHighlights_(games, poolPlayers);
   const pending = items.filter(i => !i.clip).length;
   const sig = await sha256(JSON.stringify(items));
@@ -1036,7 +1036,7 @@ async function updateHighlights(env, day, games, poolPlayers) {
     const doc = await getConfigDoc(env, 'highlights_' + day);
     prevSig = doc ? doc.sig : '';
   }
-  if (sig !== prevSig && (items.length || prevSig)) {
+  if (sig !== prevSig && (items.length || prevSig || saveEmpty)) {
     await putConfigDoc(env, 'highlights_' + day, { date: day, sig: sig, items: items, updatedAt: new Date().toISOString() });
   }
   highlightsMem_ = { day: day, sig: sig, pending: pending, at: Date.now() };
@@ -1064,9 +1064,25 @@ async function chaseLateClips(env, day, now) {
   console.log('Highlights: late clip check ' + JSON.stringify(r));
 }
 
+// A past day with no saved highlights (or still missing clips) is built
+// from that day's NHL score feed the first time someone opens it.
+const BACKFILL_DAYS = 14;
+const BACKFILL_RETRY_MS = 10 * 60000;
 async function getHighlights(env, date) {
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : hockeyDay();
-  const doc = await getConfigDoc(env, 'highlights_' + day);
+  const today = hockeyDay();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : today;
+  let doc = await getConfigDoc(env, 'highlights_' + day);
+  const ageDays = (new Date(today + 'T12:00:00Z') - new Date(day + 'T12:00:00Z')) / 86400000;
+  const pending = doc && (doc.items || []).some(i => !i.clip);
+  const stale = !doc || (pending && Date.now() - new Date(doc.updatedAt).getTime() > BACKFILL_RETRY_MS);
+  if (ageDays >= 1 && ageDays <= BACKFILL_DAYS && stale) {
+    try {
+      const [feed, lk] = await Promise.all([nhl('/score/' + day), liveLookups(env)]);
+      await updateHighlights(env, day, feed.games || [], lk.players, true);
+      doc = await getConfigDoc(env, 'highlights_' + day);
+      if (doc && pending && doc.sig) await putConfigDoc(env, 'highlights_' + day, Object.assign({}, doc, { updatedAt: new Date().toISOString() }));
+    } catch (err) { console.log('Highlights: backfill ' + day + ' failed - ' + err.message); }
+  }
   const items = ((doc && doc.items) || []).map(i => Object.assign({}, i, { embed: i.clip ? BRIGHTCOVE_EMBED + i.clip : '' }));
   return { success: true, date: day, items: items, updatedAt: doc ? doc.updatedAt : null };
 }
