@@ -1680,3 +1680,9 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 
 .hl-card.hl-fight { border-left-color: #c0392b; }
 .hl-fight .hl-tag { color: #e05a4b; }
+/* Highlights: undo the phone-wide full-width button rule */
+#highlights-content .hl-bar button { width: auto; padding: 8px 14px; font-size: 14px; }
+#highlights-content .hl-bar .hl-prev, #highlights-content .hl-bar .hl-next { padding: 6px 14px; font-size: 18px; line-height: 1; }
+#highlights-content .hl-filters button { flex: 1; }
+#highlights-content .hl-card { padding: 10px 12px; font-size: inherit; }
+.hl-modal .hl-close { width: auto !important; padding: 4px 8px !important; }
