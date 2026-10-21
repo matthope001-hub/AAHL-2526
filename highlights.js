@@ -1,5 +1,5 @@
 /**
- * Highlights - goal and assist clips for every pool player.
+ * Highlights - goal and assist clips, plus fight cards, for every pool player.
  * Data comes from the worker (GET api.theaahl.ca/?action=highlights&date=),
  * which picks the clips out of the NHL score feed during live points.
  * Clips play in an overlay (NHL's Brightcove player) with a link to NHL.com.
@@ -47,6 +47,17 @@
   }
 
   function card_(i) {
+    if (i.type === 'fight') {
+      return `<div class="hl-card hl-fight hl-wait">
+      <img class="hl-mug" src="https://assets.nhle.com/mugs/nhl/20262027/${esc(i.team)}/${esc(i.playerId)}.png" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+      <span class="hl-body">
+        <span class="hl-top"><span class="hl-tag mono">F</span><strong>${esc(i.name)}</strong></span>
+        <span class="hl-line">Fight · ${esc(i.period)} ${esc(i.time)}</span>
+        <span class="hl-line hl-dim">${i.opponent ? 'vs ' + esc(i.opponent) + (i.opponentTeam ? ' (' + esc(i.opponentTeam) + ')' : '') + ' · ' : ''}${esc(i.matchup)}</span>
+      </span>
+      <span class="hl-play mono">🥊</span>
+    </div>`;
+    }
     const what = i.type === 'goal'
       ? 'Goal' + (i.strength === 'pp' ? ' · PPG' : i.strength === 'sh' ? ' · SHG' : '') + (i.modifier === 'empty-net' ? ' · EN' : '')
       : (i.primary ? 'Primary assist' : 'Secondary assist');
@@ -65,14 +76,14 @@
 
   function render_() {
     const list = state.items.filter(i => state.filter === 'all' || i.type === state.filter);
-    const goals = state.items.filter(i => i.type === 'goal').length;
-    const assists = state.items.length - goals;
+    const count = { all: state.items.length, goal: 0, assist: 0, fight: 0 };
+    state.items.forEach(i => { count[i.type] = (count[i.type] || 0) + 1; });
+    const label = { all: 'All', goal: 'Goals', assist: 'Assists', fight: 'Fights' };
     state.root.querySelector('.hl-day').textContent = dayLabel_(state.date);
     state.root.querySelector('.hl-next').disabled = state.date >= hockeyDay_();
     state.root.querySelectorAll('.hl-filters .filter-tab').forEach(b => {
       b.classList.toggle('active', b.dataset.f === state.filter);
-      const n = b.dataset.f === 'all' ? state.items.length : b.dataset.f === 'goal' ? goals : assists;
-      b.textContent = (b.dataset.f === 'all' ? 'All' : b.dataset.f === 'goal' ? 'Goals' : 'Assists') + ' ' + n;
+      b.textContent = label[b.dataset.f] + ' ' + (count[b.dataset.f] || 0);
     });
     state.root.querySelector('.hl-feed').innerHTML = list.length
       ? list.map(card_).join('')
@@ -115,10 +126,11 @@
             <button class="filter-tab active" data-f="all">All</button>
             <button class="filter-tab" data-f="goal">Goals</button>
             <button class="filter-tab" data-f="assist">Assists</button>
+            <button class="filter-tab" data-f="fight">Fights</button>
           </span>
         </div>
         <div class="hl-feed"></div>
-        <p class="hl-note hl-dim">Cards show up within minutes of the play; the video follows once the NHL posts it. Clips are official NHL highlights.</p>`;
+        <p class="hl-note hl-dim">Cards show up within minutes of the play; the video follows once the NHL posts it. Clips are official NHL highlights. The NHL doesn't post fight video, so fight cards have no clip.</p>`;
       root.querySelector('.hl-prev').addEventListener('click', () => { state.date = addDays_(state.date, -1); load_(); });
       root.querySelector('.hl-next').addEventListener('click', () => { if (state.date < hockeyDay_()) { state.date = addDays_(state.date, 1); load_(); } });
       root.querySelector('.hl-filters').addEventListener('click', e => {

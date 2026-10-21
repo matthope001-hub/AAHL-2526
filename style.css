@@ -1677,3 +1677,6 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .hl-meta a { color: var(--ice); margin-left: auto; }
 .hl-close { background: none; border: 0; color: var(--text-dim); font-size: 18px; cursor: pointer; }
 @media (max-width: 600px) { .hl-filters { margin-left: 0; width: 100%; } .hl-feed { grid-template-columns: 1fr; } }
+
+.hl-card.hl-fight { border-left-color: #c0392b; }
+.hl-fight .hl-tag { color: #e05a4b; }

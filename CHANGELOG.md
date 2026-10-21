@@ -3,6 +3,14 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.5 — Highlights
+_Oct 21, 2026_
+- New **Highlights** page (top menu): a card for every **goal** and **assist** by a pool player, within minutes of the play
+- **Tap a card** to watch the official NHL clip right on the page, or open it on NHL.com. Cards say **Clip coming** until the NHL posts the video
+- **Fight cards** too, showing who they fought (the NHL doesn't post fight video, so these have no clip)
+- Filter by **Goals / Assists / Fights**, and step back with **‹ ›** to catch up on any of the last two weeks
+- Updates on its own every minute while you're watching tonight's games
+
 ## v3.4 — Live standings during games
 _Oct 20, 2026_
 - **Standings move live**: while games are on, Rank, Points and Payout include tonight's points, on both Home and the Standings page

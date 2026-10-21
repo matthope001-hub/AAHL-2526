@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.7.1';
+const VERSION = '1.8.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -976,16 +976,21 @@ async function runLivePoints(env) {
 }
 
 // ----------------------------------------------------------- highlights
-// Goal and assist clips for pool players. The /score feed live points
-// already reads carries every goal with its NHL clip ids, so this costs no
-// extra NHL requests while games are on. Saved per hockey day in
-// config/highlights_YYYY-MM-DD, written only when something changes.
-// After the last game ends, the feed is re-read every few minutes (for up
-// to 3 hours) until every clip has been posted.
+// Goal, assist and fight cards for pool players, saved per hockey day in
+// config/highlights_YYYY-MM-DD (written only when something changes).
+// Goals/assists: the /score feed live points already reads carries every
+// goal with its NHL clip ids - no extra NHL requests.
+// Fights: the NHL posts no fight video; fighting majors come from each
+// game's play-by-play, read every 10 min while live and once at the final
+// (at most HL_FIGHT_MAX_FETCH games per run).
+// After the last game ends, the feed is re-read every few minutes (up to
+// 3 hours) until every clip has been posted.
 const BRIGHTCOVE_EMBED = 'https://players.brightcove.net/6415718365001/EXtG1xJ7H_default/index.html?videoId=';
 const LATE_CLIP_EVERY_MS = 3 * 60000;
 const LATE_CLIP_FOR_MS = 3 * 3600000;
-let highlightsMem_ = null; // { day, sig, pending, at }
+const HL_FIGHT_EVERY_MS = 10 * 60000;
+const HL_FIGHT_MAX_FETCH = 2;
+let highlightsMem_ = null; // { day, doc, pending, at }
 
 function periodLabel_(pd) {
   pd = pd || {};
@@ -994,16 +999,20 @@ function periodLabel_(pd) {
   return ['', '1st', '2nd', '3rd'][pd.number] || (pd.number ? 'P' + pd.number : '');
 }
 
-function buildHighlights_(games, poolPlayers) {
+const gameMatchup_ = g => ((g.awayTeam && g.awayTeam.abbrev) || '') + ' @ ' + ((g.homeTeam && g.homeTeam.abbrev) || '');
+const gameStarted_ = g => ['LIVE', 'CRIT', 'FINAL', 'OFF'].includes(g.gameState);
+const gameFinal_ = g => g.gameState === 'FINAL' || g.gameState === 'OFF';
+
+function buildGoalItems_(games, poolPlayers) {
   const items = [];
-  games.filter(g => g.gameType === 2).forEach(g => {
+  games.forEach(g => {
     const away = (g.awayTeam && g.awayTeam.abbrev) || '', home = (g.homeTeam && g.homeTeam.abbrev) || '';
     (g.goals || []).forEach(goal => {
       if (goal.periodDescriptor && goal.periodDescriptor.periodType === 'SO') return; // shootout attempts aren't goals
       const scorerId = String(goal.playerId || '');
       const scorer = (goal.name && goal.name.default) || '';
       const base = {
-        gameId: g.id, matchup: away + ' @ ' + home, team: (goal.teamAbbrev && (goal.teamAbbrev.default || goal.teamAbbrev)) || '',
+        gameId: g.id, matchup: gameMatchup_(g), team: (goal.teamAbbrev && (goal.teamAbbrev.default || goal.teamAbbrev)) || '',
         period: periodLabel_(goal.periodDescriptor), time: goal.timeInPeriod || '',
         strength: goal.strength || 'ev', modifier: goal.goalModifier && goal.goalModifier !== 'none' ? goal.goalModifier : '',
         score: away + ' ' + (goal.awayScore || 0) + ', ' + home + ' ' + (goal.homeScore || 0),
@@ -1027,45 +1036,104 @@ function buildHighlights_(games, poolPlayers) {
   return items;
 }
 
-async function updateHighlights(env, day, games, poolPlayers, saveEmpty) {
-  const items = buildHighlights_(games, poolPlayers);
-  const pending = items.filter(i => !i.clip).length;
+// Every fighting major in one game (all players - pool filter comes later).
+async function gameFights_(gameId) {
+  const pbp = await nhl(`/gamecenter/${gameId}/play-by-play`);
+  const teams = {};
+  [pbp.awayTeam, pbp.homeTeam].forEach(t => { if (t) teams[t.id] = t.abbrev; });
+  const who = {};
+  (pbp.rosterSpots || []).forEach(r => {
+    who[String(r.playerId)] = {
+      name: ((r.firstName && r.firstName.default) || '').charAt(0) + '. ' + ((r.lastName && r.lastName.default) || ''),
+      team: teams[r.teamId] || ''
+    };
+  });
+  const out = [];
+  (pbp.plays || []).forEach(e => {
+    const d = e.details || {};
+    if (e.typeDescKey !== 'penalty' || d.descKey !== 'fighting' || !d.committedByPlayerId) return;
+    const pid = String(d.committedByPlayerId), opp = d.drawnByPlayerId ? String(d.drawnByPlayerId) : '';
+    out.push({
+      playerId: pid, name: (who[pid] || {}).name || '', team: (who[pid] || {}).team || '',
+      opponent: opp ? (who[opp] || {}).name || '' : '', opponentTeam: opp ? (who[opp] || {}).team || '' : '',
+      period: periodLabel_(e.periodDescriptor), time: e.timeInPeriod || ''
+    });
+  });
+  return out;
+}
+
+async function highlightsDoc_(env, day) {
+  if (highlightsMem_ && highlightsMem_.day === day) return highlightsMem_.doc;
+  return (await getConfigDoc(env, 'highlights_' + day)) || null;
+}
+
+// all = true (past-day backfill): read every started game's play-by-play.
+async function updateHighlights(env, day, games, poolPlayers, saveEmpty, all) {
+  games = games.filter(g => g.gameType === 2);
+  const prev = await highlightsDoc_(env, day);
+  const fights = Object.assign({}, (prev && prev.fights) || {});
+  const fightAt = Object.assign({}, (prev && prev.fightAt) || {});
+  const fightFinal = Object.assign({}, (prev && prev.fightFinal) || {});
+  const now = Date.now();
+
+  const todo = games.filter(gameStarted_).filter(g => {
+    const id = String(g.id);
+    if (fightFinal[id]) return false;
+    return all || gameFinal_(g) || now - (fightAt[id] || 0) >= HL_FIGHT_EVERY_MS;
+  }).sort((x, y) => (fightAt[String(x.id)] || 0) - (fightAt[String(y.id)] || 0));
+  const batch = all ? todo : todo.slice(0, HL_FIGHT_MAX_FETCH);
+  await Promise.all(batch.map(async g => {
+    const id = String(g.id);
+    try {
+      fights[id] = await gameFights_(g.id);
+      fightAt[id] = now;
+      if (gameFinal_(g)) fightFinal[id] = true;
+    } catch (err) { console.log('Highlights: play-by-play ' + id + ' failed - ' + err.message); }
+  }));
+
+  const items = buildGoalItems_(games, poolPlayers);
+  games.forEach(g => (fights[String(g.id)] || []).forEach(f => {
+    if (!poolPlayers[f.playerId]) return;
+    items.push(Object.assign({
+      id: g.id + '-' + f.period + '-' + f.time + '-F-' + f.playerId, type: 'fight', gameId: g.id, matchup: gameMatchup_(g),
+      clip: '', clipUrl: ''
+    }, f));
+  }));
+  const order = { '1st': 1, '2nd': 2, '3rd': 3, OT: 4 };
+  items.sort((x, y) => String(x.gameId).localeCompare(String(y.gameId)) || ((order[x.period] || 9) - (order[y.period] || 9)) || String(x.time).localeCompare(String(y.time)));
+
+  const pending = items.filter(i => i.type !== 'fight' && !i.clip).length;
   const sig = await sha256(JSON.stringify(items));
-  let prevSig = highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.sig : null;
-  if (prevSig == null) {
-    const doc = await getConfigDoc(env, 'highlights_' + day);
-    prevSig = doc ? doc.sig : '';
+  const prevSig = prev ? prev.sig : '';
+  let doc = prev;
+  const fightsChanged = JSON.stringify([fightAt, fightFinal]) !== JSON.stringify([(prev && prev.fightAt) || {}, (prev && prev.fightFinal) || {}]);
+  if ((sig !== prevSig && (items.length || prevSig || saveEmpty)) || (fightsChanged && (items.length || prev || saveEmpty))) {
+    doc = { date: day, sig: sig, items: items, fights: fights, fightAt: fightAt, fightFinal: fightFinal,
+      updatedAt: sig !== prevSig || !prev ? new Date().toISOString() : prev.updatedAt };
+    await putConfigDoc(env, 'highlights_' + day, doc);
   }
-  if (sig !== prevSig && (items.length || prevSig || saveEmpty)) {
-    await putConfigDoc(env, 'highlights_' + day, { date: day, sig: sig, items: items, updatedAt: new Date().toISOString() });
-  }
-  highlightsMem_ = { day: day, sig: sig, pending: pending, at: Date.now() };
-  return { items: items.length, pending: pending };
+  highlightsMem_ = { day: day, doc: doc, pending: pending, at: now };
+  return { items: items.length, pending: pending, pbp: batch.length };
 }
 
 // No games on: keep re-reading the feed while clips are still missing.
 async function chaseLateClips(env, day, now) {
-  if (highlightsMem_ && highlightsMem_.day === day) {
-    if (!highlightsMem_.pending || now - highlightsMem_.at < LATE_CLIP_EVERY_MS) return;
-  } else {
-    const doc = await getConfigDoc(env, 'highlights_' + day);
-    if (!doc || !(doc.items || []).some(i => !i.clip)) {
-      highlightsMem_ = { day: day, sig: doc ? doc.sig : '', pending: 0, at: now };
-      return;
-    }
-    if (now - new Date(doc.updatedAt).getTime() > LATE_CLIP_FOR_MS) return;
-  }
+  const doc = await highlightsDoc_(env, day);
+  const pending = highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.pending
+    : ((doc && doc.items) || []).filter(i => i.type !== 'fight' && !i.clip).length;
+  const at = highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.at : 0;
+  if (!highlightsMem_ || highlightsMem_.day !== day) highlightsMem_ = { day: day, doc: doc, pending: pending, at: at };
+  const needFinal = !!doc && Object.keys(doc.fightAt || {}).some(id => !(doc.fightFinal || {})[id]); // last fight check at the final
+  if ((!pending && !needFinal) || now - at < LATE_CLIP_EVERY_MS) return;
+  if (!needFinal && doc && now - new Date(doc.updatedAt).getTime() > LATE_CLIP_FOR_MS) { highlightsMem_.pending = 0; return; }
   const feed = await nhl('/score/' + day);
-  const games = feed.games || [];
-  const lastStart = Math.max(0, ...games.map(g => new Date(g.startTimeUTC).getTime() || 0));
-  if (now - lastStart > LATE_CLIP_FOR_MS + 4 * 3600000) { highlightsMem_ = { day: day, sig: highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.sig : null, pending: 0, at: now }; return; }
   const lk = await liveLookups(env);
-  const r = await updateHighlights(env, day, games, lk.players);
+  const r = await updateHighlights(env, day, feed.games || [], lk.players);
   console.log('Highlights: late clip check ' + JSON.stringify(r));
 }
 
 // A past day with no saved highlights (or still missing clips) is built
-// from that day's NHL score feed the first time someone opens it.
+// from that day's NHL feeds the first time someone opens it.
 const BACKFILL_DAYS = 14;
 const BACKFILL_RETRY_MS = 10 * 60000;
 async function getHighlights(env, date) {
@@ -1073,14 +1141,16 @@ async function getHighlights(env, date) {
   const day = /^\d{4}-\d{2}-\d{2}$/.test(String(date || '')) ? date : today;
   let doc = await getConfigDoc(env, 'highlights_' + day);
   const ageDays = (new Date(today + 'T12:00:00Z') - new Date(day + 'T12:00:00Z')) / 86400000;
-  const pending = doc && (doc.items || []).some(i => !i.clip);
-  const stale = !doc || (pending && Date.now() - new Date(doc.updatedAt).getTime() > BACKFILL_RETRY_MS);
+  const pending = doc && (doc.items || []).some(i => i.type !== 'fight' && !i.clip);
+  const noFights = doc && !doc.fightAt; // saved before fight cards existed
+  const stale = !doc || noFights || (pending && Date.now() - new Date(doc.checkedAt || doc.updatedAt).getTime() > BACKFILL_RETRY_MS);
   if (ageDays >= 1 && ageDays <= BACKFILL_DAYS && stale) {
     try {
       const [feed, lk] = await Promise.all([nhl('/score/' + day), liveLookups(env)]);
-      await updateHighlights(env, day, feed.games || [], lk.players, true);
+      if (highlightsMem_ && highlightsMem_.day === day) highlightsMem_ = null;
+      await updateHighlights(env, day, feed.games || [], lk.players, true, true);
       doc = await getConfigDoc(env, 'highlights_' + day);
-      if (doc && pending && doc.sig) await putConfigDoc(env, 'highlights_' + day, Object.assign({}, doc, { updatedAt: new Date().toISOString() }));
+      if (doc && pending) await putConfigDoc(env, 'highlights_' + day, Object.assign({}, doc, { checkedAt: new Date().toISOString() }));
     } catch (err) { console.log('Highlights: backfill ' + day + ' failed - ' + err.message); }
   }
   const items = ((doc && doc.items) || []).map(i => Object.assign({}, i, { embed: i.clip ? BRIGHTCOVE_EMBED + i.clip : '' }));
