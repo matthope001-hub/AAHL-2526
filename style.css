@@ -1695,3 +1695,12 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .hl-game-head .hl-dim { font-size: 12px; font-family: var(--font-mono); letter-spacing: 0; }
 .hl-game-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 @media (max-width: 600px) { .hl-game-list { grid-template-columns: 1fr; } }
+/* Collapsible games */
+.hl-game > summary { list-style: none; cursor: pointer; user-select: none; margin-bottom: 0; }
+.hl-game > summary::-webkit-details-marker { display: none; }
+.hl-game[open] > summary { margin-bottom: 10px; }
+.hl-game-head strong { margin-right: auto; }
+.hl-chev { display: inline-block; color: var(--ice); transition: transform .15s; width: 14px; }
+.hl-game[open] .hl-chev { transform: rotate(90deg); }
+.hl-tools { display: flex; justify-content: flex-end; margin: -4px 0 10px; }
+#highlights-content .hl-tools .hl-all { width: auto; padding: 4px 8px; font-size: 12px; background: none; border: 0; color: var(--ice); font-family: var(--font-mono); cursor: pointer; }

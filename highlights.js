@@ -7,7 +7,7 @@
 (function () {
   const API = 'https://api.theaahl.ca/';
   const TZ = 'America/Toronto';
-  const state = { root: null, date: null, filter: 'all', items: [], games: {}, timer: null };
+  const state = { root: null, date: null, filter: 'all', items: [], games: {}, open: {}, timer: null };
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -33,6 +33,7 @@
   let reqSeq_ = 0;
   async function load_(quiet) {
     const seq = ++reqSeq_, date = state.date;
+    if (state.openDate !== date) { state.open = {}; state.openDate = date; }
     if (!quiet) {
       state.items = [];
       state.root.querySelector('.hl-day').textContent = dayLabel_(date);
@@ -85,6 +86,13 @@
     </button>`;
   }
 
+  function syncAll_() {
+    const ds = [...state.root.querySelectorAll('.hl-game')];
+    const btn = state.root.querySelector('.hl-all');
+    btn.hidden = !ds.length;
+    btn.textContent = ds.length && ds.every(d => d.open) ? 'Collapse all' : 'Expand all';
+  }
+
   function render_() {
     const list = state.items.filter(i => state.filter === 'all' || i.type === state.filter);
     const count = { all: state.items.length, goal: 0, assist: 0, fight: 0 };
@@ -108,12 +116,13 @@
       ? games.map(g => {
           const gi = state.games[String(g.id)];
           const score = gi ? `${gi.away} ${gi.awayScore}, ${gi.home} ${gi.homeScore} · ${gi.state === 'final' ? 'Final' + (gi.finalType ? '/' + gi.finalType : '') : 'Live' + (gi.period ? ' ' + gi.period : '')}` : '';
-          return `<section class="hl-game">
-            <div class="hl-game-head"><strong>${esc(g.matchup)}</strong><span class="hl-dim mono">${esc(score)}${score ? ' · ' : ''}${g.items.length} ${g.items.length === 1 ? 'clip' : 'clips'}</span></div>
+          return `<details class="hl-game" data-game="${esc(g.id)}"${state.open[g.id] ? ' open' : ''}>
+            <summary class="hl-game-head"><span class="hl-chev">▸</span><strong>${esc(g.matchup)}</strong><span class="hl-dim mono">${esc(score)}${score ? ' · ' : ''}${g.items.length} ${g.items.length === 1 ? 'clip' : 'clips'}</span></summary>
             <div class="hl-game-list">${g.items.map(card_).join('')}</div>
-          </section>`;
+          </details>`;
         }).join('')
       : `<div class="hl-empty">No pool player points ${state.date === hockeyDay_() ? 'yet tonight' : 'that day'}.</div>`;
+    syncAll_();
   }
 
   function fightLinks_(item) {
@@ -167,6 +176,7 @@
             <button class="filter-tab" data-f="fight">Fights</button>
           </span>
         </div>
+        <div class="hl-tools"><button type="button" class="hl-all">Expand all</button></div>
         <div class="hl-feed"></div>
         <p class="hl-note hl-dim">Cards show up within minutes of the play; the video follows once the NHL posts it. Clips are official NHL highlights. Fight videos are from HockeyFights.com.</p>`;
       root.querySelector('.hl-prev').addEventListener('click', () => { state.date = addDays_(state.date, -1); load_(); });
@@ -174,6 +184,17 @@
       root.querySelector('.hl-filters').addEventListener('click', e => {
         const b = e.target.closest('[data-f]');
         if (b) { state.filter = b.dataset.f; render_(); }
+      });
+      root.querySelector('.hl-feed').addEventListener('toggle', e => {
+        const d = e.target.closest && e.target.closest('.hl-game');
+        if (d) state.open[d.dataset.game] = d.open;
+        syncAll_();
+      }, true);
+      root.querySelector('.hl-all').addEventListener('click', () => {
+        const ds = [...root.querySelectorAll('.hl-game')];
+        const openAll = ds.some(d => !d.open);
+        ds.forEach(d => { d.open = openAll; state.open[d.dataset.game] = openAll; });
+        syncAll_();
       });
       root.querySelector('.hl-feed').addEventListener('click', e => {
         const c = e.target.closest('.hl-card');
