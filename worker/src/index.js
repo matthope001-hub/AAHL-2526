@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -992,6 +992,52 @@ const HL_FIGHT_EVERY_MS = 10 * 60000;
 const HL_FIGHT_MAX_FETCH = 2;
 let highlightsMem_ = null; // { day, doc, pending, at }
 
+// HockeyFights.com links for fight cards. HockeyFights has no feed, so its
+// public fight log is read (pages 1-3, at most every 20 min) and each pool
+// fight is matched by date + last name. Only the link is kept; the video
+// stays on HockeyFights. Searched for up to 12 hours after the fight.
+const HF_BASE = 'https://www.hockeyfights.com';
+const HF_EVERY_MS = 20 * 60000;
+const HF_FOR_MS = 12 * 3600000;
+let hfLog_ = null; // { at, fights: [{ url, date, players: [{ last, team }] }] }
+
+const hfLast_ = name => String(name || '').replace(/^[A-Z]\.\s*/, '').trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+async function hfFightLog_() {
+  if (hfLog_ && Date.now() - hfLog_.at < HF_EVERY_MS) return hfLog_.fights;
+  const fights = [];
+  for (const page of ['/fightlog', '/fightlog/2', '/fightlog/3']) {
+    let html;
+    try {
+      const res = await fetch(HF_BASE + page, { headers: { 'User-Agent': 'AAHL-Worker/1.0 (+https://theaahl.ca)' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      html = await res.text();
+    } catch (err) { console.log('Highlights: HockeyFights ' + page + ' failed - ' + err.message); break; }
+    const re = /<a[^>]+href="(?:https?:\/\/www\.hockeyfights\.com)?(\/fights\/n?\d+)"[^>]*>([\s\S]*?)<\/a>([\s\S]{0,400}?)(\d{1,2})\/(\d{1,2})\/(\d{2})/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const text = m[2].replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+      const sides = text.split(/\s+vs\.?\s+/i);
+      if (sides.length !== 2) continue;
+      const players = sides.map(x => {
+        const t = x.match(/\(([A-Z]{2,3})\)\s*$/);
+        return { last: hfLast_(x.replace(/\([^)]*\)\s*$/, '')), team: t ? t[1] : '' };
+      });
+      const date = '20' + m[6] + '-' + m[4].padStart(2, '0') + '-' + m[5].padStart(2, '0');
+      fights.push({ url: HF_BASE + m[1], date: date, players: players });
+    }
+  }
+  hfLog_ = { at: Date.now(), fights: fights };
+  return fights;
+}
+
+function hfMatch_(log, day, f) {
+  const me = hfLast_(f.name), opp = hfLast_(f.opponent);
+  const hit = log.find(x => x.date === day && x.players.some(p => p.last === me) && (!opp || x.players.some(p => p.last === opp)));
+  return hit ? hit.url : '';
+}
+
 function periodLabel_(pd) {
   pd = pd || {};
   if (pd.periodType === 'OT') return 'OT';
@@ -1099,6 +1145,16 @@ async function updateHighlights(env, day, games, poolPlayers, saveEmpty, all) {
       clip: '', clipUrl: ''
     }, f));
   }));
+  // HockeyFights links (kept per fight in doc.hf).
+  const hf = Object.assign({}, (prev && prev.hf) || {});
+  let hfAt = (prev && prev.hfAt) || 0;
+  const needHf = items.filter(i => i.type === 'fight' && !hf[i.id]);
+  if (needHf.length && (all || now - hfAt >= HF_EVERY_MS)) {
+    const log = await hfFightLog_().catch(() => []);
+    hfAt = now;
+    needHf.forEach(i => { const url = hfMatch_(log, day, i); if (url) hf[i.id] = url; });
+  }
+  items.forEach(i => { if (i.type === 'fight' && hf[i.id]) i.hfUrl = hf[i.id]; });
   const order = { '1st': 1, '2nd': 2, '3rd': 3, OT: 4 };
   items.sort((x, y) => String(x.gameId).localeCompare(String(y.gameId)) || ((order[x.period] || 9) - (order[y.period] || 9)) || String(x.time).localeCompare(String(y.time)));
 
@@ -1106,14 +1162,14 @@ async function updateHighlights(env, day, games, poolPlayers, saveEmpty, all) {
   const sig = await sha256(JSON.stringify(items));
   const prevSig = prev ? prev.sig : '';
   let doc = prev;
-  const fightsChanged = JSON.stringify([fightAt, fightFinal]) !== JSON.stringify([(prev && prev.fightAt) || {}, (prev && prev.fightFinal) || {}]);
+  const fightsChanged = JSON.stringify([fightAt, fightFinal, hfAt]) !== JSON.stringify([(prev && prev.fightAt) || {}, (prev && prev.fightFinal) || {}, (prev && prev.hfAt) || 0]);
   if ((sig !== prevSig && (items.length || prevSig || saveEmpty)) || (fightsChanged && (items.length || prev || saveEmpty))) {
-    doc = { date: day, sig: sig, items: items, fights: fights, fightAt: fightAt, fightFinal: fightFinal,
+    doc = { date: day, sig: sig, items: items, fights: fights, fightAt: fightAt, fightFinal: fightFinal, hf: hf, hfAt: hfAt,
       updatedAt: sig !== prevSig || !prev ? new Date().toISOString() : prev.updatedAt };
     await putConfigDoc(env, 'highlights_' + day, doc);
   }
   highlightsMem_ = { day: day, doc: doc, pending: pending, at: now };
-  return { items: items.length, pending: pending, pbp: batch.length };
+  return { items: items.length, pending: pending, pbp: batch.length, hfMissing: items.filter(i => i.type === 'fight' && !i.hfUrl).length };
 }
 
 // No games on: keep re-reading the feed while clips are still missing.
@@ -1124,6 +1180,14 @@ async function chaseLateClips(env, day, now) {
   const at = highlightsMem_ && highlightsMem_.day === day ? highlightsMem_.at : 0;
   if (!highlightsMem_ || highlightsMem_.day !== day) highlightsMem_ = { day: day, doc: doc, pending: pending, at: at };
   const needFinal = !!doc && Object.keys(doc.fightAt || {}).some(id => !(doc.fightFinal || {})[id]); // last fight check at the final
+  const needHf = !!doc && (doc.items || []).some(i => i.type === 'fight' && !i.hfUrl) && now - new Date(doc.updatedAt).getTime() < HF_FOR_MS
+    && now - (doc.hfAt || 0) >= HF_EVERY_MS;
+  if (needHf && !pending && !needFinal) {
+    const feed = await nhl('/score/' + day);
+    const lk = await liveLookups(env);
+    console.log('Highlights: HockeyFights check ' + JSON.stringify(await updateHighlights(env, day, feed.games || [], lk.players)));
+    return;
+  }
   if ((!pending && !needFinal) || now - at < LATE_CLIP_EVERY_MS) return;
   if (!needFinal && doc && now - new Date(doc.updatedAt).getTime() > LATE_CLIP_FOR_MS) { highlightsMem_.pending = 0; return; }
   const feed = await nhl('/score/' + day);
@@ -1142,7 +1206,7 @@ async function getHighlights(env, date) {
   let doc = await getConfigDoc(env, 'highlights_' + day);
   const ageDays = (new Date(today + 'T12:00:00Z') - new Date(day + 'T12:00:00Z')) / 86400000;
   const pending = doc && (doc.items || []).some(i => i.type !== 'fight' && !i.clip);
-  const noFights = doc && !doc.fightAt; // saved before fight cards existed
+  const noFights = doc && (!doc.fightAt || (!doc.hfAt && (doc.items || []).some(i => i.type === 'fight'))); // saved before fight cards / HockeyFights links existed
   const stale = !doc || noFights || (pending && Date.now() - new Date(doc.checkedAt || doc.updatedAt).getTime() > BACKFILL_RETRY_MS);
   if (ageDays >= 1 && ageDays <= BACKFILL_DAYS && stale) {
     try {

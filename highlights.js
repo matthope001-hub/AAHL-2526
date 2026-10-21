@@ -65,7 +65,7 @@
         <span class="hl-line">Fight · ${esc(i.period)} ${esc(i.time)}</span>
         <span class="hl-line hl-dim">${i.opponent ? 'vs ' + esc(i.opponent) + (i.opponentTeam ? ' (' + esc(i.opponentTeam) + ')' : '') + ' · ' : ''}${esc(i.matchup)}</span>
       </span>
-      <span class="hl-play mono">🥊</span>
+      <span class="hl-play mono">${i.hfUrl ? '🥊 ▶' : '🥊'}</span>
     </button>`;
     }
     const what = i.type === 'goal'
@@ -102,6 +102,10 @@
 
   function fightLinks_(item) {
     const q = encodeURIComponent([item.name.replace(/^[A-Z]\. /, ''), item.opponent ? item.opponent.replace(/^[A-Z]\. /, '') : '', 'fight'].join(' ').trim());
+    if (item.hfUrl) {
+      return `<a href="${esc(item.hfUrl)}" target="_blank" rel="noopener">Watch on HockeyFights.com</a>
+      <a href="https://www.nhl.com/gamecenter/${esc(item.gameId)}" target="_blank" rel="noopener">Game on NHL.com</a>`;
+    }
     return `<a href="https://www.youtube.com/results?search_query=${q}" target="_blank" rel="noopener">Find the video on YouTube</a>
       <a href="https://www.nhl.com/gamecenter/${esc(item.gameId)}" target="_blank" rel="noopener">Game on NHL.com</a>`;
   }
@@ -112,7 +116,7 @@
     wrap.className = 'hl-modal';
     wrap.innerHTML = `<div class="hl-sheet" role="dialog" aria-label="${esc(item.name)} highlight">
       ${item.type === 'fight'
-        ? `<div class="hl-fight-box"><div class="hl-fight-icon">🥊</div><div><strong>${esc(item.name)}</strong> vs <strong>${esc(item.opponent || 'unknown')}</strong></div><div class="hl-dim">${esc(item.matchup)} · ${esc(item.period)} ${esc(item.time)} · 5 min fighting major</div><div class="hl-dim">The NHL doesn't post fight video.</div></div>`
+        ? `<div class="hl-fight-box"><div class="hl-fight-icon">🥊</div><div><strong>${esc(item.name)}</strong> vs <strong>${esc(item.opponent || 'unknown')}</strong></div><div class="hl-dim">${esc(item.matchup)} · ${esc(item.period)} ${esc(item.time)} · 5 min fighting major</div><div class="hl-dim">${item.hfUrl ? 'Fight video courtesy of HockeyFights.com.' : 'No HockeyFights.com video found yet — it\'s usually posted later that night.'}</div></div>`
         : `<div class="hl-video"><iframe src="${esc(item.embed)}&autoplay=1" allow="autoplay; fullscreen; encrypted-media" allowfullscreen></iframe></div>`}
       <div class="hl-meta">
         ${item.type === 'fight' ? fightLinks_(item) : `<div><strong>${esc(item.name)}</strong> <span class="hl-dim">${item.type === 'goal' ? 'Goal' : 'Assist on ' + esc(item.scorer) + '\'s goal'} · ${esc(item.matchup)} · ${esc(item.period)} ${esc(item.time)}</span></div>
@@ -148,7 +152,7 @@
           </span>
         </div>
         <div class="hl-feed"></div>
-        <p class="hl-note hl-dim">Cards show up within minutes of the play; the video follows once the NHL posts it. Clips are official NHL highlights. The NHL doesn't post fight video, so fight cards have no clip.</p>`;
+        <p class="hl-note hl-dim">Cards show up within minutes of the play; the video follows once the NHL posts it. Clips are official NHL highlights. Fight videos are from HockeyFights.com.</p>`;
       root.querySelector('.hl-prev').addEventListener('click', () => { state.date = addDays_(state.date, -1); load_(); });
       root.querySelector('.hl-next').addEventListener('click', () => { if (state.date < hockeyDay_()) { state.date = addDays_(state.date, 1); load_(); } });
       root.querySelector('.hl-filters').addEventListener('click', e => {

@@ -7,7 +7,7 @@ Every update to theaahl.ca, newest first. The site's **More → What's New** pag
 _Oct 21, 2026_
 - New **Highlights** page (top menu): a card for every **goal** and **assist** by a pool player, within minutes of the play
 - **Tap a card** to watch the official NHL clip right on the page, or open it on NHL.com. Cards say **Clip coming** until the NHL posts the video
-- **Fight cards** too, showing who they fought (the NHL doesn't post fight video, so these have no clip)
+- **Fight cards** too, showing who they fought, with a link to the fight video on **HockeyFights.com** once they post it (usually later that night)
 - Filter by **Goals / Assists / Fights**, and step back with **‹ ›** to catch up on any of the last two weeks
 - Updates on its own every minute while you're watching tonight's games
 
