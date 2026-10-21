@@ -46,7 +46,7 @@
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Could not load highlights');
       if (seq !== reqSeq_) return; // a newer day was picked meanwhile
-      state.items = (json.items || []).slice().reverse(); // newest first
+      state.items = json.items || []; // in game order, then play order
       render_();
     } catch (err) {
       if (seq !== reqSeq_ || quiet) return;
@@ -95,8 +95,24 @@
       b.classList.toggle('active', b.dataset.f === state.filter);
       b.textContent = label[b.dataset.f] + ' ' + (count[b.dataset.f] || 0);
     });
+    // Grouped by game (start order), plays in order within each game.
+    const games = [];
+    list.forEach(i => {
+      let g = games.find(x => x.id === i.gameId);
+      if (!g) games.push(g = { id: i.gameId, matchup: i.matchup, items: [] });
+      g.items.push(i);
+    });
+    games.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const allOfGame = id => state.items.filter(i => i.gameId === id);
     state.root.querySelector('.hl-feed').innerHTML = list.length
-      ? list.map(card_).join('')
+      ? games.map(g => {
+          const scored = allOfGame(g.id).filter(i => i.score);
+          const score = scored.length ? scored[scored.length - 1].score : '';
+          return `<section class="hl-game">
+            <div class="hl-game-head"><strong>${esc(g.matchup)}</strong><span class="hl-dim mono">${esc(score)}${score ? ' · ' : ''}${g.items.length} ${g.items.length === 1 ? 'clip' : 'clips'}</span></div>
+            <div class="hl-game-list">${g.items.map(card_).join('')}</div>
+          </section>`;
+        }).join('')
       : `<div class="hl-empty">No pool player points ${state.date === hockeyDay_() ? 'yet tonight' : 'that day'}.</div>`;
   }
 

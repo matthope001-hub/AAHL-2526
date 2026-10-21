@@ -1689,3 +1689,9 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
 .hl-fight-box { padding: 28px 18px; text-align: center; display: flex; flex-direction: column; gap: 6px; font-size: 16px; }
 .hl-fight-icon { font-size: 40px; }
 .hl-meta a + a { margin-left: 16px; }
+/* Highlights grouped by game */
+#highlights-content .hl-feed { display: flex; flex-direction: column; gap: 18px; }
+.hl-game-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 2px 8px; border-bottom: 1px solid var(--border); margin-bottom: 10px; font-family: var(--font-display); font-size: 18px; letter-spacing: .5px; }
+.hl-game-head .hl-dim { font-size: 12px; font-family: var(--font-mono); letter-spacing: 0; }
+.hl-game-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+@media (max-width: 600px) { .hl-game-list { grid-template-columns: 1fr; } }
