@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.9.0';
+const VERSION = '1.9.1';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1158,13 +1158,25 @@ async function updateHighlights(env, day, games, poolPlayers, saveEmpty, all) {
   const order = { '1st': 1, '2nd': 2, '3rd': 3, OT: 4 };
   items.sort((x, y) => String(x.gameId).localeCompare(String(y.gameId)) || ((order[x.period] || 9) - (order[y.period] || 9)) || String(x.time).localeCompare(String(y.time)));
 
+  // Each game's score and state, for the game headers on the page.
+  const gameInfo = {};
+  games.filter(gameStarted_).forEach(g => {
+    const pd = g.periodDescriptor || {};
+    gameInfo[String(g.id)] = {
+      away: (g.awayTeam && g.awayTeam.abbrev) || '', home: (g.homeTeam && g.homeTeam.abbrev) || '',
+      awayScore: (g.awayTeam && g.awayTeam.score) || 0, homeScore: (g.homeTeam && g.homeTeam.score) || 0,
+      state: gameFinal_(g) ? 'final' : 'live',
+      finalType: gameFinal_(g) && g.gameOutcome && g.gameOutcome.lastPeriodType !== 'REG' ? g.gameOutcome.lastPeriodType : '',
+      period: gameFinal_(g) ? '' : periodLabel_(pd)
+    };
+  });
   const pending = items.filter(i => i.type !== 'fight' && !i.clip).length;
-  const sig = await sha256(JSON.stringify(items));
+  const sig = await sha256(JSON.stringify([items, gameInfo]));
   const prevSig = prev ? prev.sig : '';
   let doc = prev;
   const fightsChanged = JSON.stringify([fightAt, fightFinal, hfAt]) !== JSON.stringify([(prev && prev.fightAt) || {}, (prev && prev.fightFinal) || {}, (prev && prev.hfAt) || 0]);
   if ((sig !== prevSig && (items.length || prevSig || saveEmpty)) || (fightsChanged && (items.length || prev || saveEmpty))) {
-    doc = { date: day, sig: sig, items: items, fights: fights, fightAt: fightAt, fightFinal: fightFinal, hf: hf, hfAt: hfAt,
+    doc = { date: day, sig: sig, items: items, games: gameInfo, fights: fights, fightAt: fightAt, fightFinal: fightFinal, hf: hf, hfAt: hfAt,
       updatedAt: sig !== prevSig || !prev ? new Date().toISOString() : prev.updatedAt };
     await putConfigDoc(env, 'highlights_' + day, doc);
   }
@@ -1206,7 +1218,7 @@ async function getHighlights(env, date) {
   let doc = await getConfigDoc(env, 'highlights_' + day);
   const ageDays = (new Date(today + 'T12:00:00Z') - new Date(day + 'T12:00:00Z')) / 86400000;
   const pending = doc && (doc.items || []).some(i => i.type !== 'fight' && !i.clip);
-  const noFights = doc && (!doc.fightAt || (!doc.hfAt && (doc.items || []).some(i => i.type === 'fight'))); // saved before fight cards / HockeyFights links existed
+  const noFights = doc && (!doc.fightAt || !doc.games || (!doc.hfAt && (doc.items || []).some(i => i.type === 'fight'))); // saved before fight cards / HockeyFights links existed
   const stale = !doc || noFights || (pending && Date.now() - new Date(doc.checkedAt || doc.updatedAt).getTime() > BACKFILL_RETRY_MS);
   if (ageDays >= 1 && ageDays <= BACKFILL_DAYS && stale) {
     try {
@@ -1218,7 +1230,7 @@ async function getHighlights(env, date) {
     } catch (err) { console.log('Highlights: backfill ' + day + ' failed - ' + err.message); }
   }
   const items = ((doc && doc.items) || []).map(i => Object.assign({}, i, { embed: i.clip ? BRIGHTCOVE_EMBED + i.clip : '' }));
-  return { success: true, date: day, items: items, updatedAt: doc ? doc.updatedAt : null };
+  return { success: true, date: day, items: items, games: (doc && doc.games) || {}, updatedAt: doc ? doc.updatedAt : null };
 }
 
 // --------------------------------------------------------- weekly image

@@ -7,7 +7,7 @@
 (function () {
   const API = 'https://api.theaahl.ca/';
   const TZ = 'America/Toronto';
-  const state = { root: null, date: null, filter: 'all', items: [], timer: null };
+  const state = { root: null, date: null, filter: 'all', items: [], games: {}, timer: null };
 
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -47,6 +47,7 @@
       if (!json.success) throw new Error(json.error || 'Could not load highlights');
       if (seq !== reqSeq_) return; // a newer day was picked meanwhile
       state.items = json.items || []; // in game order, then play order
+      state.games = json.games || {};
       render_();
     } catch (err) {
       if (seq !== reqSeq_ || quiet) return;
@@ -103,11 +104,10 @@
       g.items.push(i);
     });
     games.sort((a, b) => String(a.id).localeCompare(String(b.id)));
-    const allOfGame = id => state.items.filter(i => i.gameId === id);
     state.root.querySelector('.hl-feed').innerHTML = list.length
       ? games.map(g => {
-          const scored = allOfGame(g.id).filter(i => i.score);
-          const score = scored.length ? scored[scored.length - 1].score : '';
+          const gi = state.games[String(g.id)];
+          const score = gi ? `${gi.away} ${gi.awayScore}, ${gi.home} ${gi.homeScore} · ${gi.state === 'final' ? 'Final' + (gi.finalType ? '/' + gi.finalType : '') : 'Live' + (gi.period ? ' ' + gi.period : '')}` : '';
           return `<section class="hl-game">
             <div class="hl-game-head"><strong>${esc(g.matchup)}</strong><span class="hl-dim mono">${esc(score)}${score ? ' · ' : ''}${g.items.length} ${g.items.length === 1 ? 'clip' : 'clips'}</span></div>
             <div class="hl-game-list">${g.items.map(card_).join('')}</div>
