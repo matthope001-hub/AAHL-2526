@@ -3,6 +3,12 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.7 — Switch between pools
+_Oct 22, 2026_
+- New **AASN bar** at the very top of the page: jump between the **AAHL** and the new **AABL** (baseball) pool in one tap
+- Each pool shows a quick status — like **games live** or **games tonight**
+- Tap **AASN** to visit the Angry Alpaca Sports Network home page
+
 ## v3.6 — Player card popup refresh
 _Oct 21, 2026_
 - **Player card popup** now sits flat and centred on phones — no more tilting off-screen when you hold your phone
