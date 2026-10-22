@@ -8,6 +8,7 @@ _Oct 22, 2026_
 - New **AASN bar** at the very top of the page: jump between the **AAHL** and the new **AABL** (baseball) pool in one tap
 - Each pool shows a quick status — like **games live** or **games tonight**
 - Tap **AASN** to visit the Angry Alpaca Sports Network home page
+- **Death Pool** is in the bar too, with how many celebs are already in the graveyard
 
 ## v3.6 — Player card popup refresh
 _Oct 21, 2026_
