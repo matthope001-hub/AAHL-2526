@@ -169,6 +169,22 @@ function renderAdminEntries(entries) {
           <div id="admin-trade-status" class="status-msg"></div>
         </div>
         <div class="panel adm-tool adm-wide">
+          <h3>📰 Trade Tracker: Add NHL Trade</h3>
+          <p class="adm-help">Shows a just-announced NHL trade on the Trade Tracker page right away. It's removed on its own once the ESPN feed posts the same two teams. NHL roster changes for pool players are caught automatically every 30 minutes.</p>
+          <div class="adm-row">
+            <input type="date" id="admin-nt-date">
+            <select id="admin-nt-team-a"><option value="">Team A...</option></select>
+            <input type="text" id="admin-nt-gets-a" placeholder="Team A gets (e.g. G Connor Hellebuyck)">
+          </div>
+          <div class="adm-row" style="margin-top:6px;">
+            <select id="admin-nt-team-b"><option value="">Team B...</option></select>
+            <input type="text" id="admin-nt-gets-b" placeholder="Team B gets (e.g. G Jake Allen, a 2027 1st-round pick)">
+            <button id="admin-nt-add-btn">Add Trade</button>
+          </div>
+          <div id="admin-nt-status" class="status-msg"></div>
+          <div id="admin-nt-list" style="margin-top:10px;"></div>
+        </div>
+        <div class="panel adm-tool adm-wide">
           <h3>🩹 Player Status (IR List)</h3>
           <p class="adm-help">Fills itself from the NHL injury feed every 4 hours. Use this to add someone it missed, correct a status or mark a player healthy.</p>
           <div class="adm-row">
@@ -279,6 +295,7 @@ function renderAdminEntries(entries) {
     wireAdminWeeklyImageButton_();
     wireAdminInjuryPanel_();
     wireAdminTradePanel_();
+    wireAdminNhlTradePanel_();
     loadAdminPendingMoves(); // after innerHTML so the container exists
     loadAdminRecap_();
     loadAdminLiveHealth_();
@@ -371,6 +388,7 @@ function renderAdminEntries(entries) {
   wireAdminWeeklyImageButton_();
   wireAdminInjuryPanel_();
   wireAdminTradePanel_();
+  wireAdminNhlTradePanel_();
   loadAdminPendingMoves(); // after innerHTML so the container exists
   loadAdminRecap_();
   loadAdminLiveHealth_();
@@ -976,4 +994,73 @@ async function wireAdminInjuryPanel_() {
   });
 
   renderOverrides();
+}
+
+// ---------- Trade Tracker: add an NHL trade by hand ----------
+// Worker POST adminTrades (op list/add/remove). Stored in config/tradeWatch.
+const ADMIN_NHL_TEAMS = ['ANA', 'BOS', 'BUF', 'CAR', 'CBJ', 'CGY', 'CHI', 'COL', 'DAL', 'DET', 'EDM', 'FLA', 'LAK', 'MIN', 'MTL', 'NJD',
+  'NSH', 'NYI', 'NYR', 'OTT', 'PHI', 'PIT', 'SEA', 'SJS', 'STL', 'TBL', 'TOR', 'UTA', 'VAN', 'VGK', 'WPG', 'WSH'];
+
+async function adminTradesCall_(payload) {
+  try {
+    return await fetchJsonWithRetry_(WORKER_URL + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ action: 'adminTrades', password: adminPassword }, payload))
+    });
+  } catch (e) {
+    return { success: false, error: "Couldn't reach the server." };
+  }
+}
+
+function renderAdminNhlTrades_(data) {
+  const el = document.getElementById('admin-nt-list');
+  if (!el) return;
+  const manual = (data && data.manual) || [];
+  const changes = (data && data.changes) || [];
+  el.innerHTML = `
+    ${manual.length ? manual.map(m => `
+      <div class="activity-row">
+        <span>${escapeHtml(m.date)} · <b>${escapeHtml(m.sides[0].team)}</b> gets ${escapeHtml(m.sides[0].gets)} ⇄ <b>${escapeHtml(m.sides[1].team)}</b> gets ${escapeHtml(m.sides[1].gets)}</span>
+        <span><button type="button" class="admin-btn" data-nt-remove="${escapeHtml(m.id)}">Remove</button></span>
+      </div>`).join('') : '<p class="mono" style="color:var(--text-dim); font-size:12px;">No trades added by hand.</p>'}
+    <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Roster check: ${data && data.checkedAt ? 'last run ' + escapeHtml(new Date(data.checkedAt).toLocaleString('en-CA', { timeZone: 'America/Toronto' })) : 'runs the next time someone opens Trade Tracker'}${changes.length ? ' · recent team changes: ' + changes.slice(0, 5).map(c => escapeHtml(`${c.name} ${c.from}→${c.to}`)).join(', ') : ''}</p>`;
+  el.querySelectorAll('[data-nt-remove]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Remove this trade from the Trade Tracker?')) return;
+    b.disabled = true;
+    const res = await adminTradesCall_({ op: 'remove', id: b.dataset.ntRemove });
+    if (!res.success) { alert(res.error || 'Could not remove it.'); b.disabled = false; return; }
+    renderAdminNhlTrades_(res.data);
+  }));
+}
+
+async function wireAdminNhlTradePanel_() {
+  const dateEl = document.getElementById('admin-nt-date');
+  const btn = document.getElementById('admin-nt-add-btn');
+  const statusEl = document.getElementById('admin-nt-status');
+  if (!dateEl || !btn || !adminPassword) return;
+  dateEl.value = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  ['admin-nt-team-a', 'admin-nt-team-b'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML += ADMIN_NHL_TEAMS.map(t => `<option value="${t}">${t}</option>`).join('');
+  });
+  const setStatus = (msg, err) => { statusEl.textContent = msg; statusEl.className = 'status-msg' + (err ? ' error' : ' success'); };
+  btn.addEventListener('click', async () => {
+    const sides = [
+      { team: document.getElementById('admin-nt-team-a').value, gets: document.getElementById('admin-nt-gets-a').value.trim() },
+      { team: document.getElementById('admin-nt-team-b').value, gets: document.getElementById('admin-nt-gets-b').value.trim() }
+    ];
+    if (sides.some(s => !s.team || !s.gets)) { setStatus('Pick both teams and fill in what each team gets.', true); return; }
+    btn.disabled = true;
+    setStatus('Saving...', false);
+    const res = await adminTradesCall_({ op: 'add', date: dateEl.value, sides });
+    btn.disabled = false;
+    if (!res.success) { setStatus(res.error || 'Could not save it.', true); return; }
+    setStatus('Added - it shows on Trade Tracker now.', false);
+    ['admin-nt-gets-a', 'admin-nt-gets-b'].forEach(id => { document.getElementById(id).value = ''; });
+    renderAdminNhlTrades_(res.data);
+  });
+  const res = await adminTradesCall_({ op: 'list' });
+  if (res.success) renderAdminNhlTrades_(res.data);
+  else setStatus(res.error || 'Could not load trades.', true);
 }

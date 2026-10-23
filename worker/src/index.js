@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -100,7 +100,7 @@ export default {
           case 'checkLateInvite': result = await checkLateInvite(env, p.get('token')); break;
           case 'schedule': result = await getWeekSchedule(p.get('date')); break;
           case 'highlights': result = await getHighlights(env, p.get('date')); break;
-          case 'trades': result = await getTrades(p.get('since')); break;
+          case 'trades': result = await getTrades(env, p.get('since')); break;
           default: result = { success: false, error: 'Unknown action: ' + p.get('action') };
         }
       } else if (request.method === 'POST') {
@@ -115,6 +115,7 @@ export default {
           case 'adminGetEntries': result = await adminGetEntries(env, body); break;
           case 'adminGetPendingMoves': result = await adminGetPendingMoves(env, body); break;
           case 'adminRecap': result = await adminRecap(env, body); break;
+          case 'adminTrades': result = await adminTrades(env, body); break;
           case 'adminBoxProjection': {
             const denied = adminDenied(env, body);
             result = denied ? Object.assign(denied, { fallback: false }) : await buildBoxProjection(env);
@@ -1235,17 +1236,28 @@ async function getHighlights(env, date) {
 }
 
 // --------------------------------------------------------------- trades
-// NHL trades since a date (Trade Tracker page). The NHL API has no
-// transactions feed, so this reads ESPN's free public one. Each trade shows
-// up once per team ("Acquired X from Y for Z"); the two halves are joined
-// into one trade. The page itself keeps only trades with pool players.
+// Trade Tracker page. Three sources, joined here:
+//  1. ESPN's free public transactions feed - full details of each trade
+//     (the NHL API has no transactions feed). Each trade shows up once per
+//     team ("Acquired X from Y for Z"); the two halves are joined into one.
+//  2. NHL rosters - every 30 min, each pool player's NHL team is compared
+//     with the last check; a change becomes a "team change" card until the
+//     full trade is posted, and confirms trades ("NHL" badge).
+//  3. Trades the commissioner adds in Admin (shown until ESPN posts them).
+// Roster check state + manual trades live in config/tradeWatch.
 const ESPN_TX = 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/transactions';
 const TRADES_TTL_MS = 30 * 60000;
+const ESPN_TO_NHL = { NJ: 'NJD', TB: 'TBL', LA: 'LAK', SJ: 'SJS', UTAH: 'UTA', UTH: 'UTA', VEG: 'VGK' };
 let tradesMem_ = null;
+let rosterCheckBusy_ = false;
 
 function tradeNorm_(s) {
   return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function nhlLogo_(abbr) {
+  return abbr ? `https://assets.nhle.com/logos/nhl/svg/${abbr}_light.svg` : '';
 }
 
 function parseTradeRow_(r) {
@@ -1259,10 +1271,11 @@ function parseTradeRow_(r) {
     if (!m) return null;
     gave = m[1]; other = m[2]; got = m[3];
   }
+  const ab = String(t.abbreviation || '').toUpperCase();
   const logo = (t.logos && t.logos[0] && t.logos[0].href) || '';
   return {
     date: String(r.date || '').slice(0, 10), text: text + '.',
-    team: t.abbreviation || '', teamName: t.displayName || other, location: t.location || '', nick: t.name || '',
+    team: ESPN_TO_NHL[ab] || ab, teamName: t.displayName || other, location: t.location || '', nick: t.name || '',
     logo, got: got.trim(), gave: gave.trim(), other: other.trim()
   };
 }
@@ -1273,15 +1286,10 @@ function tradeOtherIs_(otherText, row) {
   return !!((row.nick && o.includes(tradeNorm_(row.nick))) || (row.location && o.includes(tradeNorm_(row.location))));
 }
 
-async function getTrades(since) {
-  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(since || '')) ? since : '2026-09-01';
-  const to = hockeyDay();
-  const key = from + '|' + to;
-  if (tradesMem_ && tradesMem_.key === key && Date.now() - tradesMem_.at < TRADES_TTL_MS) return tradesMem_.data;
-
+async function espnTrades_(from, to) {
   const dates = from.replace(/-/g, '') + '-' + to.replace(/-/g, '');
   const raw = [];
-  for (let page = 1; page <= 5; page++) {
+  for (let page = 1; page <= 3; page++) {
     const res = await fetch(`${ESPN_TX}?limit=1000&page=${page}&dates=${dates}`, {
       headers: { 'User-Agent': 'AAHL-Worker/1.0' }, cf: { cacheTtl: 1800, cacheEverything: true }
     });
@@ -1291,7 +1299,6 @@ async function getTrades(since) {
     raw.push(...tx);
     if (tx.length < 1000 || page >= (j.pageCount || 1)) break;
   }
-
   const rows = raw.map(parseTradeRow_).filter(Boolean);
   const used = new Set();
   const trades = [];
@@ -1310,13 +1317,116 @@ async function getTrades(since) {
     } else {
       sides.push({ team: '', name: a.other, logo: '', gets: a.gave });
     }
-    trades.push({ date: a.date, sides, text: a.text });
+    trades.push({ source: 'espn', date: a.date, sides, text: a.text });
   });
-  trades.sort((x, y) => y.date.localeCompare(x.date));
+  return trades;
+}
 
-  const data = { success: true, since: from, trades, updatedAt: new Date().toISOString() };
+// Compares every pool player's NHL team with the last check. Players not on
+// any NHL roster (AHL, unsigned) keep their last team. ~38 outgoing requests
+// (32 rosters + 6 database) - under the free plan's 50 per run.
+async function rosterCheck_(env, doc) {
+  const [config, boxes] = await Promise.all([getConfig(env), sb(env, 'boxes?select=data')]);
+  const season = String(config.currentSeason || '20262027');
+  const poolIds = new Set();
+  (boxes || []).forEach(b => ((b.data && b.data.players) || []).forEach(p => poolIds.add(String(p.playerId))));
+  const ids = [...poolIds];
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150));
+  const [rosters, ...playerRows] = await Promise.all([
+    Promise.all(NHL_TEAMS.map(t => nhl('/roster/' + t + '/' + season).then(r => ({ t, r })).catch(() => ({ t, r: null })))),
+    ...chunks.map(c => sb(env, `players?id=in.(${inList(c)})&select=id,name:data->>fullName,team:data->>team`))
+  ]);
+  const info = {};
+  playerRows.forEach(rows => (rows || []).forEach(p => { info[String(p.id)] = p; }));
+  const now = {};
+  rosters.forEach(({ t, r }) => {
+    if (!r) return;
+    ['forwards', 'defensemen', 'goalies'].forEach(grp => (r[grp] || []).forEach(p => {
+      if (poolIds.has(String(p.id))) now[String(p.id)] = t;
+    }));
+  });
+  const base = doc.baseline || {};
+  const changes = doc.changes || [];
+  const day = hockeyDay();
+  poolIds.forEach(id => {
+    const was = base[id] || (info[id] && info[id].team) || '';
+    const is = now[id];
+    if (!is) { if (!base[id] && was) base[id] = was; return; }
+    if (was && was !== is && !changes.some(c => c.id === id && c.to === is && c.from === was)) {
+      changes.unshift({ id, name: (info[id] && info[id].name) || '', from: was, to: is, date: day, at: new Date().toISOString() });
+      console.log(`Trades: ${(info[id] && info[id].name) || id} ${was} -> ${is}`);
+    }
+    base[id] = is;
+  });
+  doc.baseline = base;
+  doc.changes = changes.slice(0, 200);
+  doc.checkedAt = new Date().toISOString();
+  doc.rosterTeams = rosters.filter(x => x.r).length;
+  return doc;
+}
+
+async function getTrades(env, since) {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(since || '')) ? since : '2026-09-01';
+  const to = hockeyDay();
+  const key = from + '|' + to;
+  if (tradesMem_ && tradesMem_.key === key && Date.now() - tradesMem_.at < TRADES_TTL_MS) return tradesMem_.data;
+
+  let doc = (await getConfigDoc(env, 'tradeWatch')) || {};
+  const due = !doc.checkedAt || Date.now() - new Date(doc.checkedAt).getTime() >= TRADES_TTL_MS;
+  const [espn] = await Promise.all([
+    espnTrades_(from, to).catch(err => { console.log('Trades: ESPN failed - ' + err.message); return null; }),
+    (async () => {
+      if (!due || rosterCheckBusy_) return;
+      rosterCheckBusy_ = true;
+      try {
+        doc = await rosterCheck_(env, doc);
+        await putConfigDoc(env, 'tradeWatch', doc);
+      } catch (err) { console.log('Trades: roster check failed - ' + err.message); }
+      finally { rosterCheckBusy_ = false; }
+    })()
+  ]);
+
+  const espnList = espn || [];
+  const pairKey = t => t.sides.map(s => s.team).filter(Boolean).sort().join('-');
+  const near = (a, b) => Math.abs(new Date(a) - new Date(b)) <= 3 * 86400000;
+  // A trade added in Admin is dropped once ESPN posts the same two teams.
+  const manual = (doc.manual || []).filter(m => m.date >= from && !espnList.some(e => pairKey(e) === pairKey(m) && near(e.date, m.date)))
+    .map(m => Object.assign({}, m, { source: 'manual', sides: m.sides.map(s => Object.assign({ name: s.team, logo: nhlLogo_(s.team) }, s)) }));
+  const trades = espnList.concat(manual).sort((x, y) => y.date.localeCompare(x.date));
+  const changes = (doc.changes || []).filter(c => c.date >= from);
+
+  const data = { success: true, since: from, trades, changes, nhlTeams: doc.baseline || {},
+    espnOk: !!espn, checkedAt: doc.checkedAt || null, updatedAt: new Date().toISOString() };
   tradesMem_ = { key, at: Date.now(), data };
   return data;
+}
+
+// Admin -> Trade Tracker: op 'list' | 'add' (date, sides) | 'remove' (id).
+async function adminTrades(env, body) {
+  const denied = adminDenied(env, body);
+  if (denied) return Object.assign(denied, { fallback: false });
+  const doc = (await getConfigDoc(env, 'tradeWatch')) || {};
+  doc.manual = doc.manual || [];
+  if (body.op === 'add') {
+    const date = String(body.date || '');
+    const sides = (Array.isArray(body.sides) ? body.sides : []).map(s => ({
+      team: String(s && s.team || '').toUpperCase(), gets: cleanDisplayText(String(s && s.gets || '')).slice(0, 300)
+    }));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { success: false, error: 'Pick a date.' };
+    if (sides.length !== 2 || sides.some(s => !NHL_TEAMS.includes(s.team) || !s.gets)) return { success: false, error: 'Pick both teams and fill in what each team gets.' };
+    if (sides[0].team === sides[1].team) return { success: false, error: 'Pick two different teams.' };
+    doc.manual.unshift({ id: 'm' + Date.now().toString(36), date, sides, addedAt: new Date().toISOString() });
+    await putConfigDoc(env, 'tradeWatch', doc);
+    tradesMem_ = null;
+  } else if (body.op === 'remove') {
+    const before = doc.manual.length;
+    doc.manual = doc.manual.filter(m => m.id !== body.id);
+    if (doc.manual.length === before) return { success: false, error: 'Trade not found.' };
+    await putConfigDoc(env, 'tradeWatch', doc);
+    tradesMem_ = null;
+  }
+  return { success: true, data: { manual: doc.manual, changes: (doc.changes || []).slice(0, 20), checkedAt: doc.checkedAt || null } };
 }
 
 // --------------------------------------------------------- weekly image

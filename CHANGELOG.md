@@ -8,6 +8,8 @@ _Oct 23, 2026_
 - New **Trade Tracker** page under **More**: every NHL trade this season that involves a player in the pool
 - Each trade shows **both sides of the deal** — who each team got, including other players and draft picks
 - **Pool players are highlighted**, with how many AAHL teams picked them
+- Breaking trades show up fast: when the **NHL roster** moves a pool player to a new team, a **Team Change** card appears right away, then turns into the full trade once the details are posted
+- **✓ NHL** badge when the NHL roster already shows a traded player on his new team
 - Checks for new trades every 30 minutes
 
 ## v3.8 — Team logos
