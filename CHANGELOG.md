@@ -3,6 +3,11 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.8 — Team logos
+_Oct 23, 2026_
+- Add your own **team logo**: open **My Team**, look up your team, tap **Add team logo** and pick an image — it's cropped to a circle and goes live straight away
+- Logos show next to team names in the **standings** and the **team pop-up**; teams without one get their initials
+
 ## v3.7 — Switch between pools
 _Oct 22, 2026_
 - New **AASN bar** at the very top of the page: jump between the **AAHL** and the new **AABL** (baseball) pool in one tap

@@ -1206,7 +1206,7 @@ function standingsTableHtml_(sorted, deltaLabel) {
           return `
           <tr data-entry="${escapeHtml(e.entryId || '')}">
             <td class="${e.rank === 1 ? 'rank-1' : ''}" style="white-space:nowrap;">${e.rank ?? '—'}${live ? liveMoveHtml_(e) : ''}</td>
-            <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}">${escapeHtml(e.teamName)}</span></td>
+            <td class="team-cell"><span class="team-link" data-entry-id="${e.entryId}">${window.aasnLogos ? aasnLogos.badge('aahl', e.entryId, e.teamName, 22) : ''}${escapeHtml(e.teamName)}</span></td>
             ${live ? (() => { const t = live.entries && live.entries[e.entryId]; return `<td class="num mono" style="color:${t && t.pts ? '#3ecf6a' : 'var(--text-dim)'}; white-space:nowrap;">${t ? '+' + t.pts.toFixed(2) : '—'}${t && t.players ? ` <span style="color:var(--text-dim); font-size:10px;">(${t.players})</span>` : ''}</td>`; })() : ''}
             ${hasDiv
               ? `<td class="pts num">${b.players.toFixed(2)}</td>
@@ -1293,7 +1293,7 @@ function renderPicksModalBody_(data, ownerLine) {
     .join('');
 
   return `
-    <h2 style="margin-bottom:4px;">${escapeHtml(data.teamName)}</h2>
+    <h2 style="margin-bottom:4px; display:flex; align-items:center;">${window.aasnLogos && data.entryId ? aasnLogos.badge('aahl', data.entryId, data.teamName, 40) : ''}${escapeHtml(data.teamName)}</h2>
     ${ownerLine ? `<p style="color:var(--text-dim); font-size:13px; margin-bottom:8px;">${ownerLine}</p>` : ''}
     ${data.pointBank ? (() => {
       // Name each traded-out player with what they banked, e.g. "(Kopitar +12.04, Hughes +3.10)"
@@ -1833,3 +1833,11 @@ async function handleDeepLink_() {
 
 init();
 handleDeepLink_();
+
+// Team logos (shared AASN feature): once loaded, redraw the standings so badges appear.
+if (window.aasnLogos) {
+  aasnLogos.load('aahl').then(() => {
+    try { if (document.getElementById('home-standings') || document.querySelector('[id*="standings"]')) { renderHomeStandingsPreview(); } } catch (e) { /* not on screen yet */ }
+    try { renderStandingsTable(); } catch (e) { /* not on screen yet */ }
+  });
+}

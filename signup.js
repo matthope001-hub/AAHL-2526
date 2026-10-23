@@ -579,7 +579,8 @@ function renderMyTeamMovesPanel() {
   allBoxes.forEach(b => { boxById[b.id] = b; });
 
   el.innerHTML = `
-    <h3 style="margin-bottom:4px;">${escapeHtml(myTeamEntry.teamName)}</h3>
+    <h3 style="margin-bottom:4px; display:flex; align-items:center;">${window.aasnLogos ? aasnLogos.badge('aahl', myTeamCreds && myTeamCreds.entryId, myTeamEntry.teamName, 48) : ''}${escapeHtml(myTeamEntry.teamName)}</h3>
+    ${window.aasnLogos && myTeamCreds ? `<div style="display:flex; gap:8px; align-items:center; margin:6px 0 10px;"><button type="button" class="admin-btn" id="aahl-logo-set" style="min-height:36px; padding:0 14px;">${aasnLogos.url('aahl', myTeamCreds.entryId) ? 'Change logo' : 'Add team logo'}</button>${aasnLogos.url('aahl', myTeamCreds.entryId) ? '<button type="button" class="admin-btn" id="aahl-logo-remove" style="min-height:36px; padding:0 14px;">Remove</button>' : ''}<span class="mono" id="aahl-logo-msg" style="font-size:12px; color:var(--text-dim);"></span></div>` : ''}
     <p class="mono" style="color:var(--ice); margin-bottom:16px;">${myTeamEntry.movesRemaining} move${myTeamEntry.movesRemaining === 1 ? '' : 's'} remaining</p>
 
     <h4 class="group-title">Your Roster <a href="#" class="mono mt-full-link" id="my-team-full-link">Full team view →</a></h4>
@@ -920,3 +921,18 @@ async function submitAllUnifiedChanges_() {
     alert('Something went wrong submitting your changes. Please try again.\n\n' + err.message);
   }
 }
+
+// Team logo on My Team (shared AASN feature). Goes live straight away; proof = the Entry ID + email used to look the team up.
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest && ev.target.closest('#aahl-logo-set, #aahl-logo-remove');
+  if (!b || !window.aasnLogos || !myTeamCreds) return;
+  const args = { pool: 'aahl', team: myTeamCreds.entryId, proof: { email: myTeamCreds.email } };
+  b.disabled = true;
+  const out = b.id === 'aahl-logo-remove' ? await aasnLogos.remove(args) : await aasnLogos.pick(args);
+  b.disabled = false;
+  if (out.cancelled) return;
+  if (!out.success) { const m = document.getElementById('aahl-logo-msg'); if (m) m.textContent = out.error || 'Could not update the logo.'; return; }
+  renderMyTeamMovesPanel();
+  try { renderStandingsTable(); } catch (e) { /* ignore */ }
+});
+if (window.aasnLogos) aasnLogos.load('aahl');
