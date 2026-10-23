@@ -3,6 +3,13 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.9 — Trade Tracker
+_Oct 23, 2026_
+- New **Trade Tracker** page under **More**: every NHL trade this season that involves a player in the pool
+- Each trade shows **both sides of the deal** — who each team got, including other players and draft picks
+- **Pool players are highlighted**, with how many AAHL teams picked them
+- Checks for new trades every 30 minutes
+
 ## v3.8 — Team logos
 _Oct 23, 2026_
 - Add your own **team logo**: open **My Team**, look up your team, tap **Add team logo**, then either **upload a photo** or **paste a link** to an image — it's cropped to a circle and goes live straight away

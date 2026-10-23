@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.9.1';
+const VERSION = '1.10.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -100,6 +100,7 @@ export default {
           case 'checkLateInvite': result = await checkLateInvite(env, p.get('token')); break;
           case 'schedule': result = await getWeekSchedule(p.get('date')); break;
           case 'highlights': result = await getHighlights(env, p.get('date')); break;
+          case 'trades': result = await getTrades(p.get('since')); break;
           default: result = { success: false, error: 'Unknown action: ' + p.get('action') };
         }
       } else if (request.method === 'POST') {
@@ -1231,6 +1232,91 @@ async function getHighlights(env, date) {
   }
   const items = ((doc && doc.items) || []).map(i => Object.assign({}, i, { embed: i.clip ? BRIGHTCOVE_EMBED + i.clip : '' }));
   return { success: true, date: day, items: items, games: (doc && doc.games) || {}, updatedAt: doc ? doc.updatedAt : null };
+}
+
+// --------------------------------------------------------------- trades
+// NHL trades since a date (Trade Tracker page). The NHL API has no
+// transactions feed, so this reads ESPN's free public one. Each trade shows
+// up once per team ("Acquired X from Y for Z"); the two halves are joined
+// into one trade. The page itself keeps only trades with pool players.
+const ESPN_TX = 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/transactions';
+const TRADES_TTL_MS = 30 * 60000;
+let tradesMem_ = null;
+
+function tradeNorm_(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function parseTradeRow_(r) {
+  const text = String(r.description || '').trim().replace(/\.$/, '');
+  const t = r.team || {};
+  let m = text.match(/^Acquired (.+?) from (.+?) (?:in exchange for|for) (.+)$/i);
+  let got, gave, other;
+  if (m) { got = m[1]; other = m[2]; gave = m[3]; }
+  else {
+    m = text.match(/^Traded (.+?) to (.+?) (?:in exchange for|for) (.+)$/i);
+    if (!m) return null;
+    gave = m[1]; other = m[2]; got = m[3];
+  }
+  const logo = (t.logos && t.logos[0] && t.logos[0].href) || '';
+  return {
+    date: String(r.date || '').slice(0, 10), text: text + '.',
+    team: t.abbreviation || '', teamName: t.displayName || other, location: t.location || '', nick: t.name || '',
+    logo, got: got.trim(), gave: gave.trim(), other: other.trim()
+  };
+}
+
+// "N.Y. Rangers" / "Toronto" / "Carolina Hurricanes" -> is it this team?
+function tradeOtherIs_(otherText, row) {
+  const o = tradeNorm_(otherText);
+  return !!((row.nick && o.includes(tradeNorm_(row.nick))) || (row.location && o.includes(tradeNorm_(row.location))));
+}
+
+async function getTrades(since) {
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(since || '')) ? since : '2026-09-01';
+  const to = hockeyDay();
+  const key = from + '|' + to;
+  if (tradesMem_ && tradesMem_.key === key && Date.now() - tradesMem_.at < TRADES_TTL_MS) return tradesMem_.data;
+
+  const dates = from.replace(/-/g, '') + '-' + to.replace(/-/g, '');
+  const raw = [];
+  for (let page = 1; page <= 5; page++) {
+    const res = await fetch(`${ESPN_TX}?limit=1000&page=${page}&dates=${dates}`, {
+      headers: { 'User-Agent': 'AAHL-Worker/1.0' }, cf: { cacheTtl: 1800, cacheEverything: true }
+    });
+    if (!res.ok) throw new Error('Transactions feed returned ' + res.status);
+    const j = await res.json();
+    const tx = j.transactions || [];
+    raw.push(...tx);
+    if (tx.length < 1000 || page >= (j.pageCount || 1)) break;
+  }
+
+  const rows = raw.map(parseTradeRow_).filter(Boolean);
+  const used = new Set();
+  const trades = [];
+  rows.forEach((a, i) => {
+    if (used.has(i)) return;
+    used.add(i);
+    const j = rows.findIndex((b, k) => !used.has(k) && k !== i && b.team !== a.team &&
+      Math.abs(new Date(a.date) - new Date(b.date)) <= 86400000 &&
+      ((tradeNorm_(a.got) === tradeNorm_(b.gave) && tradeNorm_(a.gave) === tradeNorm_(b.got)) ||
+       (tradeOtherIs_(a.other, b) && tradeOtherIs_(b.other, a))));
+    const sides = [{ team: a.team, name: a.teamName, logo: a.logo, gets: a.got }];
+    if (j >= 0) {
+      used.add(j);
+      const b = rows[j];
+      sides.push({ team: b.team, name: b.teamName, logo: b.logo, gets: b.got });
+    } else {
+      sides.push({ team: '', name: a.other, logo: '', gets: a.gave });
+    }
+    trades.push({ date: a.date, sides, text: a.text });
+  });
+  trades.sort((x, y) => y.date.localeCompare(x.date));
+
+  const data = { success: true, since: from, trades, updatedAt: new Date().toISOString() };
+  tradesMem_ = { key, at: Date.now(), data };
+  return data;
 }
 
 // --------------------------------------------------------- weekly image
