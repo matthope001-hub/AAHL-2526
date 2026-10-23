@@ -928,7 +928,7 @@ document.addEventListener('click', async (ev) => {
   if (!b || !window.aasnLogos || !myTeamCreds) return;
   const args = { pool: 'aahl', team: myTeamCreds.entryId, proof: { email: myTeamCreds.email } };
   b.disabled = true;
-  const out = b.id === 'aahl-logo-remove' ? await aasnLogos.remove(args) : await aasnLogos.pick(args);
+  const out = b.id === 'aahl-logo-remove' ? await aasnLogos.remove(args) : await aasnLogos.choose(args);
   b.disabled = false;
   if (out.cancelled) return;
   if (!out.success) { const m = document.getElementById('aahl-logo-msg'); if (m) m.textContent = out.error || 'Could not update the logo.'; return; }
