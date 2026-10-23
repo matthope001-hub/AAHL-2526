@@ -10,7 +10,8 @@ _Oct 23, 2026_
 - **Pool players are highlighted**, with how many AAHL teams picked them
 - Breaking trades show up fast: when the **NHL roster** moves a pool player to a new team, a card appears right away, then turns into the full trade once the details are posted
 - **Breaking** cards when **NHL.com**, **ESPN** or **Sportsnet** report a pool player traded, before the full details are posted
-- Every trade shows which sources **confirm** it: NHL roster, NHL.com, ESPN and Sportsnet
+- Trade details come from **NHL.com's official trade tracker**, so every trade since the season started is included
+- Every trade shows which sources **confirm** it: NHL.com, NHL roster, ESPN and Sportsnet
 - Checks for new trades every 30 minutes
 
 ## v3.8 — Team logos

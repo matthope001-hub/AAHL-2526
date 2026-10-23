@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.12.0';
+const VERSION = '1.13.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1236,9 +1236,11 @@ async function getHighlights(env, date) {
 }
 
 // --------------------------------------------------------------- trades
-// Trade Tracker page. Three sources, joined here:
-//  1. ESPN's free public transactions feed - full details of each trade
-//     (the NHL API has no transactions feed). Each trade shows up once per
+// Trade Tracker page. Sources, joined here:
+//  0. NHL.com's official season trade tracker story (every trade since
+//     July 1, one markdown entry each) - the main source of trade details.
+//  1. ESPN's free public transactions feed - a second source of details
+//     (often late or missing some trades). Each trade shows up once per
 //     team ("Acquired X from Y for Z"); the two halves are joined into one.
 //  2. NHL rosters - every 30 min, each pool player's NHL team is compared
 //     with the last check; a change becomes a "team change" card until the
@@ -1261,6 +1263,14 @@ function tradeNorm_(s) {
 
 function nhlLogo_(abbr) {
   return abbr ? `https://assets.nhle.com/logos/nhl/svg/${abbr}_light.svg` : '';
+}
+
+// One ESPN row can hold several moves ("Placed X on IR. Acquired Y from
+// Z for W.") - each sentence starts with a past-tense verb.
+function parseTradeRows_(r) {
+  return String(r.description || '').split(/\.\s+(?=[A-Z][a-z]+ed\b)/)
+    .map(sentence => parseTradeRow_(Object.assign({}, r, { description: sentence })))
+    .filter(Boolean);
 }
 
 function parseTradeRow_(r) {
@@ -1302,7 +1312,7 @@ async function espnTrades_(from, to) {
     raw.push(...tx);
     if (tx.length < 1000 || page >= (j.pageCount || 1)) break;
   }
-  const rows = raw.map(parseTradeRow_).filter(Boolean);
+  const rows = [].concat(...raw.map(parseTradeRows_));
   const used = new Set();
   const trades = [];
   rows.forEach((a, i) => {
@@ -1323,6 +1333,52 @@ async function espnTrades_(from, to) {
     trades.push({ source: 'espn', date: a.date, sides, text: a.text });
   });
   return trades;
+}
+
+// ------- NHL.com season trade tracker story (1 outgoing request)
+const NHL_TEAM_NAMES = {
+  'Anaheim Ducks': 'ANA', 'Boston Bruins': 'BOS', 'Buffalo Sabres': 'BUF', 'Carolina Hurricanes': 'CAR', 'Columbus Blue Jackets': 'CBJ',
+  'Calgary Flames': 'CGY', 'Chicago Blackhawks': 'CHI', 'Colorado Avalanche': 'COL', 'Dallas Stars': 'DAL', 'Detroit Red Wings': 'DET',
+  'Edmonton Oilers': 'EDM', 'Florida Panthers': 'FLA', 'Los Angeles Kings': 'LAK', 'Minnesota Wild': 'MIN', 'Montreal Canadiens': 'MTL',
+  'Montréal Canadiens': 'MTL', 'New Jersey Devils': 'NJD', 'Nashville Predators': 'NSH', 'New York Islanders': 'NYI', 'New York Rangers': 'NYR',
+  'Ottawa Senators': 'OTT', 'Philadelphia Flyers': 'PHI', 'Pittsburgh Penguins': 'PIT', 'Seattle Kraken': 'SEA', 'San Jose Sharks': 'SJS',
+  'St. Louis Blues': 'STL', 'Tampa Bay Lightning': 'TBL', 'Toronto Maple Leafs': 'TOR', 'Utah Mammoth': 'UTA', 'Utah Hockey Club': 'UTA',
+  'Vancouver Canucks': 'VAN', 'Vegas Golden Knights': 'VGK', 'Winnipeg Jets': 'WPG', 'Washington Capitals': 'WSH'
+};
+const MONTHS = { JANUARY: 1, FEBRUARY: 2, MARCH: 3, APRIL: 4, MAY: 5, JUNE: 6, JULY: 7, AUGUST: 8, SEPTEMBER: 9, OCTOBER: 10, NOVEMBER: 11, DECEMBER: 12 };
+
+function nhlTeamAbbr_(name) {
+  const n = tradeNorm_(name);
+  const hit = Object.keys(NHL_TEAM_NAMES).find(k => tradeNorm_(k) === n);
+  if (hit) return NHL_TEAM_NAMES[hit];
+  const part = Object.keys(NHL_TEAM_NAMES).find(k => n && (tradeNorm_(k).endsWith(' ' + n) || tradeNorm_(k).startsWith(n + ' ')));
+  return part ? NHL_TEAM_NAMES[part] : '';
+}
+
+async function nhlTrackerTrades_(from) {
+  const y = Number(from.slice(0, 4)) - (Number(from.slice(5, 7)) >= 7 ? 0 : 1);
+  const slug = `${y}-${String(y + 1).slice(2)}-nhl-trades`;
+  const res = await fetch('https://forge-dapi.d3.nhle.com/v2/content/en-us/stories/' + slug, {
+    headers: { 'User-Agent': 'AAHL-Worker/1.0 (+https://theaahl.ca)' }, cf: { cacheTtl: 600, cacheEverything: true }
+  });
+  if (!res.ok) throw new Error('NHL trade tracker returned ' + res.status);
+  const j = await res.json();
+  const out = [];
+  (j.parts || []).forEach(part => {
+    if (!part || part.type !== 'markdown') return;
+    const text = String(part.content || '').split('|')[0].replace(/\s+/g, ' ').trim();
+    const m = text.match(/^\*\*([A-Za-z]+)\.?\s+(\d{1,2}):?\*\*:?\s*(.+?)\s+acquired?\s+(.+?)\s+from\s+(?:the\s+)?(.+?)\s+(?:in exchange for|for)\s+(.+?)\.?$/i);
+    if (!m) return;
+    const mon = MONTHS[m[1].toUpperCase()];
+    if (!mon) return;
+    const date = `${mon >= 7 ? y : y + 1}-${String(mon).padStart(2, '0')}-${String(m[2]).padStart(2, '0')}`;
+    const a = nhlTeamAbbr_(m[3]), b = nhlTeamAbbr_(m[5]);
+    out.push({ source: 'tracker', date, text: text.replace(/\*\*/g, ''), sides: [
+      { team: a, name: m[3].trim(), logo: nhlLogo_(a), gets: m[4].trim() },
+      { team: b, name: m[5].trim(), logo: nhlLogo_(b), gets: m[6].trim() }
+    ] });
+  });
+  return out;
 }
 
 // Compares every pool player's NHL team with the last check. Players not on
@@ -1464,8 +1520,9 @@ async function getTrades(env, since) {
 
   let doc = (await getConfigDoc(env, 'tradeWatch')) || {};
   const due = !doc.checkedAt || Date.now() - new Date(doc.checkedAt).getTime() >= TRADES_TTL_MS;
-  const [espn] = await Promise.all([
+  const [espn, tracker] = await Promise.all([
     espnTrades_(from, to).catch(err => { console.log('Trades: ESPN failed - ' + err.message); return null; }),
+    nhlTrackerTrades_(from).catch(err => { console.log('Trades: NHL tracker failed - ' + err.message); return null; }),
     (async () => {
       if (!due || rosterCheckBusy_) return;
       rosterCheckBusy_ = true;
@@ -1477,18 +1534,28 @@ async function getTrades(env, since) {
     })()
   ]);
 
-  const espnList = espn || [];
   const pairKey = t => t.sides.map(s => s.team).filter(Boolean).sort().join('-');
-  const near = (a, b) => Math.abs(new Date(a) - new Date(b)) <= 3 * 86400000;
-  // A trade added in Admin is dropped once ESPN posts the same two teams.
-  const manual = (doc.manual || []).filter(m => m.date >= from && !espnList.some(e => pairKey(e) === pairKey(m) && near(e.date, m.date)))
-    .map(m => Object.assign({}, m, { source: 'manual', sides: m.sides.map(s => Object.assign({ name: s.team, logo: nhlLogo_(s.team) }, s)) }));
-  const trades = espnList.concat(manual).sort((x, y) => y.date.localeCompare(x.date));
+  const within = (a, b) => a.sides.some(s => s.team) && a.sides.filter(s => s.team).every(s => b.sides.some(x => x.team === s.team));
+  const sameTrade = (a, b) => Math.abs(new Date(a.date) - new Date(b.date)) <= 3 * 86400000 &&
+    (pairKey(a) === pairKey(b) || within(a, b) || within(b, a));
+  // NHL.com's tracker first; an ESPN trade it already has just adds a
+  // confirmation ("also"), otherwise it's listed on its own.
+  const trackerList = (tracker || []).filter(t => t.date >= from).map(t => Object.assign(t, { also: [] }));
+  const espnOnly = [];
+  (espn || []).forEach(e => {
+    const t = trackerList.find(x => sameTrade(x, e));
+    if (t) { if (!t.also.includes('feed')) t.also.push('feed'); } else espnOnly.push(Object.assign(e, { also: [] }));
+  });
+  const posted = trackerList.concat(espnOnly);
+  // A trade added in Admin is dropped once NHL.com or ESPN posts it.
+  const manual = (doc.manual || []).filter(m => m.date >= from && !posted.some(e => sameTrade(e, m)))
+    .map(m => Object.assign({}, m, { source: 'manual', also: [], sides: m.sides.map(s => Object.assign({ name: s.team, logo: nhlLogo_(s.team) }, s)) }));
+  const trades = posted.concat(manual).sort((x, y) => y.date.localeCompare(x.date));
   const changes = (doc.changes || []).filter(c => c.date >= from);
   const reports = (doc.reports || []).filter(r => r.date >= from);
 
   const data = { success: true, since: from, trades, changes, reports, nhlTeams: doc.baseline || {},
-    espnOk: !!espn, checkedAt: doc.checkedAt || null, updatedAt: new Date().toISOString() };
+    espnOk: !!espn, trackerOk: !!tracker, checkedAt: doc.checkedAt || null, updatedAt: new Date().toISOString() };
   tradesMem_ = { key, at: Date.now(), data };
   return data;
 }

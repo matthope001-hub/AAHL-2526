@@ -2,7 +2,8 @@
  * trades.js - Trade Tracker (More -> Trade Tracker).
  * Every NHL trade this season that involves a player in the pool's boxes,
  * with both sides of the deal. Data: worker GET api.theaahl.ca/?action=trades
- * - ESPN's public transactions feed (full details), trades the commissioner
+ * - NHL.com's official season trade tracker (full details), ESPN's public
+ * transactions feed (second source), trades the commissioner
  * adds in Admin, NHL roster changes and trade headlines from NHL.com, ESPN
  * and Sportsnet. Until full details are posted, a pool player who changed
  * teams or was reported traded gets a "breaking" card; every source that
@@ -55,7 +56,8 @@
   function assetHtml_(asset, idx, side, nhlTeams) {
     const p = findPool_(asset, idx);
     if (!p) return `<li class="tt-asset">${esc(asset)}</li>`;
-    const m = asset.match(/^([FDG])\s+/);
+    const m = asset.match(/^(F|D|G|Fs|Ds|Gs|forwards?|defensem[ae]n|goalies?)\s+/i);
+    if (m) m[1] = m[1][0].toUpperCase();
     const n = typeof pickedCount_ === 'function' ? pickedCount_(p.id) : 0;
     const label = n ? `Picked by ${n}` : 'In the pool';
     const picked = n && typeof pickedLink_ === 'function' ? pickedLink_(p.id, label) : esc(label);
@@ -67,14 +69,14 @@
     </li>`;
   }
 
-  const SRC_LABEL = { roster: 'NHL roster', 'nhl.com': 'NHL.com', espn: 'ESPN', sportsnet: 'Sportsnet', feed: 'ESPN transactions', manual: 'Commissioner' };
+  const SRC_LABEL = { tracker: 'NHL.com trade tracker', roster: 'NHL roster', 'nhl.com': 'NHL.com', espn: 'ESPN', sportsnet: 'Sportsnet', feed: 'ESPN transactions', manual: 'Commissioner' };
   function badgesHtml_(srcs) {
     const list = [...new Set(srcs)].filter(x => SRC_LABEL[x]);
     return list.length ? `<div class="tt-confirm mono">CONFIRMED BY ${list.map(x => `<span class="tt-tag tt-ok">✓ ${esc(SRC_LABEL[x])}</span>`).join('')}</div>` : '';
   }
 
   function cardHtml_(t, idx, ctx) {
-    const srcs = [t.source === 'manual' ? 'manual' : 'feed'];
+    const srcs = [t.source === 'manual' ? 'manual' : t.source === 'tracker' ? 'tracker' : 'feed'].concat(t.also || []);
     t.sides.forEach(side => splitAssets_(side.gets).forEach(a => {
       const p = findPool_(a, idx);
       if (!p) return;
@@ -190,7 +192,7 @@
         .concat(breakIds.map(id => ({ date: (changes[id] && changes[id].date) || reports[id].date, html: breakingHtml_(id, changes[id], reports[id]) })))
         .sort((a, b) => b.date.localeCompare(a.date));
       root.innerHTML = `
-        <p class="tt-note">Every NHL trade since ${esc(dateLabel_(res.since))} that involves a player in the pool. Pool players are in blue. Each trade lists the sources that confirm it: the NHL roster, NHL.com, ESPN and Sportsnet. Checked every 30 minutes.</p>
+        <p class="tt-note">Every NHL trade since ${esc(dateLabel_(res.since))} that involves a player in the pool. Pool players are in blue. Each trade lists the sources that confirm it: NHL.com's trade tracker, the NHL roster, ESPN and Sportsnet. Checked every 30 minutes.</p>
         ${items.length ? `<div class="tt-list">${items.map(i => i.html).join('')}</div>`
           : '<p class="mono" style="color:var(--text-dim); font-size:13px;">No trades involving pool players yet this season.</p>'}`;
     } catch (err) {
