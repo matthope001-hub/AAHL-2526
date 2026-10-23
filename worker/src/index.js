@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.13.0';
+const VERSION = '1.13.1';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1448,14 +1448,24 @@ async function newsCheck_(doc, poolIds, info) {
     .map(id => ({ id, name: info[id].name, key: ' ' + tradeNorm_(info[id].name) + ' ' }));
   const found = []; // { id, src, title, at }
   const recent = at => at && Date.now() - new Date(at).getTime() <= NEWS_MAX_AGE_MS;
-  const byName = text => { const t = ' ' + tradeNorm_(text) + ' '; return names.filter(n => t.includes(n.key)).map(n => n.id); };
+  // Headlines often use just a last name ("Jets trade Hellebuyck") - allowed
+  // only when no other pool player shares it.
+  const lastCount = {};
+  names.forEach(n => { n.last = ' ' + tradeNorm_(n.name).split(' ').pop() + ' '; lastCount[n.last] = (lastCount[n.last] || 0) + 1; });
+  const byName = text => {
+    const t = ' ' + tradeNorm_(text) + ' ';
+    return names.filter(n => t.includes(n.key) || (lastCount[n.last] === 1 && n.last.length >= 6 && t.includes(n.last))).map(n => n.id);
+  };
   const sources = doc.sources || {};
   const run = async (src, fn) => {
     try { const n = await fn(); sources[src] = { ok: true, at: new Date().toISOString(), items: n }; }
     catch (err) { sources[src] = { ok: false, at: new Date().toISOString(), error: String(err.message || err).slice(0, 120) }; console.log('Trades: ' + src + ' failed - ' + err.message); }
   };
   const get = async (url, type) => {
-    const res = await fetch(url, { headers: { 'User-Agent': 'AAHL-Worker/1.0 (+https://theaahl.ca)', 'Accept': type } });
+    // ESPN refuses requests with an Accept header (403) - only Sportsnet gets one.
+    const headers = { 'User-Agent': 'AAHL-Worker/1.0' };
+    if (!type.includes('json')) headers.Accept = type;
+    const res = await fetch(url, { headers });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     return type.includes('json') ? res.json() : res.text();
   };
