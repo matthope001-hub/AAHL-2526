@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.13.1';
+const VERSION = '1.13.2';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1452,9 +1452,15 @@ async function newsCheck_(doc, poolIds, info) {
   // only when no other pool player shares it.
   const lastCount = {};
   names.forEach(n => { n.last = ' ' + tradeNorm_(n.name).split(' ').pop() + ' '; lastCount[n.last] = (lastCount[n.last] || 0) + 1; });
+  // Full names are taken out of the text first, so "Connor Hellebuyck"
+  // can't also count as a mention of Kyle Connor.
   const byName = text => {
     const t = ' ' + tradeNorm_(text) + ' ';
-    return names.filter(n => t.includes(n.key) || (lastCount[n.last] === 1 && n.last.length >= 6 && t.includes(n.last))).map(n => n.id);
+    const full = names.filter(n => t.includes(n.key));
+    let rest = t;
+    full.forEach(n => { rest = rest.split(n.key).join(' | '); });
+    const last = names.filter(n => !full.includes(n) && lastCount[n.last] === 1 && n.last.length >= 6 && rest.includes(n.last));
+    return full.concat(last).map(n => n.id);
   };
   const sources = doc.sources || {};
   const run = async (src, fn) => {
