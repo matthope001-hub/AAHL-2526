@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1244,6 +1244,9 @@ async function getHighlights(env, date) {
 //     with the last check; a change becomes a "team change" card until the
 //     full trade is posted, and confirms trades ("NHL" badge).
 //  3. Trades the commissioner adds in Admin (shown until ESPN posts them).
+//  4. News headlines - NHL.com stories (tagged with NHL player ids), ESPN
+//     news and Sportsnet's RSS feed. A trade headline naming a pool player
+//     is a "report"; each source that has one adds a badge on the page.
 // Roster check state + manual trades live in config/tradeWatch.
 const ESPN_TX = 'https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/transactions';
 const TRADES_TTL_MS = 30 * 60000;
@@ -1323,8 +1326,8 @@ async function espnTrades_(from, to) {
 }
 
 // Compares every pool player's NHL team with the last check. Players not on
-// any NHL roster (AHL, unsigned) keep their last team. ~38 outgoing requests
-// (32 rosters + 6 database) - under the free plan's 50 per run.
+// any NHL roster (AHL, unsigned) keep their last team. ~41 outgoing requests
+// (32 rosters + 6 database + 3 news feeds) - under the free plan's 50 per run.
 async function rosterCheck_(env, doc) {
   const [config, boxes] = await Promise.all([getConfig(env), sb(env, 'boxes?select=data')]);
   const season = String(config.currentSeason || '20262027');
@@ -1363,7 +1366,94 @@ async function rosterCheck_(env, doc) {
   doc.changes = changes.slice(0, 200);
   doc.checkedAt = new Date().toISOString();
   doc.rosterTeams = rosters.filter(x => x.r).length;
+  await newsCheck_(doc, poolIds, info);
   return doc;
+}
+
+// ------- trade reports from news headlines (3 outgoing requests)
+const NEWS_TRADE_RE = /\b(traded|trades|trade|acquires?|acquired|acquisition|deal(?:t|s)?\s+to)\b|\b(sends?|ships?)\b.*\bto\b/i;
+const NEWS_SKIP_RE = /\b(request|requests|rumou?rs?|tracker|grades?|buzz|board|could|would|should|might|potential|possible|target|targets|interest|interested|candidates?|deadline|needs|ideas|fits?|mock|ranking|rankings|what|why|how|explained|talks|block|blocked|untouchable|linked|eyeing|available|watch)\b|\?/i;
+const NEWS_MAX_AGE_MS = 7 * 86400000;
+
+function newsIsTrade_(text) {
+  const t = String(text || '');
+  return NEWS_TRADE_RE.test(t) && !NEWS_SKIP_RE.test(t);
+}
+
+function xmlTag_(block, tag) {
+  const m = block.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)</' + tag + '>', 'i'));
+  if (!m) return '';
+  return m[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&#8217;|&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/&#\d+;/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+async function newsCheck_(doc, poolIds, info) {
+  const names = [...poolIds].filter(id => info[id] && info[id].name)
+    .map(id => ({ id, name: info[id].name, key: ' ' + tradeNorm_(info[id].name) + ' ' }));
+  const found = []; // { id, src, title, at }
+  const recent = at => at && Date.now() - new Date(at).getTime() <= NEWS_MAX_AGE_MS;
+  const byName = text => { const t = ' ' + tradeNorm_(text) + ' '; return names.filter(n => t.includes(n.key)).map(n => n.id); };
+  const sources = doc.sources || {};
+  const run = async (src, fn) => {
+    try { const n = await fn(); sources[src] = { ok: true, at: new Date().toISOString(), items: n }; }
+    catch (err) { sources[src] = { ok: false, at: new Date().toISOString(), error: String(err.message || err).slice(0, 120) }; console.log('Trades: ' + src + ' failed - ' + err.message); }
+  };
+  const get = async (url, type) => {
+    const res = await fetch(url, { headers: { 'User-Agent': 'AAHL-Worker/1.0 (+https://theaahl.ca)', 'Accept': type } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return type.includes('json') ? res.json() : res.text();
+  };
+  await Promise.all([
+    // NHL.com - stories carry player tags with NHL ids, so no name guessing.
+    run('nhl.com', async () => {
+      const j = await get('https://forge-dapi.d3.nhle.com/v2/content/en-us/stories?$limit=60', 'application/json');
+      const items = j.items || [];
+      items.forEach(it => {
+        const title = it.headline || it.title || '';
+        const at = it.contentDate || it.lastUpdatedDate;
+        if (!recent(at) || !newsIsTrade_(title)) return;
+        (it.tags || []).forEach(tg => {
+          const pid = tg && tg.extraData && tg.extraData.playerId;
+          if (tg.externalSourceName === 'player' && pid && poolIds.has(String(pid))) found.push({ id: String(pid), src: 'nhl.com', title, at });
+        });
+      });
+      return items.length;
+    }),
+    run('espn', async () => {
+      const j = await get('https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/news?limit=50', 'application/json');
+      const items = j.articles || [];
+      items.forEach(a => {
+        const title = a.headline || '';
+        if (!recent(a.published) || !newsIsTrade_(title)) return;
+        const cats = (a.categories || []).filter(c => c.type === 'athlete').map(c => c.description || '').join(' ');
+        [...new Set(byName(title + ' ' + (a.description || '') + ' ' + cats))].forEach(id => found.push({ id, src: 'espn', title, at: a.published }));
+      });
+      return items.length;
+    }),
+    run('sportsnet', async () => {
+      const xml = await get('https://www.sportsnet.ca/hockey/nhl/feed/', 'application/rss+xml, application/xml, text/xml');
+      const items = xml.split(/<item[\s>]/i).slice(1);
+      items.forEach(block => {
+        const title = xmlTag_(block, 'title');
+        const at = xmlTag_(block, 'pubDate');
+        if (!recent(at) || !newsIsTrade_(title)) return;
+        [...new Set(byName(title + ' ' + xmlTag_(block, 'description')))].forEach(id => found.push({ id, src: 'sportsnet', title, at: new Date(at).toISOString() }));
+      });
+      return items.length;
+    })
+  ]);
+  const reports = doc.reports || [];
+  found.forEach(f => {
+    let r = reports.find(x => x.id === f.id && Date.now() - new Date(x.firstAt).getTime() <= NEWS_MAX_AGE_MS);
+    if (!r) {
+      r = { id: f.id, name: (info[f.id] && info[f.id].name) || '', date: hockeyDay(), firstAt: new Date().toISOString(), sources: {} };
+      reports.unshift(r);
+      console.log(`Trades: report for ${r.name || f.id} from ${f.src}`);
+    }
+    if (!r.sources[f.src]) r.sources[f.src] = { title: f.title.slice(0, 160), at: f.at };
+  });
+  doc.reports = reports.slice(0, 100);
+  doc.sources = sources;
 }
 
 async function getTrades(env, since) {
@@ -1395,8 +1485,9 @@ async function getTrades(env, since) {
     .map(m => Object.assign({}, m, { source: 'manual', sides: m.sides.map(s => Object.assign({ name: s.team, logo: nhlLogo_(s.team) }, s)) }));
   const trades = espnList.concat(manual).sort((x, y) => y.date.localeCompare(x.date));
   const changes = (doc.changes || []).filter(c => c.date >= from);
+  const reports = (doc.reports || []).filter(r => r.date >= from);
 
-  const data = { success: true, since: from, trades, changes, nhlTeams: doc.baseline || {},
+  const data = { success: true, since: from, trades, changes, reports, nhlTeams: doc.baseline || {},
     espnOk: !!espn, checkedAt: doc.checkedAt || null, updatedAt: new Date().toISOString() };
   tradesMem_ = { key, at: Date.now(), data };
   return data;
@@ -1426,7 +1517,7 @@ async function adminTrades(env, body) {
     await putConfigDoc(env, 'tradeWatch', doc);
     tradesMem_ = null;
   }
-  return { success: true, data: { manual: doc.manual, changes: (doc.changes || []).slice(0, 20), checkedAt: doc.checkedAt || null } };
+  return { success: true, data: { manual: doc.manual, changes: (doc.changes || []).slice(0, 20), reports: (doc.reports || []).slice(0, 20), sources: doc.sources || {}, checkedAt: doc.checkedAt || null } };
 }
 
 // --------------------------------------------------------- weekly image

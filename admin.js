@@ -170,7 +170,7 @@ function renderAdminEntries(entries) {
         </div>
         <div class="panel adm-tool adm-wide">
           <h3>📰 Trade Tracker: Add NHL Trade</h3>
-          <p class="adm-help">Shows a just-announced NHL trade on the Trade Tracker page right away. It's removed on its own once the ESPN feed posts the same two teams. NHL roster changes for pool players are caught automatically every 30 minutes.</p>
+          <p class="adm-help">Shows a just-announced NHL trade on the Trade Tracker page right away. It's removed on its own once the ESPN feed posts the same two teams. NHL roster changes and trade headlines (NHL.com, ESPN, Sportsnet) for pool players are caught automatically every 30 minutes.</p>
           <div class="adm-row">
             <input type="date" id="admin-nt-date">
             <select id="admin-nt-team-a"><option value="">Team A...</option></select>
@@ -1018,13 +1018,20 @@ function renderAdminNhlTrades_(data) {
   if (!el) return;
   const manual = (data && data.manual) || [];
   const changes = (data && data.changes) || [];
+  const reports = (data && data.reports) || [];
+  const sources = (data && data.sources) || {};
+  const srcLine = ['nhl.com', 'espn', 'sportsnet'].map(k => {
+    const x = sources[k];
+    return `${k}: ${!x ? '–' : x.ok ? '✅' : '⚠️ ' + escapeHtml(x.error || 'failed')}`;
+  }).join(' · ');
   el.innerHTML = `
     ${manual.length ? manual.map(m => `
       <div class="activity-row">
         <span>${escapeHtml(m.date)} · <b>${escapeHtml(m.sides[0].team)}</b> gets ${escapeHtml(m.sides[0].gets)} ⇄ <b>${escapeHtml(m.sides[1].team)}</b> gets ${escapeHtml(m.sides[1].gets)}</span>
         <span><button type="button" class="admin-btn" data-nt-remove="${escapeHtml(m.id)}">Remove</button></span>
       </div>`).join('') : '<p class="mono" style="color:var(--text-dim); font-size:12px;">No trades added by hand.</p>'}
-    <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Roster check: ${data && data.checkedAt ? 'last run ' + escapeHtml(new Date(data.checkedAt).toLocaleString('en-CA', { timeZone: 'America/Toronto' })) : 'runs the next time someone opens Trade Tracker'}${changes.length ? ' · recent team changes: ' + changes.slice(0, 5).map(c => escapeHtml(`${c.name} ${c.from}→${c.to}`)).join(', ') : ''}</p>`;
+    <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:8px;">Roster check: ${data && data.checkedAt ? 'last run ' + escapeHtml(new Date(data.checkedAt).toLocaleString('en-CA', { timeZone: 'America/Toronto' })) : 'runs the next time someone opens Trade Tracker'}${changes.length ? ' · recent team changes: ' + changes.slice(0, 5).map(c => escapeHtml(`${c.name} ${c.from}→${c.to}`)).join(', ') : ''}</p>
+    <p class="mono" style="color:var(--text-dim); font-size:11px; margin-top:4px;">News sources: ${srcLine}${reports.length ? ' · recent reports: ' + reports.slice(0, 5).map(r => escapeHtml(`${r.name} (${Object.keys(r.sources || {}).join(', ')})`)).join(', ') : ''}</p>`;
   el.querySelectorAll('[data-nt-remove]').forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Remove this trade from the Trade Tracker?')) return;
     b.disabled = true;

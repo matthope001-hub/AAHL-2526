@@ -3,8 +3,10 @@
  * Every NHL trade this season that involves a player in the pool's boxes,
  * with both sides of the deal. Data: worker GET api.theaahl.ca/?action=trades
  * - ESPN's public transactions feed (full details), trades the commissioner
- * adds in Admin, and NHL roster changes (a "team change" card until the
- * full trade is posted; an NHL badge once his NHL team matches the trade).
+ * adds in Admin, NHL roster changes and trade headlines from NHL.com, ESPN
+ * and Sportsnet. Until full details are posted, a pool player who changed
+ * teams or was reported traded gets a "breaking" card; every source that
+ * confirms a trade is shown as a badge.
  * Load after main.js (uses allPlayers, poolPlayerIds, currentConfig,
  * ensurePlayersLoaded, escapeHtml, and pick counts from stats.js).
  */
@@ -65,9 +67,23 @@
     </li>`;
   }
 
-  function cardHtml_(t, idx, nhlTeams) {
+  const SRC_LABEL = { roster: 'NHL roster', 'nhl.com': 'NHL.com', espn: 'ESPN', sportsnet: 'Sportsnet', feed: 'ESPN transactions', manual: 'Commissioner' };
+  function badgesHtml_(srcs) {
+    const list = [...new Set(srcs)].filter(x => SRC_LABEL[x]);
+    return list.length ? `<div class="tt-confirm mono">CONFIRMED BY ${list.map(x => `<span class="tt-tag tt-ok">✓ ${esc(SRC_LABEL[x])}</span>`).join('')}</div>` : '';
+  }
+
+  function cardHtml_(t, idx, ctx) {
+    const srcs = [t.source === 'manual' ? 'manual' : 'feed'];
+    t.sides.forEach(side => splitAssets_(side.gets).forEach(a => {
+      const p = findPool_(a, idx);
+      if (!p) return;
+      if (side.team && ctx.nhlTeams[String(p.id)] === side.team) srcs.push('roster');
+      const r = ctx.reports[String(p.id)];
+      if (r && Math.abs(new Date(r.date) - new Date(t.date)) <= 7 * 86400000) srcs.push(...Object.keys(r.sources || {}));
+    }));
     return `<div class="tt-card">
-      <div class="tt-head mono"><span>🔁 TRADE${t.source === 'manual' ? ' · <span class="tt-src">REPORTED · DETAILS TO FOLLOW</span>' : ''}</span><span>${esc(dateLabel_(t.date))}</span></div>
+      <div class="tt-head mono"><span>🔁 TRADE${t.source === 'manual' ? ' · <span class="tt-src">DETAILS TO FOLLOW</span>' : ''}</span><span>${esc(dateLabel_(t.date))}</span></div>
       <div class="tt-sides">
         ${t.sides.map(s => `<div class="tt-side">
           <div class="tt-team">
@@ -75,30 +91,33 @@
             <span>${esc(s.name || s.team)}</span>
           </div>
           <div class="tt-gets mono">GETS</div>
-          <ul>${splitAssets_(s.gets).map(a => assetHtml_(a, idx, s, nhlTeams)).join('')}</ul>
+          <ul>${splitAssets_(s.gets).map(a => assetHtml_(a, idx, s, ctx.nhlTeams)).join('')}</ul>
         </div>`).join('<div class="tt-swap mono">⇄</div>')}
       </div>
+      ${badgesHtml_(srcs)}
     </div>`;
   }
 
-  // NHL roster shows a pool player on a new team, but no trade posted yet.
-  function changeHtml_(c) {
-    const p = (allPlayers || []).find(x => String(x.id) === String(c.id));
-    const name = (p && p.fullName) || c.name || 'Player';
+  // A pool player the NHL roster moved and/or the news reported traded,
+  // before the full trade is posted.
+  function breakingHtml_(id, c, r) {
+    const p = (allPlayers || []).find(x => String(x.id) === String(id));
+    const name = (p && p.fullName) || (c && c.name) || (r && r.name) || 'Player';
     const n = p && typeof pickedCount_ === 'function' ? pickedCount_(p.id) : 0;
     const picked = n && typeof pickedLink_ === 'function' ? pickedLink_(p.id, `Picked by ${n}`) : 'In the pool';
+    const rs = (r && r.sources) || {};
+    const head = ['nhl.com', 'espn', 'sportsnet'].map(k => rs[k] && rs[k].title).find(Boolean);
+    const logo = t => `<img src="https://assets.nhle.com/logos/nhl/svg/${esc(t)}_light.svg" alt="">`;
+    const srcs = (c ? ['roster'] : []).concat(Object.keys(rs));
     return `<div class="tt-card tt-change">
-      <div class="tt-head mono"><span>🚨 TEAM CHANGE · NHL ROSTER</span><span>${esc(dateLabel_(c.date))}</span></div>
+      <div class="tt-head mono"><span>🚨 BREAKING · DETAILS TO FOLLOW</span><span>${esc(dateLabel_((c && c.date) || (r && r.date)))}</span></div>
       <div class="tt-move">
         <b>${esc(name)}</b>
-        <span class="tt-route mono">
-          <img src="https://assets.nhle.com/logos/nhl/svg/${esc(c.from)}_light.svg" alt="">${esc(c.from)}
-          <span class="tt-arrow">→</span>
-          <img src="https://assets.nhle.com/logos/nhl/svg/${esc(c.to)}_light.svg" alt="">${esc(c.to)}
-        </span>
+        ${c ? `<span class="tt-route mono">${logo(c.from)}${esc(c.from)}<span class="tt-arrow">→</span>${logo(c.to)}${esc(c.to)}</span>` : ''}
         <span class="tt-tag mono">${picked}</span>
       </div>
-      <div class="tt-gets mono">FULL TRADE DETAILS TO FOLLOW</div>
+      ${head ? `<div class="tt-headline">“${esc(head)}”</div>` : ''}
+      ${badgesHtml_(srcs).replace('CONFIRMED BY', 'REPORTED BY')}
     </div>`;
   }
 
@@ -129,6 +148,9 @@
       .tt-route { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
       .tt-route img { width: 24px; height: 24px; object-fit: contain; }
       .tt-arrow { color: var(--amber); }
+      .tt-confirm { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+      .tt-confirm .tt-tag { margin-left: 0; }
+      .tt-headline { font-size: 14px; color: var(--text-dim); margin-top: 6px; font-style: italic; }
       @media (max-width: 600px) {
         .tt-sides { grid-template-columns: 1fr; }
         .tt-swap { justify-self: center; transform: rotate(90deg); }
@@ -152,17 +174,23 @@
       ]);
       if (!res.success) throw new Error(res.error || 'Could not load trades');
       const idx = poolIndex_();
-      const nhlTeams = res.nhlTeams || {};
+      const reports = {};
+      (res.reports || []).forEach(r => { if (!reports[r.id]) reports[r.id] = r; });
+      const ctx = { nhlTeams: res.nhlTeams || {}, reports };
       const trades = (res.trades || []).filter(t => t.sides.some(s => splitAssets_(s.gets).some(a => findPool_(a, idx))));
-      // Hide a team-change card once a trade mentions that player.
+      // A breaking card goes away once a trade mentions that player.
       const inTrade = new Set();
       trades.forEach(t => t.sides.forEach(s => splitAssets_(s.gets).forEach(a => { const p = findPool_(a, idx); if (p) inTrade.add(String(p.id)); })));
-      const changes = (res.changes || []).filter(c => !inTrade.has(String(c.id)));
-      const items = trades.map(t => ({ date: t.date, html: cardHtml_(t, idx, nhlTeams) }))
-        .concat(changes.map(c => ({ date: c.date, html: changeHtml_(c) })))
+      const changes = {};
+      (res.changes || []).forEach(c => { if (!changes[c.id]) changes[c.id] = c; });
+      const breakIds = [...new Set(Object.keys(changes).concat(Object.keys(reports)))].filter(id => !inTrade.has(String(id)))
+        // A news report with no roster move and no trade after 14 days is dropped.
+        .filter(id => changes[id] || (Date.now() - new Date(reports[id].date + 'T12:00:00Z')) <= 14 * 86400000);
+      const items = trades.map(t => ({ date: t.date, html: cardHtml_(t, idx, ctx) }))
+        .concat(breakIds.map(id => ({ date: (changes[id] && changes[id].date) || reports[id].date, html: breakingHtml_(id, changes[id], reports[id]) })))
         .sort((a, b) => b.date.localeCompare(a.date));
       root.innerHTML = `
-        <p class="tt-note">Every NHL trade since ${esc(dateLabel_(res.since))} that involves a player in the pool. Pool players are in blue; <b>✓ NHL</b> means the NHL roster already shows him on his new team. Checked every 30 minutes.</p>
+        <p class="tt-note">Every NHL trade since ${esc(dateLabel_(res.since))} that involves a player in the pool. Pool players are in blue. Each trade lists the sources that confirm it: the NHL roster, NHL.com, ESPN and Sportsnet. Checked every 30 minutes.</p>
         ${items.length ? `<div class="tt-list">${items.map(i => i.html).join('')}</div>`
           : '<p class="mono" style="color:var(--text-dim); font-size:13px;">No trades involving pool players yet this season.</p>'}`;
     } catch (err) {
