@@ -5,8 +5,10 @@ Every update to theaahl.ca, newest first. The site's **More → What's New** pag
 
 ## v3.8 — Team logos
 _Oct 23, 2026_
-- Add your own **team logo**: open **My Team**, look up your team, tap **Add team logo** and pick an image — it's cropped to a circle and goes live straight away
+- Add your own **team logo**: open **My Team**, look up your team, tap **Add team logo**, then either **upload a photo** or **paste a link** to an image — it's cropped to a circle and goes live straight away
 - Logos show next to team names in the **standings** and the **team pop-up**; teams without one get their initials
+- **Tap any logo** to see it full size
+- The **AASN bar** at the top now shows the new **AASN badge**, and the AASN, AABL and Death Pool sites moved to **aasn.theaahl.ca**
 
 ## v3.7 — Switch between pools
 _Oct 22, 2026_
