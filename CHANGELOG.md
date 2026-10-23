@@ -8,7 +8,7 @@ _Oct 23, 2026_
 - Add your own **team logo**: open **My Team**, look up your team, tap **Add team logo**, then either **upload a photo** or **paste a link** to an image — it's cropped to a circle and goes live straight away
 - Logos show next to team names in the **standings** and the **team pop-up**; teams without one get their initials
 - **Tap any logo** to see it full size
-- The **AASN bar** at the top now shows the new **AASN badge**, and the AASN, AABL and Death Pool sites moved to **aasn.theaahl.ca**
+- The **AASN bar** at the top now shows the new **AASN badge**
 
 ## v3.7 — Switch between pools
 _Oct 22, 2026_
@@ -32,6 +32,7 @@ _Oct 21, 2026_
 - **Fight cards** too, showing who they fought, with a link to the fight video on **HockeyFights.com** once they post it (usually later that night)
 - Filter by **Goals / Assists / Fights**, and step back with **‹ ›** to catch up on any of the last two weeks
 - Updates on its own every minute while you're watching tonight's games
+- Clips are **grouped by game**, each with the real **game score** in its header; tap a game to collapse it, or use **Expand / Collapse all**
 
 ## v3.4 — Live standings during games
 _Oct 20, 2026_
