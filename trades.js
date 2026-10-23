@@ -138,7 +138,9 @@
       .tt-gets { font-size: 11px; color: var(--text-dim); margin: 6px 0 4px; letter-spacing: 1px; }
       .tt-side ul { list-style: none; display: grid; gap: 4px; }
       .tt-asset { font-size: 15px; line-height: 1.3; }
-      .tt-pool b { color: var(--ice); }
+      .tt-pool { background: color-mix(in srgb, var(--ice) 16%, transparent); border-left: 3px solid var(--ice); padding: 4px 8px; border-radius: 3px; }
+      .tt-pool b { color: var(--ice); font-size: 16px; }
+      .tt-pool::before { content: 'IN POOL'; font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--bg); background: var(--ice); padding: 1px 5px; margin-right: 6px; border-radius: 2px; vertical-align: 2px; }
       .tt-pos { font-size: 11px; color: var(--text-dim); margin-right: 4px; }
       .tt-tag { display: inline-block; font-size: 11px; color: var(--text-dim); border: 1px solid var(--border); padding: 0 5px; margin-left: 4px; }
       .tt-note { color: var(--text-dim); font-size: 13px; margin-bottom: 12px; }
@@ -192,7 +194,7 @@
         .concat(breakIds.map(id => ({ date: (changes[id] && changes[id].date) || reports[id].date, html: breakingHtml_(id, changes[id], reports[id]) })))
         .sort((a, b) => b.date.localeCompare(a.date));
       root.innerHTML = `
-        <p class="tt-note">Every NHL trade since ${esc(dateLabel_(res.since))} that involves a player in the pool. Pool players are in blue. Each trade lists the sources that confirm it: NHL.com's trade tracker, the NHL roster, ESPN and Sportsnet. Checked every 30 minutes.</p>
+        <p class="tt-note">Every NHL trade since ${esc(dateLabel_(res.since))} that involves a player in the pool. Players in the pool are highlighted. Each trade lists the sources that confirm it: NHL.com's trade tracker, the NHL roster, ESPN and Sportsnet. Checked every 30 minutes.</p>
         ${items.length ? `<div class="tt-list">${items.map(i => i.html).join('')}</div>`
           : '<p class="mono" style="color:var(--text-dim); font-size:13px;">No trades involving pool players yet this season.</p>'}`;
     } catch (err) {
