@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.13.2';
+const VERSION = '1.13.3';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -1717,19 +1717,65 @@ function recapFactLines(f) {
   return L.join('\n');
 }
 
+// Variety: each night gets a different voice and opening angle, rotating by
+// date so two nights in a row never share one. Yesterday's opening words are
+// also passed in so the AI doesn't start the same way twice.
+const RECAP_STYLES = [
+  { key: 'broadcaster', voice: 'an upbeat play-by-play broadcaster calling the highlights', lead: 'Open with the top star.' },
+  { key: 'columnist', voice: 'a morning sports-page columnist writing a punchy lead paragraph', lead: 'Open with the best pool team of the night.' },
+  { key: 'colour', voice: 'a folksy between-periods colour commentator', lead: 'Open with the standings picture (the pool leader or the biggest climber), then the stars.' },
+  { key: 'groupchat', voice: 'a friend in the pool group chat, ribbing everyone good-naturedly', lead: 'Open with a gentle jab at the quietest team if one is given, otherwise with the top star.' },
+  { key: 'statsnerd', voice: 'a dry, witty stats nerd who loves a big number', lead: 'Open with the most impressive stat line of the night.' },
+  { key: 'trailer', voice: 'an over-the-top movie-trailer narrator', lead: 'Open with a short dramatic setup line (no numbers), then the top star.' },
+  { key: 'radio', voice: 'a late-night sports radio host recapping for callers', lead: 'Open with the race for the pool lead, then the stars.' }
+];
+const RECAP_AVOID = 'What a night, lit the lamp, buckle up, folks, ladies and gentlemen, in the books';
+const recapDayNum = (d) => Math.floor(Date.parse(d + 'T12:00:00Z') / 86400000);
+const recapStyle = (d) => RECAP_STYLES[((recapDayNum(d) % RECAP_STYLES.length) + RECAP_STYLES.length) % RECAP_STYLES.length];
+// First few words of a recap, numbers removed (so they can't leak into tonight's).
+const recapOpener = (t) => String(t || '').replace(/\d+(?:\.\d+)?/g, '').split(/\s+/).filter(Boolean).slice(0, 6).join(' ');
+
 // Plain version if the AI is off, fails, or doesn't pass the check.
+// Wording rotates by date so the fallback isn't the same every time either.
 function recapTemplate(f) {
+  const n = recapDayNum(f.date);
+  const pick = (arr, k) => arr[((n + k) % arr.length + arr.length) % arr.length];
   const s = [];
   const p = f.topPlayers[0];
   const day = f.night.split(',')[0];
   if (p && p.saves != null) {
-    s.push(`${p.name} led the way ${day}, turning aside ${p.saves} shots${p.decision === 'W' ? ' in a win' : ''}${p.shutout ? ' for a shutout' : ''} for ${p.pts} pool points.`);
+    const extra = `${p.decision === 'W' ? ' in a win' : ''}${p.shutout ? ' for a shutout' : ''}`;
+    s.push(pick([
+      `${p.name} led the way ${day}, turning aside ${p.saves} shots${extra} for ${p.pts} pool points.`,
+      `${day} belonged to ${p.name}: ${p.saves} saves${extra} and ${p.pts} pool points.`,
+      `Nobody got much past ${p.name} ${day} - ${p.saves} saves${extra}, good for ${p.pts} pool points.`,
+      `Star of the night: ${p.name}, who stopped ${p.saves} shots${extra} for ${p.pts} pool points.`
+    ], 0));
   } else if (p) {
-    s.push(`${p.name} led the way ${day} with ${p.line.replace(/ \(.*\)/, '')} for ${p.pts} pool points.`);
+    const line = p.line.replace(/ \(.*\)/, '');
+    s.push(pick([
+      `${p.name} led the way ${day} with ${line} for ${p.pts} pool points.`,
+      `${day} belonged to ${p.name}, who put up ${line} and ${p.pts} pool points.`,
+      `Star of the night: ${p.name} with ${line}, worth ${p.pts} pool points.`,
+      `${p.name} did the heavy lifting ${day} - ${line}, ${p.pts} pool points.`
+    ], 0));
   }
-  s.push(`${f.bestTeam.name} had the best night in the pool at +${f.bestTeam.gain}.`);
-  if (f.leader && f.leader.isNew) s.push(`${f.leader.name} moved into 1st place.`);
-  else if (f.leader) s.push(`${f.leader.name} stays on top with ${f.leader.pts} points.`);
+  s.push(pick([
+    `${f.bestTeam.name} had the best night in the pool at +${f.bestTeam.gain}.`,
+    `In the pool, ${f.bestTeam.name} cashed in the most at +${f.bestTeam.gain}.`,
+    `${f.bestTeam.name} won the night with +${f.bestTeam.gain}.`,
+    `Top pool team: ${f.bestTeam.name}, up +${f.bestTeam.gain}.`
+  ], 1));
+  if (f.leader && f.leader.isNew) s.push(pick([
+    `${f.leader.name} moved into 1st place.`,
+    `There's a new leader: ${f.leader.name}.`,
+    `${f.leader.name} takes over 1st.`
+  ], 2));
+  else if (f.leader) s.push(pick([
+    `${f.leader.name} stays on top with ${f.leader.pts} points.`,
+    `${f.leader.name} still leads with ${f.leader.pts}.`,
+    `Up top, ${f.leader.name} holds 1st at ${f.leader.pts} points.`
+  ], 2));
   return s.join(' ');
 }
 
@@ -1745,24 +1791,33 @@ function recapCheck(text, f, facts) {
   return '';
 }
 
-async function writeRecap(env, f) {
+async function writeRecap(env, f, prevText) {
   const facts = recapFactLines(f);
-  if (!env.AI || typeof env.AI.run !== 'function') return { text: recapTemplate(f), source: 'template', note: 'AI not set up' };
+  const style = recapStyle(f.date);
+  if (!env.AI || typeof env.AI.run !== 'function') return { text: recapTemplate(f), source: 'template', style: 'template', note: 'AI not set up' };
+  const opener = recapOpener(prevText);
+  const system = 'You write the "Last Night in the AAHL" blurb for a friendly fantasy hockey pool website. ' +
+    `Write 2 or 3 short, fun sentences in the voice of ${style.voice}. ${style.lead} ` +
+    'Use ONLY the facts given - never invent stats, scores, players, teams or numbers, and copy numbers exactly as written. ' +
+    'Mention the top star and the best pool team; mention the pool leader if they are new. Light teasing of the quietest team is fine, never mean. ' +
+    `Vary your wording - avoid stock phrases like: ${RECAP_AVOID}.` +
+    (opener ? ` Yesterday's blurb started "${opener}" - do not start the same way or reuse its phrasing.` : '') +
+    ' Plain text only: no hashtags, no emojis, no quotes, no title.';
   let note = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
     const model = RECAP_MODELS[attempt - 1];
     try {
       const out = await env.AI.run(model, {
         messages: [
-          { role: 'system', content: 'You write the "Last Night in the AAHL" blurb for a friendly fantasy hockey pool website. Write 2 or 3 short, fun sentences in the voice of an upbeat hockey broadcaster. Use ONLY the facts given - never invent stats, scores, players, teams or numbers, and copy numbers exactly as written. Mention the top star and the best pool team; mention the pool leader if they are new. Light teasing of the quietest team is fine, never mean. Plain text only: no hashtags, no emojis, no quotes, no title.' },
+          { role: 'system', content: system },
           { role: 'user', content: facts }
         ],
         max_tokens: 220,
-        temperature: 0.7
+        temperature: 0.85
       });
       const text = String((out && (out.response || out.result && out.result.response)) || '').replace(/^["\s]+|["\s]+$/g, '').replace(/\s+/g, ' ');
       const problem = recapCheck(text, f, facts);
-      if (!problem) return { text, source: 'ai' };
+      if (!problem) return { text, source: 'ai', style: style.key };
       note = model.split('/').pop() + ': AI text failed the check (' + problem + '): ' + text.slice(0, 200);
       console.log('Recap: ' + note);
     } catch (err) {
@@ -1770,7 +1825,7 @@ async function writeRecap(env, f) {
       console.log('Recap: ' + note);
     }
   }
-  return { text: recapTemplate(f), source: 'template', note };
+  return { text: recapTemplate(f), source: 'template', style: 'template', note };
 }
 
 // Keeps the last 21 nights of live-points health in config/liveHealthHistory
@@ -1795,8 +1850,10 @@ async function runNightlyRecap(env, force) {
   if (!f) { console.log('Recap: 4am data not in yet - will try again.'); return { success: false, error: "Last night's stats aren't in yet." }; }
   const prev = await getConfigDoc(env, 'nightlyRecap');
   if (!force && prev && prev.date === f.date) return { success: true, skipped: true };
-  const r = await writeRecap(env, f);
-  const doc = { date: f.date, night: f.night, text: r.text, source: r.source, note: r.note || '', hidden: !!(force && prev && prev.date === f.date && prev.hidden), createdAt: new Date().toISOString() };
+  // Yesterday's text (not a regenerate of the same night) so tonight starts differently.
+  const r = await writeRecap(env, f, prev && prev.date !== f.date ? prev.text : (prev && prev.prevText) || '');
+  const doc = { date: f.date, night: f.night, text: r.text, source: r.source, style: r.style || '',
+    prevText: prev ? (prev.date !== f.date ? prev.text : prev.prevText || '') : '', note: r.note || '', hidden: !!(force && prev && prev.date === f.date && prev.hidden), createdAt: new Date().toISOString() };
   await putConfigDoc(env, 'nightlyRecap', doc);
   console.log('Recap (' + r.source + '): ' + r.text);
   return { success: true, data: doc };
