@@ -3,6 +3,13 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.10 — New scores ticker
+_Oct 26, 2026_
+- **Today's Games** is now a scrolling **scores ticker** right under the menu on the Home page — the same look as the other AASN pools
+- Shows every game today: start times, then **live scores** and **finals**
+- The label turns red **● LIVE** while games are on
+- **Tap any game** to see pool players & points, same as before
+
 ## v3.9 — Trade Tracker
 _Oct 23, 2026_
 - New **Trade Tracker** page under **More**: every NHL trade this season that involves a player in the pool

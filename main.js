@@ -518,58 +518,73 @@ function hockeyDay_() {
  * start.
  */
 let todaysGamesKey_ = null;
+
+/** One game in the score ticker: logos, abbreviations, score and status. */
+function tickerItemInner_(g) {
+  const logo = (abbrev) => `<img src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" width="20" height="20" onerror="this.style.visibility='hidden'">`;
+  const started = g.state === 'live' || g.state === 'final';
+  const team = (abbrev, score, other) => `<span class="tk-t${g.state === 'final' && score < other ? ' tk-lose' : ''}">${logo(abbrev)}<b>${escapeHtml(abbrev)}</b>${started ? `<s>${score == null ? 0 : score}</s>` : ''}</span>`;
+  let status;
+  if (g.state === 'final') status = 'FINAL' + (g.finalType ? '/' + g.finalType : '');
+  else if (g.state === 'live') status = g.period ? (g.intermission ? `${g.period} INT` : (g.clock ? `${g.period} ${g.clock}` : g.period)) : 'LIVE';
+  else { const t = new Date(g.startTimeUTC); status = isNaN(t.getTime()) ? '' : t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+  return `${team(g.away, g.awayScore, g.homeScore)}${team(g.home, g.homeScore, g.awayScore)}<em>${escapeHtml(status)}</em>`;
+}
+
+/**
+ * "Today's Games" score ticker, directly under the header on the Home view
+ * (same look as the other AASN pools). Every NHL game today, always scrolling:
+ * start times, then live scores and finals. Tap a game for pool players & points
+ * (gamecard.js). The label turns red "● LIVE" while games are on.
+ * Hidden if the saved schedule isn't today's.
+ *
+ * When called again with the same set of games (the periodic refresh),
+ * it updates the items in place so the ticker doesn't jump back to the start.
+ */
 async function renderTodaysGames() {
   const el = document.getElementById('todays-games');
   if (!el) return;
 
   try {
     const data = await fetchTodaysGames();
-    if (!data || data.date !== hockeyDay_()) { el.style.display = 'none'; todaysGamesKey_ = null; return; }
+    if (!data || data.date !== hockeyDay_() || !(data.games || []).length) { el.style.display = 'none'; todaysGamesKey_ = null; return; }
     todaysGamesData_ = data;
 
-    const games = data.games || [];
+    const games = data.games;
+    const live = games.some(g => g.state === 'live');
     const key = data.date + '|' + games.map(g => g.id).join(',');
+    const label = () => {
+      const lbl = el.querySelector('.tk-lbl');
+      if (!lbl) return;
+      lbl.classList.toggle('live', live);
+      lbl.innerHTML = live ? '<i aria-hidden="true"></i>LIVE' : 'NHL';
+    };
 
     // Same games as last time: just refresh scores/status in place.
     if (key === todaysGamesKey_ && el.querySelector('.game-chip')) {
-      const stamp = document.getElementById('todays-games-stamp');
-      if (stamp) stamp.innerHTML = gamesStampHtml_(data);
       games.forEach(g => {
-        el.querySelectorAll(`.game-chip[data-game-id="${g.id}"]`).forEach(card => { card.innerHTML = gameCardInner_(g); });
+        el.querySelectorAll(`.game-chip[data-game-id="${g.id}"]`).forEach(item => {
+          item.innerHTML = tickerItemInner_(g);
+          item.className = 'game-chip tk-i ' + (g.state || '');
+        });
       });
+      label();
       return;
     }
     todaysGamesKey_ = key;
 
-    const cardHtml = (g) => `<div class="game-chip" data-game-id="${g.id}" role="button" tabindex="0" title="Tap for pool points">${gameCardInner_(g)}</div>`;
-
-    // Start with one still set of games.
-    el.innerHTML = `
-      <h3 class="mini-title"><span class="tg-label">🏒 Today's Games</span> <span class="mono tg-count">${games.length ? `${games.length} game${games.length === 1 ? '' : 's'}` : ''}</span>
-        <span class="mono puck-drop" data-countdown="puck" hidden></span>
-        <span class="mono updated-stamp" id="todays-games-stamp">${gamesStampHtml_(data)}</span></h3>
-      ${games.length === 0
-        ? `<div class="panel"><p class="mono" style="color:var(--text-dim); font-size:13px;">No NHL games today.</p></div>`
-        : `<div class="games-ticker"><div class="games-ticker-track" style="animation:none;">
-            ${games.map(cardHtml).join('')}
-          </div></div>
-          <div class="tg-hint mono">👆 Tap a game to see pool players &amp; points</div>`}
-    `;
-    el.style.display = 'block';
-
-    // Only scroll when the games don't all fit. Then repeat them until one
-    // set is wider than any screen and double it, so the loop has no gap.
-    const ticker = el.querySelector('.games-ticker');
-    const track = el.querySelector('.games-ticker-track');
-    if (track && track.scrollWidth > ticker.clientWidth) {
-      const CARD_PX = 150; // card width + gap, matches style.css
-      const copies = Math.max(1, Math.ceil(2400 / (games.length * CARD_PX)));
-      const oneSet = [];
-      for (let i = 0; i < copies; i++) oneSet.push(...games);
-      track.innerHTML = oneSet.concat(oneSet).map(cardHtml).join('');
-      track.style.animation = '';
-      track.style.animationDuration = Math.round(oneSet.length * CARD_PX / 45) + 's'; // ~45px per second
-    }
+    const item = (g) => `<div class="game-chip tk-i ${escapeHtml(g.state || '')}" data-game-id="${g.id}" role="button" tabindex="0" title="Tap for pool players &amp; points">${tickerItemInner_(g)}</div>`;
+    // Repeat the games until one set is wider than any screen, then double it so the loop has no gap.
+    const ITEM_PX = 190;
+    const copies = Math.max(1, Math.ceil(2400 / (games.length * ITEM_PX)));
+    const oneSet = [];
+    for (let i = 0; i < copies; i++) oneSet.push(...games);
+    el.innerHTML = `<div class="tk-lbl"></div>
+      <div class="tk-track"><div class="tk-run games-ticker-track" style="--tk-dur:${Math.max(30, Math.round(oneSet.length * ITEM_PX / 45))}s">
+        ${oneSet.concat(oneSet).map(item).join('')}
+      </div></div>`;
+    label();
+    el.style.display = 'flex';
   } catch (e) {
     el.style.display = 'none';
   }
