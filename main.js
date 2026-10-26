@@ -524,9 +524,9 @@ function tickerItemInner_(g) {
   // NHL's dark-background logo version (falls back to the light one) so dark logos stay visible on the black ticker.
   const logo = (abbrev) => `<img src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_dark.svg" data-o="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" width="22" height="22" onerror="if(this.src!==this.dataset.o){this.src=this.dataset.o}else{this.style.visibility='hidden'}">`;
   const started = g.state === 'live' || g.state === 'final';
-  const team = (abbrev, score, other) => `<span class="tk-t${g.state === 'final' && score < other ? ' tk-lose' : ''}">${logo(abbrev)}<b>${escapeHtml(abbrev)}</b>${started ? `<s>${score == null ? 0 : score}</s>` : ''}</span>`;
+  const team = (abbrev, score, other) => `<span class="${g.state === 'final' && score < other ? 'lose' : ''}">${logo(abbrev)}<b>${escapeHtml(abbrev)}</b>${started ? `<s>${score == null ? 0 : score}</s>` : ''}</span>`;
   let status;
-  if (g.state === 'final') status = 'FINAL' + (g.finalType ? '/' + g.finalType : '');
+  if (g.state === 'final') status = 'Final' + (g.finalType ? '/' + g.finalType : '');
   else if (g.state === 'live') status = g.period ? (g.intermission ? `${g.period} INT` : (g.clock ? `${g.period} ${g.clock}` : g.period)) : 'LIVE';
   else { const t = new Date(g.startTimeUTC); status = isNaN(t.getTime()) ? '' : t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
   return `${team(g.away, g.awayScore, g.homeScore)}${team(g.home, g.homeScore, g.awayScore)}<em>${escapeHtml(status)}</em>`;
