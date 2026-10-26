@@ -521,8 +521,15 @@ let todaysGamesKey_ = null;
 
 /** One game in the score ticker: logos, abbreviations, score and status. */
 function tickerItemInner_(g) {
-  // NHL's dark-background logo version (falls back to the light one) so dark logos stay visible on the black ticker.
-  const logo = (abbrev) => `<img src="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_dark.svg" data-o="https://assets.nhle.com/logos/nhl/svg/${escapeHtml(abbrev)}_light.svg" alt="" width="22" height="22" onerror="if(this.src!==this.dataset.o){this.src=this.dataset.o}else{this.style.visibility='hidden'}">`;
+  // Logos come from ESPN, same as the AABL/AAFL tickers, so they look the same size everywhere
+  // (dark-background versions). Falls back to the NHL's own dark logo if ESPN doesn't have one.
+  const ESPN_NHL = { LAK: 'la', NJD: 'nj', SJS: 'sj', TBL: 'tb', UTA: 'utah' };
+  const logo = (abbrev) => {
+    const a = String(abbrev || '');
+    const espn = `https://a.espncdn.com/i/teamlogos/nhl/500-dark/${escapeHtml(ESPN_NHL[a] || a.toLowerCase())}.png`;
+    const nhl = `https://assets.nhle.com/logos/nhl/svg/${escapeHtml(a)}_dark.svg`;
+    return `<img src="${espn}" data-o="${nhl}" alt="" width="22" height="22" onerror="if(this.src!==this.dataset.o){this.src=this.dataset.o}else{this.style.visibility='hidden'}">`;
+  };
   const started = g.state === 'live' || g.state === 'final';
   const team = (abbrev, score, other) => `<span class="${g.state === 'final' && score < other ? 'lose' : ''}">${logo(abbrev)}<b>${escapeHtml(abbrev)}</b>${started ? `<s>${score == null ? 0 : score}</s>` : ''}</span>`;
   let status;
