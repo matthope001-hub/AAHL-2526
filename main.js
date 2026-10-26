@@ -519,6 +519,14 @@ function hockeyDay_() {
  */
 let todaysGamesKey_ = null;
 
+/** Same speed on every AASN ticker (AAHL, AABL, AAFL): 45 pixels per second, measured from the real width. */
+function tickerSpeed_(run) {
+  if (!run) return;
+  const set = () => { const w = run.scrollWidth / 2; if (w > 0) run.style.setProperty('--tk-dur', (w / 45).toFixed(1) + 's'); };
+  set();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(set);
+}
+
 /** One game in the score ticker: logos, abbreviations, score and status. */
 function tickerItemInner_(g) {
   // Logos come from ESPN, same as the AABL/AAFL tickers, so they look the same size everywhere
@@ -588,11 +596,12 @@ async function renderTodaysGames() {
     const oneSet = [];
     for (let i = 0; i < copies; i++) oneSet.push(...games);
     el.innerHTML = `<div class="tk-lbl"></div>
-      <div class="tk-track"><div class="tk-run games-ticker-track" style="--tk-dur:${Math.max(30, Math.round(oneSet.length * ITEM_PX / 45))}s">
+      <div class="tk-track"><div class="tk-run games-ticker-track">
         ${oneSet.concat(oneSet).map(item).join('')}
       </div></div>`;
     label();
     el.style.display = 'flex';
+    tickerSpeed_(el.querySelector('.tk-run'));
   } catch (e) {
     el.style.display = 'none';
   }
