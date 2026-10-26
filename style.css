@@ -1727,10 +1727,11 @@ body:has(#view-home:not(.active)) #todays-games { display: none !important; }
 #todays-games .game-chip.tk-i { flex: none; min-width: 0; height: 100%; display: flex; align-items: center; gap: 8px; margin: 0; padding: 0 16px; background: none; border: 0; border-right: 1px solid var(--border); border-radius: 0; white-space: nowrap; font-size: 15px; cursor: pointer; }
 #todays-games .game-chip.tk-i:hover, #todays-games .game-chip.tk-i:focus-visible { background: var(--bg-panel-alt); border-color: var(--border); outline: none; }
 #todays-games .tk-t { display: inline-flex; align-items: center; gap: 5px; }
-#todays-games .tk-t img { width: 20px; height: 20px; object-fit: contain; }
+#todays-games .tk-t img { width: 22px; height: 22px; object-fit: contain; filter: drop-shadow(0 0 1px rgba(255,255,255,.55)) drop-shadow(0 0 3px rgba(255,255,255,.12)); }
 #todays-games .tk-t b { font-weight: 700; letter-spacing: .5px; }
 #todays-games .tk-t s { text-decoration: none; font-family: var(--font-mono); font-weight: 700; font-size: 15px; min-width: 14px; text-align: center; }
-#todays-games .tk-lose { opacity: .45; }
+#todays-games .tk-lose b, #todays-games .tk-lose s { opacity: .45; }
+#todays-games .tk-lose img { opacity: .7; }
 #todays-games .tk-i em { font-style: normal; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin-left: 2px; }
 #todays-games .tk-i.live em { color: #FF8A8A; }
 @media (prefers-reduced-motion: reduce) { #todays-games .tk-run { animation: none; } #todays-games .tk-track { overflow-x: auto; } }
