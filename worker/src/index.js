@@ -47,7 +47,7 @@
  *                          it, Admin reads just keep using Apps Script)
  */
 
-const VERSION = '1.13.3';
+const VERSION = '1.13.4';
 const DIVISIONS = ['Atlantic', 'Metropolitan', 'Central', 'Pacific'];
 const REQUIRED_BOX_IDS = Array.from({ length: 27 }, (_, i) => String(i + 1));
 const MAX_MOVES_PER_ENTRY = 2;
@@ -895,8 +895,11 @@ async function runLivePoints(env) {
   const prevSig = (same && work.gameSig) || {};
   const prevAt = (same && work.fetchedAt) || {};
   const lk = await liveLookups(env);
-  try { log.highlights = await updateHighlights(env, day, feed.games || [], lk.players); }
-  catch (err) { console.log('Highlights: update failed - ' + err.message); }
+  // Highlights run alongside the box scores below (awaited before saving),
+  // so a slow highlights/HockeyFights look-up no longer holds up points.
+  const hlTask = updateHighlights(env, day, feed.games || [], lk.players)
+    .then(r => { log.highlights = r; })
+    .catch(err => console.log('Highlights: update failed - ' + err.message));
   const gameStats = {}, gameStates = {}, gameSig = {}, fetchedAt = {};
   let fetched = 0, reused = 0, failed = 0;
 
@@ -927,6 +930,7 @@ async function runLivePoints(env) {
       gameSig[id] = prevSig[id]; failed++;
     }
   }));
+  await hlTask;
   log.fetched = fetched; log.reused = reused; if (later.length) log.queued = later.length; if (failed) log.failed = failed;
 
   // 4. Score pool players and total each team.
@@ -1009,13 +1013,17 @@ const hfLast_ = name => String(name || '').replace(/^[A-Z]\.\s*/, '').trim().toL
 async function hfFightLog_() {
   if (hfLog_ && Date.now() - hfLog_.at < HF_EVERY_MS) return hfLog_.fights;
   const fights = [];
-  for (const page of ['/fightlog', '/fightlog/2', '/fightlog/3']) {
-    let html;
+  // All three pages fetched at once; still read in order, stopping at the first failed page.
+  const pages = ['/fightlog', '/fightlog/2', '/fightlog/3'];
+  const htmls = await Promise.all(pages.map(async page => {
     try {
       const res = await fetch(HF_BASE + page, { headers: { 'User-Agent': 'AAHL-Worker/1.0 (+https://theaahl.ca)' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      html = await res.text();
-    } catch (err) { console.log('Highlights: HockeyFights ' + page + ' failed - ' + err.message); break; }
+      return await res.text();
+    } catch (err) { console.log('Highlights: HockeyFights ' + page + ' failed - ' + err.message); return null; }
+  }));
+  for (const html of htmls) {
+    if (html == null) break;
     const re = /<a[^>]+href="(?:https?:\/\/www\.hockeyfights\.com)?(\/fights\/n?\d+)"[^>]*>([\s\S]*?)<\/a>([\s\S]{0,400}?)(\d{1,2})\/(\d{1,2})\/(\d{2})/g;
     let m;
     while ((m = re.exec(html))) {
