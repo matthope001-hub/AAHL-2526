@@ -3,6 +3,12 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.12 — Seasonal themes
+_Oct 29, 2026_
+- The site now dresses up for the holidays all year: snow and lights at **Christmas**, a **New Year's** countdown and fireworks, hearts for **Valentine's**, shamrocks for **St. Patrick's**, spring for **Easter**, maple leaves for **Canada Day**, autumn leaves for **Thanksgiving** and spooky stuff for **Halloween**
+- The **Stanley Cup Final** gets its own silver celebration
+- Each theme turns on and off by itself
+
 ## v3.11 — Halloween theme
 _Oct 29, 2026_
 - Bats, a ghost, a creepy spider and cobwebs haunt the site through Halloween
