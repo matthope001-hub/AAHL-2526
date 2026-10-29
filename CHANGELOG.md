@@ -3,6 +3,11 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.11 — Halloween theme
+_Oct 29, 2026_
+- Bats, a ghost, a creepy spider and cobwebs haunt the site through Halloween
+- It switches itself off on **November 2**
+
 ## v3.10 — New scores ticker
 _Oct 26, 2026_
 - **Today's Games** is now a scrolling **scores ticker** right under the menu on the Home page — the same look as the other AASN pools
