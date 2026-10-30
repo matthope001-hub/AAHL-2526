@@ -296,6 +296,20 @@ async function fetchInjuries() {
   return direct || null;
 }
 
+// Latest RotoWire player news (via ESPN), refreshed every 4 hours by the
+// "Player news" GitHub Action. Returns { playerId: { espnId, items: [...] } },
+// or {} on any failure so the site simply shows no news icons.
+async function fetchPlayerNews() {
+  try {
+    const rows = await supabaseDirectList_('player_news');
+    const out = {};
+    (rows || []).forEach(r => { if (r.id !== '_meta') out[r.id] = r; });
+    return out;
+  } catch (e) {
+    return {};
+  }
+}
+
 // The commissioner's manual status overrides (Admin panel).
 async function fetchInjuryOverrides() {
   const direct = await supabaseDirectGet_('config', 'injuryOverrides');

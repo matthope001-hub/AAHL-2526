@@ -1717,3 +1717,14 @@ label.mt-opt { margin: 0; text-transform: none; letter-spacing: 0; color: var(--
    Only AAHL-specific bits live here. */
 body:has(#view-home:not(.active)) #todays-games { display: none !important; }
 #todays-games .game-chip.tk-i:hover, #todays-games .game-chip.tk-i:focus-visible { border-color: #22324F; }
+
+/* Player news icon + pop-up card (RotoWire via ESPN) */
+.news-btn { display: inline-flex; align-items: center; justify-content: center; color: var(--ice); cursor: pointer; padding: 2px 3px; margin-left: 2px; vertical-align: -1px; border-radius: 3px; }
+.news-btn:hover, .news-btn:focus-visible { background: var(--bg-panel-alt); outline: none; }
+#news-pop { position: absolute; z-index: 10000; width: min(340px, calc(100vw - 16px)); background: var(--bg-panel); border: 1px solid var(--ice); border-radius: 10px; padding: 10px 12px; font-family: var(--font-mono); color: var(--text); box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+.news-pop-head { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-size: 17px; letter-spacing: .5px; color: var(--ice); margin-bottom: 6px; }
+.news-pop-x { background: none; border: none; color: var(--text-dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.news-pop-item { padding: 8px 0; border-top: 1px solid var(--border); }
+.news-pop-hl { font-size: 12px; font-weight: 700; line-height: 1.5; }
+.news-pop-story { font-size: 11px; color: var(--text-dim); line-height: 1.6; margin-top: 4px; }
+.news-pop-meta { font-size: 10px; color: var(--text-dim); margin-top: 5px; opacity: .8; }

@@ -272,6 +272,7 @@ let injuriesMeta = null;
 let injuriesLoaded_ = false;
 async function ensureInjuriesLoaded_(force) {
   if (injuriesLoaded_ && !force) return;
+  const newsPromise = (typeof fetchPlayerNews === 'function') ? fetchPlayerNews().catch(() => ({})) : Promise.resolve({});
   try {
     const data = await fetchInjuries();
     injuriesByPlayer = (data && data.players) || {};
@@ -279,8 +280,92 @@ async function ensureInjuriesLoaded_(force) {
   } catch (e) {
     injuriesByPlayer = {};
   }
+  playerNewsById = (await newsPromise) || {};
   injuriesLoaded_ = true;
 }
+
+// ---------- Player news (RotoWire blurbs via ESPN) ----------
+// Loaded alongside injuries. A small news icon shows beside a player's name
+// when he has news from the last NEWS_MAX_AGE_DAYS; tapping it opens a card.
+let playerNewsById = {};
+const NEWS_MAX_AGE_DAYS = 7;
+
+function recentNews_(playerId) {
+  const rec = playerNewsById[playerId];
+  const items = (rec && Array.isArray(rec.items)) ? rec.items : [];
+  if (!items.length) return null;
+  const newest = Date.parse(items[0].published || '');
+  if (!newest || Date.now() - newest > NEWS_MAX_AGE_DAYS * 86400000) return null;
+  return items;
+}
+
+function newsIcon_(playerId) {
+  if (!recentNews_(playerId)) return '';
+  return ` <span class="news-btn" role="button" tabindex="0" data-news-id="${escapeHtml(String(playerId))}" aria-label="Player news" title="Player news">`
+    + `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M3 1h7l3 3v11H3V1zm2 5v1h6V6H5zm0 3v1h6V9H5zm0 3v1h4v-1H5z"/></svg></span>`;
+}
+
+function newsAgo_(iso) {
+  const ms = Date.now() - Date.parse(iso || '');
+  if (!isFinite(ms)) return '';
+  const h = Math.floor(ms / 3600000);
+  if (h < 1) return 'Just now';
+  if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24);
+  return d === 1 ? 'Yesterday' : d + 'd ago';
+}
+
+function closeNewsPop_() {
+  const el = document.getElementById('news-pop');
+  if (el) el.remove();
+}
+
+function openNewsPop_(anchor, playerId) {
+  closeNewsPop_();
+  const items = recentNews_(playerId);
+  if (!items) return;
+  const p = (typeof allPlayers !== 'undefined' ? allPlayers : []).find(x => String(x.id) === String(playerId));
+  const name = p ? (p.fullName || p.name || '') : '';
+  const pop = document.createElement('div');
+  pop.id = 'news-pop';
+  pop.setAttribute('role', 'dialog');
+  pop.innerHTML = `<div class="news-pop-head"><span>${escapeHtml(name || 'Player news')}</span>`
+    + `<button type="button" class="news-pop-x" aria-label="Close">×</button></div>`
+    + items.map(it => `<div class="news-pop-item"><div class="news-pop-hl">${escapeHtml(it.headline || '')}</div>`
+      + (it.story ? `<div class="news-pop-story">${escapeHtml(it.story)}</div>` : '')
+      + `<div class="news-pop-meta">${escapeHtml(newsAgo_(it.published))} · RotoWire via ESPN</div></div>`).join('');
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  const w = pop.offsetWidth;
+  const left = Math.max(8, Math.min(window.scrollX + r.left - 12, window.scrollX + document.documentElement.clientWidth - w - 8));
+  pop.style.left = left + 'px';
+  pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+}
+
+// Capture phase so tapping the icon never also triggers the row/card it sits in.
+document.addEventListener('click', e => {
+  const btn = e.target.closest && e.target.closest('.news-btn');
+  if (btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const open = document.getElementById('news-pop');
+    if (open && open.dataset.for === btn.dataset.newsId) { closeNewsPop_(); return; }
+    openNewsPop_(btn, btn.dataset.newsId);
+    const pop = document.getElementById('news-pop');
+    if (pop) pop.dataset.for = btn.dataset.newsId;
+    return;
+  }
+  if (e.target.closest && e.target.closest('.news-pop-x')) { closeNewsPop_(); return; }
+  if (!(e.target.closest && e.target.closest('#news-pop'))) closeNewsPop_();
+}, true);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeNewsPop_();
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('news-btn')) {
+    e.preventDefault();
+    e.stopPropagation();
+    openNewsPop_(e.target, e.target.dataset.newsId);
+  }
+}, true);
 
 /** Copies each player's status onto the player record (used by the tables). */
 function applyInjuriesToPlayers_() {
@@ -305,8 +390,9 @@ function injuryText_(inj) {
  */
 function statusBadge_(playerId) {
   const inj = injuriesByPlayer[playerId];
-  if (!inj) return '';
-  return ` <span class="ir-badge" title="${escapeHtml(injuryText_(inj))}">🩹 ${escapeHtml(inj.code)}</span>`;
+  const news = newsIcon_(playerId);
+  if (!inj) return news;
+  return ` <span class="ir-badge" title="${escapeHtml(injuryText_(inj))}">🩹 ${escapeHtml(inj.code)}</span>${news}`;
 }
 
 async function ensureBoxesLoaded_() {

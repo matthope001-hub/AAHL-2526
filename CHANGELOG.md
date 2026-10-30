@@ -3,6 +3,13 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.13 — Player news
+_Oct 30, 2026_
+- A small **news icon** now shows beside any pool player with fresh news, like on Yahoo and ESPN
+- **Tap it** for the latest one or two updates: injuries, lineup changes, call-ups, hot streaks and more
+- News comes from **RotoWire via ESPN** and refreshes every few hours
+- Players with no news from the past week show no icon
+
 ## v3.12 — Seasonal themes
 _Oct 29, 2026_
 - The site now dresses up for the holidays all year: snow and lights at **Christmas**, a **New Year's** countdown and fireworks, hearts for **Valentine's**, shamrocks for **St. Patrick's**, spring for **Easter**, maple leaves for **Canada Day**, autumn leaves for **Thanksgiving** and spooky stuff for **Halloween**
