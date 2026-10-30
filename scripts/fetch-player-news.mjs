@@ -13,7 +13,11 @@ const ITEMS_PER_PLAYER = 2;
 const BATCH = 25;
 
 // Manual fixes for players the auto-match misses: { 'NHL id': 'ESPN id' }
-const OVERRIDES = {};
+const OVERRIDES = {
+  '8477946': '3114755', // Dylan Larkin
+  '8477970': '3114996', // Vitek Vanecek
+  '8479406': '4272674', // Filip Gustavsson
+};
 
 // ESPN team abbreviations that differ from the NHL's
 const TEAM_FIX = { LA: 'LAK', NJ: 'NJD', SJ: 'SJS', TB: 'TBL', UTAH: 'UTA' };
