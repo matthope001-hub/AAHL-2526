@@ -1,0 +1,24 @@
+name: Player news
+
+on:
+  schedule:
+    - cron: '17 */4 * * *'   # every 4 hours (UTC)
+  workflow_dispatch:          # "Run workflow" button for manual runs
+
+permissions:
+  contents: read
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch player news
+        run: node scripts/fetch-player-news.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
