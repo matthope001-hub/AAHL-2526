@@ -315,9 +315,17 @@ function newsAgo_(iso) {
   return d === 1 ? 'Yesterday' : d + 'd ago';
 }
 
+// The card opens as a fixed overlay and locks the page behind it, so
+// scrolling only moves the news, never the page underneath.
+let newsScrollY_ = 0;
+
 function closeNewsPop_() {
   const el = document.getElementById('news-pop');
-  if (el) el.remove();
+  if (!el) return;
+  el.remove();
+  const b = document.body.style;
+  b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
+  window.scrollTo({ top: newsScrollY_, left: 0, behavior: 'instant' });
 }
 
 function openNewsPop_(anchor, playerId) {
@@ -328,35 +336,39 @@ function openNewsPop_(anchor, playerId) {
   const name = p ? (p.fullName || p.name || '') : '';
   const pop = document.createElement('div');
   pop.id = 'news-pop';
-  pop.setAttribute('role', 'dialog');
-  pop.innerHTML = `<div class="news-pop-head"><span>${escapeHtml(name || 'Player news')}</span>`
+  pop.innerHTML = `<div class="news-pop-sheet" role="dialog" aria-modal="true" aria-label="Player news">`
+    + `<div class="news-pop-head"><span>${escapeHtml(name || 'Player news')}</span>`
     + `<button type="button" class="news-pop-x" aria-label="Close">×</button></div>`
+    + `<div class="news-pop-body">`
     + items.map(it => `<div class="news-pop-item"><div class="news-pop-hl">${escapeHtml(it.headline || '')}</div>`
       + (it.story ? `<div class="news-pop-story">${escapeHtml(it.story)}</div>` : '')
-      + `<div class="news-pop-meta">${escapeHtml(newsAgo_(it.published))} · RotoWire via ESPN</div></div>`).join('');
+      + `<div class="news-pop-meta">${escapeHtml(newsAgo_(it.published))} · RotoWire via ESPN</div></div>`).join('')
+    + `</div></div>`;
+  newsScrollY_ = window.scrollY;
+  const b = document.body.style;
+  b.position = 'fixed'; b.top = (-newsScrollY_) + 'px'; b.left = '0'; b.right = '0'; b.width = '100%';
   document.body.appendChild(pop);
-  const r = anchor.getBoundingClientRect();
-  const w = pop.offsetWidth;
-  const left = Math.max(8, Math.min(window.scrollX + r.left - 12, window.scrollX + document.documentElement.clientWidth - w - 8));
-  pop.style.left = left + 'px';
-  pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+  const x = pop.querySelector('.news-pop-x');
+  if (x) x.focus({ preventScroll: true });
 }
 
 // Capture phase so tapping the icon never also triggers the row/card it sits in.
 document.addEventListener('click', e => {
-  const btn = e.target.closest && e.target.closest('.news-btn');
+  const t = e.target;
+  if (!t.closest) return;
+  const btn = t.closest('.news-btn');
   if (btn) {
     e.preventDefault();
     e.stopPropagation();
-    const open = document.getElementById('news-pop');
-    if (open && open.dataset.for === btn.dataset.newsId) { closeNewsPop_(); return; }
     openNewsPop_(btn, btn.dataset.newsId);
-    const pop = document.getElementById('news-pop');
-    if (pop) pop.dataset.for = btn.dataset.newsId;
     return;
   }
-  if (e.target.closest && e.target.closest('.news-pop-x')) { closeNewsPop_(); return; }
-  if (!(e.target.closest && e.target.closest('#news-pop'))) closeNewsPop_();
+  if (!document.getElementById('news-pop')) return;
+  if (t.closest('.news-pop-x') || !t.closest('.news-pop-sheet')) {
+    e.preventDefault();
+    e.stopPropagation();
+    closeNewsPop_();
+  }
 }, true);
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeNewsPop_();
