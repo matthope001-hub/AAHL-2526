@@ -3,6 +3,11 @@
 Every update to theaahl.ca, newest first. The site's **More → What's New** page reads this file, so add new entries at the top in the same format:
 `## vX.Y — Title`, then `_Date_`, then `- ` bullets (`### ` for a sub-heading, `**bold**` allowed).
 
+## v3.14 — Quote of the Day
+_Oct 31, 2026_
+- The Home page now shows a famous **hockey quote**, a new one every day
+- It changes at midnight, and everyone sees the same quote that day
+
 ## v3.13 — Player news
 _Oct 30, 2026_
 - A small **news icon** now shows beside any pool player with fresh news, like on Yahoo and ESPN
