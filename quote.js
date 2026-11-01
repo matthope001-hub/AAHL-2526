@@ -1,9 +1,11 @@
 /* Quote of the Day — AAHL
- * Shows one quote per day in a shuffled order (no repeats until the whole list has shown).
+ * One quote per day, counted from opening day (2026-09-29), in a shuffled order.
+ * Every day of the regular season gets a different quote; after that the list reshuffles.
  * Same quote for everyone all day; changes at midnight Toronto time.
  * To add quotes, add a line to QUOTES: ["Quote text", "Who said it"].
  */
 (function () {
+  var SEASON_START = '2026-09-29';
   var QUOTES = [
     ["You miss 100% of the shots you don't take.", "Wayne Gretzky"],
     ["I skate to where the puck is going to be, not where it has been.", "Wayne Gretzky"],
@@ -50,14 +52,159 @@
     ["My face is my mask.", "Gump Worsley"],
     ["The only job worse is a javelin catcher at a track and field meet.", "Gump Worsley, on goaltending"],
     ["I can't hear what Jeremy says, because I've got my two Stanley Cup rings plugging my ears.", "Patrick Roy, 1996"],
-    ["Elvis has just left the building!", "Mike Lange"]
+    ["Elvis has just left the building!", "Mike Lange"],
+    ["He could take his speed to whatever level he had to, to be faster than the guy chasing him.", "Darryl Sittler, on Bobby Orr"],
+    ["Sure, Orr leads the rush, but he's so quick that he's the first one back on defense. He's got the legs.", "Gordie Howe"],
+    ["He's what all hockey players should try to be like, on the ice and off the ice.", "Bobby Clarke, on Bobby Orr"],
+    ["When Orr goes by my bench I turn away so I won't have to watch.", "Punch Imlach"],
+    ["All I ever really want to do is play hockey. I don't care about anything else.", "Bobby Orr"],
+    ["I'm really just a lucky old farm boy.", "Gordie Howe"],
+    ["Most of the time when I hit the blue line, I have no idea what I'm gonna do to beat the goaltender.", "Gordie Howe"],
+    ["If you find you can push someone around, then you push him around.", "Gordie Howe"],
+    ["The weak teams are Boston and New York. The strong ones are Toronto, Chicago, Montreal, and Gordie Howe.", "Dave Keon"],
+    ["He could do everything on the ice. He was the all-around ultimate hockey player of his time.", "Andy Bathgate, on Gordie Howe"],
+    ["If you play a little rough, you get respect. And with respect you get just a little bit more space on the ice.", "Gordie Howe"],
+    ["He was a lethal combination of grit, power, and single-mindedness. The John Wayne of hockey.", "Karl Samuelson, on Gordie Howe"],
+    ["The Stanley Cup is not something you can keep forever, you have to earn it every year you play.", "Gordie Howe"],
+    ["You can always get someone to do your thinking for you.", "Gordie Howe"],
+    ["Rocket was so competitive, and he was stronger than a horse.", "Gordie Howe"],
+    ["Rocket had that mean look on, every game we played. He was 100 percent hockey. He could hate with the best of them.", "Gordie Howe"],
+    ["We represent all of French Canada, and we know that a lot of people are counting on us.", "Jean Béliveau, 1967"],
+    ["All of Maurice was in his eyes.", "Archbishop of Montreal, at Maurice Richard's funeral"],
+    ["Bob Gainey is the greatest hockey player in the world.", "Anatoli Tarasov"],
+    ["Trying to keep Kerr out of the crease is like trying to tackle a jaguar. Not the animal, the car!", "Ron Greschner"],
+    ["You're only as good as your coach wants you to be.", "Bob Probert"],
+    ["'Badger' Bob Johnson didn't just have a love for the game, he had a lust for the game.", "Tim Hunter"],
+    ["Either you give it right back or the next thing you know everyone and his brother will be trying you on for size.", "Doug Harvey"],
+    ["Some guys play hockey. Gretzky plays 40 mph chess.", "Lowell Cohn"],
+    ["The biggest thing we get out of it is seeing the kids smile.", "Bobby Orr"],
+    ["Was Wayne Gretzky sick?", "Larry Robinson"],
+    ["My teeth weren't that good to begin with, so hopefully I can get some better ones.", "Duncan Keith"],
+    ["I'm okay. Russian machine never breaks.", "Alexander Ovechkin"],
+    ["Yeah, I'm cocky and I am arrogant. But that doesn't mean I'm not a nice person.", "Jeremy Roenick"],
+    ["I'm glad I won the Norris Trophy now, because I expect it's going to belong to Bobby Orr from now on.", "Harry Howell"],
+    ["The playoffs separate the men from the boys, and we found out we have a lot of boys in our dressing room.", "Neil Smith"],
+    ["I don't want to get into a 'he said, she said' with the refs. I'm the he.", "Chris Pronger"],
+    ["Sometimes people ask, 'Are hockey fights real?' I say, 'If they weren't, I'd get in more of them.'", "Wayne Gretzky"],
+    ["I will personally challenge anyone who wants to get rid of fighting to a fight.", "Brian Burke"],
+    ["You've always been 'The Great One,' but tonight you've become The Greatest.", "Gary Bettman, at Gretzky's last game"],
+    ["We'll win tonight.", "Mark Messier, 1994"],
+    ["The remedy now is two scotches and an aspirin, I think.", "Harry Sinden"],
+    ["Arrive at the net with the puck and in ill humor.", "Fred Shero"],
+    ["I slept like a baby. Every two hours, I woke up and cried.", "Tom McVie"],
+    ["I'm just glad it wasn't Machete Night.", "Bob Froese"],
+    ["The three important elements in hockey are: the forecheck, the backcheck and the paycheck.", "Gilbert Perreault"],
+    ["I was a multi-millionaire from playing hockey. Then I got divorced, and now I am a millionaire.", "Bobby Hull"],
+    ["The only difference between this and Custer's last stand was that Custer didn't have to look at the tape afterward.", "Terry Crisp"],
+    ["We get nose jobs all the time in the NHL, and we don't even have to go to the hospital.", "Brad Park"],
+    ["Biologically, I'm 10. Chronologically, I'm 33. In hockey years, I'm 66.", "Mark Messier"],
+    ["Hockey players wear numbers because you can't always identify the body with dental records.", "Bob Plager"],
+    ["There are rough players and there are dirty players. I'm rough and dirty.", "Stan Mikita"],
+    ["I have 3,000 penalty minutes. I don't need people dictating to me how to do my job.", "Tie Domi"],
+    ["I'm not dumb enough to be a goalie.", "Brett Hull"],
+    ["Only Dunlop has seen more rubber than I have.", "Dominik Hasek"],
+    ["You're too old to still be playing. I'll buy you a rocker you can sit in.", "Stan Mikita"],
+    ["I didn't speak English until I came to Pittsburgh.", "Mario Lemieux"],
+    ["Hockey is murder on ice.", "Jim Murray"],
+    ["It's like somebody got really, really fat and then one day they lose four pounds.", "Jaromir Jagr"],
+    ["Hockey has given me everything, most importantly it brought me to Swift Current, where I met my wife Deb.", "Joe Sakic"],
+    ["Dreams are so important. You need to have big goals and expect a lot of yourself but you have to enjoy the ride too.", "Sidney Crosby"],
+    ["Don't worry what people say or what people think. Be yourself.", "Brett Hull"],
+    ["I'm leaving the game of hockey with nothing but great memories.", "Joe Sakic"],
+    ["Some of us love hockey not just for its ferocity and skill but for its underlying code of civility off the ice.", "George Vecsey"],
+    ["My jersey hanging from the ceiling is going to be a symbol of the hard work of the people I played with.", "Mark Messier"],
+    ["It's not necessarily the amount of time you spend at practice that counts; it's what you put into the practice.", "Eric Lindros"],
+    ["There's no experience like on-the-job training.", "Henrik Lundqvist"],
+    ["Hockey is the only job I know where you get paid to have a nap on the day of the game.", "Chico Resch"],
+    ["You can't get big in hockey if you're just going to dip your toe in the water. You've got to jump into the deep end.", "Brendan Shanahan"],
+    ["I don't like it when I see people not taking chances. If you don't take chances, you'll never make advances.", "Bobby Orr"],
+    ["If it's free, it's advice; if you pay for it, it's counseling; if you can use either one, it's a miracle.", "Jack Adams"],
+    ["Coaches are like ducks. Calm on top, but paddling underneath. Believe me, there's a lot of leg movement.", "Ken Hitchcock"],
+    ["You can have all the talent in the world, but if the pumper's not there, it doesn't matter.", "Glen Sather"],
+    ["You don't have enough talent to win on talent alone.", "Herb Brooks"],
+    ["This is a hump you have to get over, and it usually comes in the first series. You get over the hump and you're on a roll.", "Al Arbour"],
+    ["The toughest job for a coach today is handling the press after a game.", "Toe Blake"],
+    ["If I had the Rangers payroll, I'd never lose a game.", "Glen Sather"],
+    ["The goal is too small and the goalies are too big.", "Scotty Bowman"],
+    ["There is something about Game 7 that there's a memory there for you for sure.", "Mike Babcock"],
+    ["There is nothing so uncertain as a sure thing.", "Scotty Bowman"],
+    ["There is no escalator to success, only steps.", "Glen Sather"],
+    ["Every day you guys look worse and worse. And today, you played like tomorrow.", "John Mariucci"],
+    ["Hockey is a tough game.", "Bobby Orr"],
+    ["Every day is a great day for hockey.", "Mario Lemieux"],
+    ["Canada is hockey.", "Mike Weir"],
+    ["Sometimes you do the hard work and set the table, and somebody else eats the meal.", "Brian Burke"],
+    ["Trust me, I'm a really nice guy.", "Bob Probert"],
+    ["When we've got the puck, they can't score.", "Paul Coffey"],
+    ["Growing up in Canada, I didn't watch football much.", "Sidney Crosby"],
+    ["We are the sort of people that make health insurance popular.", "Terry Sawchuk"],
+    ["If someone gave the Russians a football, they'd win the Super Bowl in two years.", "Frank Mahovlich"],
+    ["Outdoor hockey is what it is all about.", "Paul Coffey"],
+    ["Bravery is not the absence of fear, but the action in the face of fear.", "Mark Messier"],
+    ["Play with passion and heart. If you don't carry passion into sport, or into any job for that matter, you won't succeed.", "Phil Esposito"],
+    ["Risk something or forever sit with your dreams.", "Herb Brooks"],
+    ["Play every game as if it's your last one.", "Guy Lafleur"],
+    ["Talent is a gift, but you can only succeed with hard work.", "Jean Béliveau"],
+    ["Always keep your composure. You can't score from the penalty box; and to win, you have to score.", "Bobby Hull"],
+    ["That's what I want to do, find ways to score.", "Connor McDavid"],
+    ["I get a feeling about where a teammate is going to be. A lot of times, I can turn and pass without even looking.", "Wayne Gretzky"],
+    ["A million comedians starving to death and you're trying to be one.", "Don Cherry"],
+    ["I love them so much I still wear their shorts.", "Don Cherry, on the Bruins"],
+    ["People think common sense is common, but it's not.", "Don Cherry"],
+    ["My three players of the game: No. 1, the Zamboni driver. No. 2, an usher. No. 3, a guy selling popcorn.", "Don Cherry"],
+    ["I'm the only guy in the world who turned down $15,000 because his dog wouldn't fly.", "Don Cherry"],
+    ["Never forget a friend. And never forget an enemy.", "Don Cherry"],
+    ["Them Penguins are done like dinner.", "Dave \"Tiger\" Williams"],
+    ["I don't like hockey. I'm just good at it.", "Brett Hull"],
+    ["Do I catch flak because I'm so much smarter than everyone else? I don't know.", "Brett Hull"],
+    ["I've played my last game in Montreal.", "Patrick Roy, 1995"],
+    ["Being a goaltender is not a job that would interest any normal, straight-thinking human.", "Gump Worsley"],
+    ["Anyone wearing a mask is scared.", "Gump Worsley"],
+    ["The New York Rangers.", "Gump Worsley, asked which team gave him the most trouble"],
+    ["The only difference between the Coyotes and Days of Our Lives is that nobody has been shot on our team yet.", "Jeremy Roenick"],
+    ["They always try to play with our minds. But that won't work with our club. We've got 20 guys without brains.", "Bobby Clarke"],
+    ["It's unbelievable that after more than 30 years in the game, pummeling a guy with his loafer will be my legacy.", "Mike Milbury"],
+    ["I'm not afraid of anything except the bear in the forest.", "Ilya Bryzgalov"],
+    ["Sedin is not English for 'punch me or headlock me in a scrum.'", "Brian Burke"],
+    ["We require, as a team, proper levels of pugnacity, testosterone, truculence and belligerence.", "Brian Burke"],
+    ["Ice hockey is a form of disorderly conduct in which the score is kept.", "Doug Larson"],
+    ["Baseball happens to be a game of cumulative tension but hockey is played with hand grenades and machine guns.", "John Leonard"],
+    ["Hockey is a tough, physical game, and it always should be.", "Mario Lemieux"],
+    ["Hockey is a tough game. With your adrenaline going, you don't feel much.", "Brett Hull"],
+    ["Once you've been in hockey for a while, not much bothers you.", "Terry Sawchuk"],
+    ["Skating is the most important skill in hockey.", "Bobby Orr"],
+    ["The legs feed the wolf.", "Herb Brooks"],
+    ["I'm not looking for the best players. I'm looking for the right ones.", "Herb Brooks"],
+    ["The name on the front of the jersey is more important than the name on the back.", "Herb Brooks"],
+    ["Hello, Canada, and hockey fans in the United States and Newfoundland.", "Foster Hewitt"],
+    ["Oh baby!", "Bob Cole"],
+    ["Savardian spinnerama!", "Danny Gallivan"],
+    ["Scratch my back with a hacksaw!", "Mike Lange"],
+    ["He beat him like a rented mule!", "Mike Lange"],
+    ["May Day! May Day!", "Rick Jeanneret, 1993"],
+    ["Top shelf, where momma hides the cookies!", "Rick Jeanneret"],
+    ["Matteau! Matteau! Matteau!", "Howie Rose, 1994"],
+    ["The waiting is over! The New York Rangers are the Stanley Cup champions!", "Sam Rosen, 1994"],
+    ["Orr is the best young player to come along since I've been here.", "Bobby Hull"],
+    ["Hockey is a unique sport in the sense that you need each and every guy helping each other and pulling in the same direction to be successful.", "Wayne Gretzky"],
+    ["The highest compliment that you can pay me is to say that I work hard every day, that I never dog it.", "Wayne Gretzky"],
+    ["I promised Mess I wouldn't do this.", "Wayne Gretzky, at his last game"],
+    ["They're going home!", "Bob Cole, 1976"],
+    ["The Americans had our flag on their floor in the dressing room and now I want to know if they want us to sign it.", "Hayley Wickenheiser, 2002"],
+    ["Great moments are born from great opportunity.", "Herb Brooks, 1980"],
+    ["Hockey captures the essence of Canadian experience in the New World.", "Stephen Leacock"],
+    ["I can't wait for the crowd, the noise, the energy in the building. I can't wait to take that all away from them.", "P.K. Subban"],
+    ["Philadelphia selects from Gatineau of the Quebec Junior League... oops, I forget... Claude Giroux.", "Bobby Clarke, 2006 draft"],
+    ["I guess that's what I'm saying, Brooksie.", "John Tortorella, 2007"],
+    ["Cannonading drive!", "Danny Gallivan"],
+    ["Eleven seconds, you've got ten seconds, the countdown going on right now!", "Al Michaels, 1980"],
+    ["Solar system is so humongous big.", "Ilya Bryzgalov"],
+    ["They just love to complain about me because I'm an American who gets more press than their Canadian players.", "Jeremy Roenick"],
+    ["You guys are all great. I love you all, but I have to go and take my teammates to dinner while they still like me.", "Sean Avery"]
   ];
 
-  function todayNum() {
-    var s = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date());
-    var p = s.split('-');
-    return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 864e5);
-  }
+  function dayNum(s) { var p = s.split('-'); return Math.floor(Date.UTC(+p[0], +p[1] - 1, +p[2]) / 864e5); }
+  function todayNum() { return dayNum(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(new Date())); }
   function rng(seed) {
     return function () {
       seed = (seed + 0x6D2B79F5) | 0;
@@ -67,10 +214,11 @@
     };
   }
   function pick() {
-    var n = QUOTES.length, d = todayNum(), cycle = Math.floor(d / n), r = rng(cycle * 7919 + 406);
+    var n = QUOTES.length, idx = todayNum() - dayNum(SEASON_START);
+    var cycle = Math.floor(idx / n), pos = idx - cycle * n, r = rng(cycle * 7919 + 406);
     var order = QUOTES.map(function (_, i) { return i; });
     for (var i = n - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)); var t = order[i]; order[i] = order[j]; order[j] = t; }
-    return QUOTES[order[d % n]];
+    return QUOTES[order[pos]];
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function render() {
